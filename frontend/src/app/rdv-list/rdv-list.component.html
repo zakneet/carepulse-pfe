@@ -1,0 +1,57 @@
+<section class="section">
+  <div class="shell">
+    <div class="section-head reveal">
+      <h2>Liste des rendez-vous</h2>
+      <p class="muted">Gerez vos rendez-vous en un clin d'oeil.</p>
+    </div>
+
+    <div *ngIf="errorMessage" class="alert">{{ errorMessage }}</div>
+
+    <div class="data-table">
+      <div class="data-row header reveal" *ngIf="rdvs.length > 0">
+        <span>ID</span>
+        <span>Date</span>
+        <span>Heure</span>
+        <span>Motif</span>
+        <span>Actions</span>
+      </div>
+
+      <div class="data-row reveal" *ngFor="let rdv of rdvs">
+        <span>{{ getRdvId(rdv) }}</span>
+        <span>{{ rdv.dateRDV }}</span>
+        <span>{{ rdv.heureDebut }}</span>
+        <span>{{ rdv.motifConsultation }}</span>
+        <span class="row-actions">
+          <button class="btn-outline" type="button" (click)="editRdv(rdv)">Modifier</button>
+          <button class="btn-danger" type="button" (click)="deleteRdv(getRdvId(rdv))">Supprimer</button>
+        </span>
+      </div>
+
+      <div class="data-row empty" *ngIf="!errorMessage && rdvs.length === 0" data-testid="rdv-empty">
+        Aucun rendez-vous
+      </div>
+    </div>
+
+    <div *ngIf="selectedRdv" class="editor-card">
+      <h3>Modifier le rendez-vous #{{ selectedRdv.id }}</h3>
+      <form (ngSubmit)="updateRdv()" class="form-grid">
+        <label class="field">
+          <span>Date</span>
+          <input class="input" type="date" [(ngModel)]="selectedRdv.dateRDV" name="date" required>
+        </label>
+        <label class="field">
+          <span>Heure</span>
+          <input class="input" type="time" [(ngModel)]="selectedRdv.heureDebut" name="heure" required>
+        </label>
+        <label class="field">
+          <span>Motif</span>
+          <input class="input" type="text" [(ngModel)]="selectedRdv.motifConsultation" name="motif" required>
+        </label>
+        <div class="action-row">
+          <button class="btn-primary" type="submit">Enregistrer</button>
+          <button class="btn-ghost" type="button" (click)="cancelEdit()">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>

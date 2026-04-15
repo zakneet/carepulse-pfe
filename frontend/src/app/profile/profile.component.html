@@ -1,0 +1,43 @@
+<section class="section">
+  <div class="shell">
+    <div class="profile-hero reveal" style="--delay: 0.1s">
+      <div>
+        <span class="pill">Profil patient</span>
+        <h2>Vos informations personnelles</h2>
+        <p class="muted">Mettez a jour vos donnees pour un suivi medical optimal.</p>
+      </div>
+      <button class="btn-primary">Modifier le profil</button>
+    </div>
+
+    <div class="profile-grid">
+      <article class="profile-card reveal" style="--delay: 0.2s">
+        <div class="profile-avatar">{{ (profile.prenom || 'P') | slice:0:1 }}{{ (profile.nom || 'P') | slice:0:1 }}</div>
+        <div>
+          <h3>{{ profile.prenom || 'Patient' }} {{ profile.nom || 'Premium' }}</h3>
+          <p class="muted">Espace patient premium</p>
+        </div>
+      </article>
+
+      <article class="profile-card reveal" style="--delay: 0.3s">
+        <h4>Coordonnees</h4>
+        <div class="profile-info">
+          <span>Email</span>
+          <strong>{{ profile.email || 'email@patient.com' }}</strong>
+        </div>
+        <div class="profile-info">
+          <span>Telephone</span>
+          <strong>{{ profile.telephone || '+216 00 000 000' }}</strong>
+        </div>
+      </article>
+
+      <article class="profile-card reveal" style="--delay: 0.4s">
+        <h4>Preferences</h4>
+        <ul class="profile-list">
+          <li>Notifications rendez-vous actives</li>
+          <li>Acces dossier medical securise</li>
+          <li>Mode premium active</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,97 @@
+.site-nav {
+	position: sticky;
+	top: 0;
+	z-index: 20;
+	backdrop-filter: blur(10px);
+	background: rgba(255, 255, 255, 0.78);
+	border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.nav-inner {
+	width: min(1200px, 92vw);
+	min-height: 56px;
+	margin: 0 auto;
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	padding: 0.45rem 0;
+}
+
+.emergency-layout {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.doctor-group {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.45rem;
+}
+
+.emergency-btn {
+	border: 1px solid #b91c1c;
+	background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+	color: #ffffff;
+	border-radius: 999px;
+	padding: 0.45rem 0.75rem;
+	font-weight: 800;
+	font-size: 0.76rem;
+	line-height: 1.2;
+	cursor: pointer;
+	box-shadow: 0 10px 22px rgba(220, 38, 38, 0.22);
+	transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.patient-btn {
+	white-space: nowrap;
+}
+
+.emergency-btn-alt {
+	border-color: #c2410c;
+	background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+	box-shadow: 0 10px 22px rgba(234, 88, 12, 0.22);
+}
+
+.emergency-btn:hover {
+	background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+	transform: translateY(-1px);
+	box-shadow: 0 12px 26px rgba(220, 38, 38, 0.28);
+}
+
+.emergency-btn-alt:hover {
+	background: linear-gradient(180deg, #ea580c 0%, #c2410c 100%);
+	box-shadow: 0 12px 26px rgba(194, 65, 12, 0.28);
+}
+
+.emergency-btn.active {
+	outline: 3px solid rgba(15, 23, 42, 0.15);
+	outline-offset: 2px;
+}
+
+.emergency-btn:focus-visible {
+	outline: 3px solid rgba(220, 38, 38, 0.25);
+	outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+	.nav-inner {
+		justify-content: stretch;
+	}
+
+	.emergency-layout {
+		width: 100%;
+		justify-content: stretch;
+	}
+
+	.doctor-group {
+		grid-template-columns: 1fr;
+		width: 100%;
+	}
+
+	.emergency-btn {
+		width: 100%;
+	}
+}

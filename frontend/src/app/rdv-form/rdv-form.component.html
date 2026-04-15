@@ -1,0 +1,124 @@
+<section class="section">
+	<div class="shell">
+		<div class="patient-topbar reveal">
+			<a routerLink="/patient/booking" class="patient-chip active">Prise de RDV</a>
+			<a routerLink="/patient" class="patient-chip">Espace Patient</a>
+			<a routerLink="/home" class="patient-chip">Accueil</a>
+		</div>
+
+		<div class="section-head reveal">
+			<h2>Prendre un rendez-vous</h2>
+			<p class="muted">Remplissez le formulaire, obtenez des creneaux proposes et choisissez celui qui vous convient.</p>
+		</div>
+
+		<div *ngIf="errorMessage" class="alert">
+			{{ errorMessage }}
+			<button *ngIf="hasConflictError" class="btn-small" type="button" (click)="retryAfterConflict()">
+				Proposer d'autres creneaux
+			</button>
+		</div>
+		<div *ngIf="successMessage" class="selected-slot">{{ successMessage }}</div>
+
+		<form class="form-grid" (ngSubmit)="submit()">
+			<label class="field">
+				<span>Nom du patient</span>
+				<input class="input" type="text" [(ngModel)]="form.nom" name="nom" placeholder="Nom" required>
+			</label>
+
+			<label class="field">
+				<span>Prénom du patient</span>
+				<input class="input" type="text" [(ngModel)]="form.prenom" name="prenom" placeholder="Prénom" required>
+			</label>
+
+			<label class="field">
+				<span>Age du patient</span>
+				<input class="input" type="number" min="1" max="130" [(ngModel)]="form.agePatient" name="agePatient" required>
+			</label>
+
+			<label class="field">
+				<span>Specialite</span>
+				<select class="input" [(ngModel)]="selectedSpecialite" name="selectedSpecialite" (ngModelChange)="onSpecialiteChange()">
+					<option value="">Toutes les specialites</option>
+					<option *ngFor="let specialite of availableSpecialites" [value]="specialite">
+						{{ specialite }}
+					</option>
+				</select>
+			</label>
+
+			<label class="field">
+				<span>Medecin</span>
+				<select class="input" [(ngModel)]="form.idPersonnel" name="idPersonnel" required>
+					<option [ngValue]="0" disabled>Choisir un medecin</option>
+					<option *ngFor="let staff of filteredMedicalStaff" [ngValue]="staff.id">
+						Dr {{ staff.prenom }} {{ staff.nom }}<span *ngIf="staff.specialite"> - {{ staff.specialite }}</span>
+					</option>
+				</select>
+				<small class="muted" *ngIf="filteredMedicalStaff.length === 0">Aucun medecin trouve pour cette specialite.</small>
+			</label>
+
+			<label class="field">
+				<span>Date proposee</span>
+				<input class="input" type="date" [(ngModel)]="form.dateRDV" name="dateRDV" required>
+			</label>
+
+			<label class="field">
+				<span>Motif</span>
+				<select class="input" [(ngModel)]="form.motifConsultation" name="motifConsultation" required>
+					<option value="consultation">Consultation</option>
+					<option value="controle">Controle</option>
+				</select>
+			</label>
+
+			<div class="action-row">
+				<button class="btn-outline" type="button" (click)="suggestSlots()" [disabled]="isLoadingSlots">
+					{{ isLoadingSlots ? 'Analyse du planning...' : 'Proposer des creneaux' }}
+				</button>
+			</div>
+
+		
+
+			<div class="slots" *ngIf="suggestedSlots.length > 0">
+				<p class="muted">Creneaux disponibles proposes:</p>
+				<div class="slot-table-wrap">
+					<table class="slot-table">
+						<thead>
+							<tr>
+								<th>#</th>
+								<th>Heure debut</th>
+								<th>Heure fin</th>
+								<th>Choix</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr
+								*ngFor="let slot of suggestedSlots; let i = index"
+								(click)="chooseSlot(slot)"
+								[class.selected-row]="selectedSlot?.heureDebut === slot.heureDebut && selectedSlot?.heureFin === slot.heureFin"
+							>
+								<td>{{ i + 1 }}</td>
+								<td>{{ slot.heureDebut.slice(0, 5) }}</td>
+								<td>{{ slot.heureFin.slice(0, 5) }}</td>
+								<td>
+									<button type="button" class="btn-ghost btn-choose" (click)="chooseSlot(slot); $event.stopPropagation()">
+										{{ selectedSlot?.heureDebut === slot.heureDebut && selectedSlot?.heureFin === slot.heureFin ? 'Selectionne' : 'Choisir' }}
+									</button>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<div class="selected-slot" *ngIf="selectedSlot">
+				Creneau choisi: <strong>{{ selectedSlot.heureDebut.slice(0, 5) }} - {{ selectedSlot.heureFin.slice(0, 5) }}</strong>
+			</div>
+
+			<div class="action-row">
+				<button class="btn-primary" type="submit" [disabled]="isSubmitting">
+					{{ isSubmitting ? 'Enregistrement...' : 'Valider' }}
+				</button>
+				<a class="btn-ghost" routerLink="/patient">Retour espace patient</a>
+			</div>
+		</form>
+	</div>
+</section>

@@ -1,0 +1,80 @@
+<section class="staff-page-wrap">
+  <section class="panel top-nav-panel">
+    <div class="section-nav">
+      <a [routerLink]="[baseRoute, 'form']" class="nav-chip active">Formulaire</a>
+      <a [routerLink]="[baseRoute, 'planning']" class="nav-chip">Planning</a>
+      <a [routerLink]="[baseRoute, 'patients']" class="nav-chip">Patients</a>
+    </div>
+  </section>
+
+  <section class="panel search-panel">
+    <div class="panel-title-row compact-title">
+      <div>
+        <h3>Recherche rapide par CIN</h3>
+        <p class="muted">Si le patient existe deja, son profil s'ouvre. Sinon, vous pouvez continuer la saisie.</p>
+      </div>
+      <div class="search-actions">
+        <button type="button" class="refresh-btn" [disabled]="searching" (click)="searchPatientByCin()">
+          {{ searching ? 'Recherche...' : 'Rechercher' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="search-row">
+      <input
+        type="search"
+        class="search-input"
+        name="cinSearch"
+        [(ngModel)]="searchCin"
+        placeholder="Saisir le CIN du patient"
+        autocomplete="off"
+        (keyup.enter)="searchPatientByCin()"
+      >
+    </div>
+
+    <p class="search-feedback muted" *ngIf="searchMessage">{{ searchMessage }}</p>
+  </section>
+
+  <section class="panel patient-form-panel">
+    <div class="panel-title-row">
+      <div>
+        <h3>Formulaire patient</h3>
+        <p class="muted">Saisissez les informations du patient dans cette page dédiée.</p>
+        <p class="emergency-banner" *ngIf="isEmergencyMode">
+          Mode urgence actif: patient present au cabinet. Renseignez le cas d'urgence immediatement.
+        </p>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="refresh-btn" [disabled]="saving" form="medicalPatientForm">
+          {{ saving ? 'Enregistrement...' : 'Valider' }}
+        </button>
+        <button type="button" class="clear-btn" (click)="clearPatientForm()">Effacer</button>
+      </div>
+    </div>
+
+    <p class="muted" *ngIf="saveMessage">{{ saveMessage }}</p>
+    <p class="error" *ngIf="saveError">{{ saveError }}</p>
+
+    <form id="medicalPatientForm" class="patient-form-grid" (ngSubmit)="submitPatientForm()">
+      <label class="field">
+        <span>Nom</span>
+        <input class="form-input" type="text" name="nom" [(ngModel)]="patientForm.nom" placeholder="Nom du patient">
+      </label>
+
+      <label class="field">
+        <span>Prénom</span>
+        <input class="form-input" type="text" name="prenom" [(ngModel)]="patientForm.prenom" placeholder="Prénom du patient">
+      </label>
+
+      <label class="field">
+        <span>CIN</span>
+        <input class="form-input" type="text" name="cin" [(ngModel)]="patientForm.cin" placeholder="Numéro CIN">
+      </label>
+
+      <label class="field">
+        <span>Téléphone</span>
+        <input class="form-input" type="tel" name="telephone" [(ngModel)]="patientForm.telephone" placeholder="Téléphone du patient">
+      </label>
+    </form>
+  </section>
+</section>

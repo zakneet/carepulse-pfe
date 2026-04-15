@@ -1,0 +1,26 @@
+<section class="panel">
+  <h3>Rendez-vous du personnel de sante</h3>
+  <p class="muted" *ngIf="loading">Chargement des rendez-vous...</p>
+  <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Patient</th>
+        <th>Date</th>
+        <th>Heure</th>
+        <th>Statut</th>
+      </tr>
+    </thead>
+    <tbody *ngIf="!loading && !errorMessage">
+      <tr *ngFor="let a of appointments">
+        <td>Patient #{{ a.idPatient || 'N/A' }}</td>
+        <td>{{ a.dateRDV }}</td>
+        <td>{{ (a.heureDebut || '').slice(0, 5) }}</td>
+        <td>{{ a.statut || 'En attente' }}</td>
+      </tr>
+      <tr *ngIf="appointments.length === 0">
+        <td colspan="4" class="muted">Aucun rendez-vous trouve.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

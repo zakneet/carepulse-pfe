@@ -1,0 +1,97 @@
+.patient-topbar {
+	display: flex;
+	gap: 0.6rem;
+	flex-wrap: wrap;
+	margin-bottom: 0.9rem;
+}
+
+.patient-chip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.62rem 0.95rem;
+	border-radius: 999px;
+	background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+	border: 1px solid #93c5fd;
+	color: #1d4ed8;
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.patient-chip:hover,
+.patient-chip.active {
+	background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
+	color: #0f3d8a;
+}
+
+.slots {
+	border: 1px solid var(--card-border);
+	background: rgba(255, 255, 255, 0.75);
+	border-radius: 12px;
+	padding: 12px;
+}
+
+.slot-table-wrap {
+	overflow-x: auto;
+}
+
+.slot-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 8px;
+}
+
+.slot-table th,
+.slot-table td {
+	border-bottom: 1px solid var(--card-border);
+	padding: 10px 8px;
+	text-align: left;
+}
+
+.slot-table tbody tr {
+	cursor: pointer;
+	transition: background 0.2s ease;
+}
+
+.slot-table tbody tr:hover {
+	background: rgba(11, 114, 133, 0.08);
+}
+
+.slot-table tbody tr.selected-row {
+	background: rgba(11, 114, 133, 0.18);
+}
+
+.btn-choose {
+	min-width: 96px;
+}
+
+.btn-small {
+	margin-top: 8px;
+	padding: 6px 12px;
+	font-size: 0.875rem;
+	background: linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%);
+	border: 1px solid #fecaca;
+	color: #991b1b;
+	border-radius: 6px;
+	cursor: pointer;
+	font-weight: 600;
+	transition: all 0.2s ease;
+}
+
+.btn-small:hover {
+	background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%);
+	color: #7f1d1d;
+}
+
+.selected-slot {
+	border-left: 4px solid var(--accent-1);
+	background: rgba(11, 114, 133, 0.08);
+	padding: 10px 12px;
+	border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+	.patient-chip {
+		width: 100%;
+	}
+}

@@ -1,0 +1,137 @@
+<section class="dashboard-wrap">
+  <section class="panel top-nav-panel">
+    <div class="section-nav">
+      <a [routerLink]="[baseRoute, 'form']" class="nav-chip">Formulaire</a>
+      <a [routerLink]="[baseRoute, 'planning']" class="nav-chip active">Planning</a>
+      <a [routerLink]="[baseRoute, 'patients']" class="nav-chip">Patients</a>
+    </div>
+    <div class="search-row">
+      <input
+        type="search"
+        class="search-input"
+        name="planningSearch"
+        [(ngModel)]="searchQuery"
+        placeholder="Rechercher: nom, prénom, CIN, email, motif, statut"
+      >
+    </div>
+  </section>
+
+  <section class="panel" id="planning-panel">
+    <p *ngIf="emergencyNotice" class="emergency-note">{{ emergencyNotice }}</p>
+    <p *ngIf="loading" class="muted">Chargement du planning...</p>
+    <p *ngIf="errorMessage" class="error">{{ errorMessage }}</p>
+
+    <div class="planning-grid-wrap" *ngIf="!loading && !errorMessage">
+      <table class="planning-grid">
+        <thead>
+          <tr>
+            <th class="day-col">Jour</th>
+            <th *ngFor="let slot of timeSlots">{{ slot }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let day of weekPlanningRows">
+            <th class="day-col">{{ day.label }}</th>
+            <td *ngFor="let slot of timeSlots">
+              <ng-container *ngIf="getAppointmentForSlot(day.date, slot) as appointment">
+                <div
+                  class="slot-card"
+                  role="button"
+                  tabindex="0"
+                  (click)="openAppointmentDetails(appointment)"
+                  (keydown.enter)="openAppointmentDetails(appointment)"
+                  [ngClass]="{'delayed': appointment.statut?.includes('Décalé'), 'cancelled': appointment.statut?.includes('Annule')}"
+                >
+                  <div class="time">{{ appointment.heureDebut?.slice(0, 5) }}</div>
+                  <strong>{{ patientLabel(appointment) }}</strong>
+                  <span>{{ appointment.motifConsultation || 'consultation' }}</span>
+                  <span class="status" *ngIf="appointment.statut">{{ appointment.statut }}</span>
+                </div>
+              </ng-container>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="patient-record-modal" *ngIf="selectedAppointment">
+    <div class="patient-record-backdrop" (click)="closePatientRecord()"></div>
+    <section class="patient-record-dialog" role="dialog" aria-modal="true" aria-label="Dossier patient">
+      <header class="patient-record-header">
+        <div>
+          <p class="muted modal-kicker">Profil patient</p>
+          <h3>{{ selectedAppointmentPatientName }}</h3>
+        </div>
+        <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;">
+          <button
+            type="button"
+            class="close-modal-btn"
+            [attr.aria-pressed]="patientInConsultation"
+            [style.background]="patientInConsultation ? '#dcfce7' : '#fee2e2'"
+            [style.color]="patientInConsultation ? '#166534' : '#991b1b'"
+            (click)="toggleConsultationPresence()"
+          >
+            {{ patientInConsultation ? 'ON' : 'OFF' }}
+          </button>
+          <button type="button" class="close-modal-btn" (click)="openPatientFullProfile()">Profil</button>
+          <button type="button" class="close-modal-btn" (click)="closePatientRecord()">Fermer</button>
+        </div>
+      </header>
+
+      <p class="muted">Etat consultation: {{ patientInConsultation ? 'Patient en consultation' : 'Medecin seul' }}</p>
+
+      <p *ngIf="patientRecordLoading" class="muted">Chargement du dossier medical...</p>
+      <p *ngIf="patientRecordError" class="error">{{ patientRecordError }}</p>
+
+      <ng-container *ngIf="!patientRecordLoading && patientRecord && !patientRecordError">
+        <div class="patient-identity-grid">
+          <div class="identity-card">
+            <span>Telephone</span>
+            <strong>{{ patientRecord.patient.telephone || '-' }}</strong>
+          </div>
+          <div class="identity-card">
+            <span>Email</span>
+            <strong>{{ patientRecord.patient.email || '-' }}</strong>
+          </div>
+          <div class="identity-card">
+            <span>Statut</span>
+            <strong>{{ patientRecord.patient.statut_label || 'patient' }}</strong>
+          </div>
+          <div class="identity-card">
+            <span>Rendez-vous precedents</span>
+            <strong>{{ patientRecord.historyCount }}</strong>
+          </div>
+        </div>
+
+        <section class="history-block" *ngIf="patientRecord.lastAppointment as lastAppointment">
+          <h4>Dernier rendez-vous</h4>
+          <p>
+            {{ formatShortDate(lastAppointment.dateRDV) }} a {{ formatShortTime(lastAppointment.heureDebut) }}
+            - {{ lastAppointment.motifConsultation || 'consultation' }}
+            <span *ngIf="lastAppointment.statut">({{ lastAppointment.statut }})</span>
+          </p>
+        </section>
+
+        <section class="history-block">
+          <h4>Historique recent</h4>
+          <div class="history-empty" *ngIf="patientRecord.appointments.length === 0">
+            Aucun rendez-vous precedent pour ce patient avec vous.
+          </div>
+          <div class="history-list" *ngIf="patientRecord.appointments.length > 0">
+            <article class="history-item" *ngFor="let item of patientRecord.appointments | slice:0:6">
+              <div>
+                <strong>{{ formatShortDate(item.dateRDV) }}</strong>
+                <p>{{ formatShortTime(item.heureDebut) }} - {{ formatShortTime(item.heureFin) }}</p>
+              </div>
+              <div>
+                <p>{{ item.motifConsultation || 'consultation' }}</p>
+                <span class="status-pill" *ngIf="item.statut">{{ item.statut }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
+      </ng-container>
+    </section>
+  </div>
+</section>

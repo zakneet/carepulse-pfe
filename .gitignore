@@ -1,0 +1,39 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Backend
+backend/__pycache__/
+backend/*.db
+backend/*.db-journal
+backend/instance/
+
+# Node / Angular
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+backend/.env
+frontend/src/environments/environment.local.ts
+
+# Temporary / exports
+*.log
+*.tmp
+*.msi
+*phpMyAdmin*.html
+*phpMyAdmin*_files/

@@ -1,0 +1,32 @@
+<header class="site-nav">
+	<div class="nav-inner">
+		<div class="emergency-layout">
+			<div class="doctor-group">
+				<button
+					type="button"
+					class="emergency-btn"
+					[class.active]="selectedEmergencyType === 'doctor-left-short'"
+					(click)="activateEmergency('doctor-left-short')"
+				>
+					Urgence Medecin (courte)
+				</button>
+				<button
+					type="button"
+					class="emergency-btn"
+					[class.active]="selectedEmergencyType === 'doctor-left-long'"
+					(click)="activateEmergency('doctor-left-long')"
+				>
+					Urgence Medecin (longue)
+				</button>
+			</div>
+			<button
+				type="button"
+				class="emergency-btn emergency-btn-alt patient-btn"
+				[class.active]="selectedEmergencyType === 'patient-on-site'"
+				(click)="activateEmergency('patient-on-site')"
+			>
+				Urgence Patient present au cabinet
+			</button>
+		</div>
+	</div>
+</header>

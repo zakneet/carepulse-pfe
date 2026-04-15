@@ -1,0 +1,43 @@
+<section class="patient-history shell">
+  <div class="history-header">
+    <h2>Consultations effectuees</h2>
+    <p>Historique des consultations deja realisees avec les medecins visites.</p>
+  </div>
+
+  <div *ngIf="isLoading" class="state-card">
+    Chargement des consultations...
+  </div>
+
+  <div *ngIf="!isLoading && errorMessage" class="state-card error">
+    {{ errorMessage }}
+  </div>
+
+  <div *ngIf="!isLoading && !errorMessage && consultations.length === 0" class="state-card">
+    Aucune consultation effectuee pour le moment.
+  </div>
+
+  <div *ngIf="!isLoading && consultations.length > 0" class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Heure</th>
+          <th>Medecin visite</th>
+          <th>Motif</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let consultation of consultations">
+          <td>{{ consultation.dateLabel }}</td>
+          <td>{{ consultation.heureLabel }}</td>
+          <td>{{ consultation.medecin }}</td>
+          <td>{{ consultation.motif }}</td>
+          <td>
+            <span class="badge">{{ consultation.statut }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

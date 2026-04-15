@@ -1,0 +1,72 @@
+<section class="auth-hero">
+	<div class="shell">
+		<div class="auth-panel wide">
+			<div class="auth-card">
+				<span class="pill">Patient</span>
+				<h2>Creer votre espace patient</h2>
+				<p class="muted">Toutes vos informations restent securisees.</p>
+
+				<form (ngSubmit)="register()" class="form-grid two-cols">
+					<label class="field">
+						<span>Nom</span>
+						<input class="input" type="text" [(ngModel)]="user.nom" name="nom" required>
+					</label>
+
+					<label class="field">
+						<span>Prenom</span>
+						<input class="input" type="text" [(ngModel)]="user.prenom" name="prenom" required>
+					</label>
+
+					<label class="field full">
+						<span>Telephone</span>
+						<input class="input" type="text" [(ngModel)]="user.telephone" name="telephone">
+					</label>
+
+					<label class="field full">
+						<span>Email</span>
+						<input class="input" type="email" [(ngModel)]="user.email" name="email" required>
+					</label>
+
+					<label class="field full">
+						<span>Mot de passe</span>
+						<div class="input-row">
+							<input
+								class="input"
+								[type]="showPassword ? 'text' : 'password'"
+								[(ngModel)]="user.password"
+								name="password"
+								required
+							>
+							<button class="btn-outline" type="button" (click)="togglePassword()">
+								{{ showPassword ? 'Masquer' : 'Afficher' }}
+							</button>
+						</div>
+					</label>
+
+					<label class="field full">
+						<span>Confirmer le mot de passe</span>
+						<div class="input-row">
+							<input
+								class="input"
+								[type]="showConfirmPassword ? 'text' : 'password'"
+								[(ngModel)]="confirmPassword"
+								name="confirmPassword"
+								required
+							>
+							<button class="btn-outline" type="button" (click)="toggleConfirmPassword()">
+								{{ showConfirmPassword ? 'Masquer' : 'Afficher' }}
+							</button>
+						</div>
+					</label>
+
+					<div class="full">
+						<button class="btn-primary" type="submit">Creer compte</button>
+					</div>
+				</form>
+
+				<div class="alert" *ngIf="message">{{ message }}</div>
+				<p class="muted">Deja inscrit ? <a routerLink="/login">Se connecter</a></p>
+			</div>
+		</div>
+	</div>
+</section>

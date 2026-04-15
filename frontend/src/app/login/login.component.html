@@ -1,0 +1,94 @@
+<section class="auth-hero">
+	<div class="shell">
+		<div class="auth-panel">
+			<div class="auth-card">
+				<div class="auth-content" *ngIf="currentStep === 1">
+					<span class="pill">Etape 1</span>
+					<h2>Choisissez votre profil</h2>
+					<p class="muted">Selectionnez Patient ou Personnel de sante pour continuer.</p>
+
+					<div class="tabs-container">
+						<button
+							*ngFor="let option of userTypeOptions"
+							class="tab-btn"
+							(click)="selectUserType(option.value)"
+							type="button"
+						>
+							{{ option.label }}
+						</button>
+					</div>
+				</div>
+
+				<div class="auth-content" *ngIf="currentStep === 2">
+					<span class="pill">Etape 2</span>
+					<h2>{{ selectedUserType === 'patient' ? 'Connexion Patient' : 'Connexion Personnel de sante' }}</h2>
+					<p class="muted">
+						{{ selectedUserType === 'patient' ? 'Saisissez vos identifiants pour acceder a votre espace patient.' : 'Saisissez uniquement votre code d\'acces professionnel.' }}
+					</p>
+
+					<form (ngSubmit)="login()" class="form-grid">
+						<label class="field" *ngIf="!isMedicalStaffUserType()">
+							<span>Email</span>
+							<input
+								class="input"
+								type="email"
+								[(ngModel)]="credentials.email"
+								name="email"
+								required
+								[disabled]="isLoading"
+							>
+						</label>
+
+						<label class="field" *ngIf="!isMedicalStaffUserType()">
+							<span>Mot de passe</span>
+							<div class="input-row">
+								<input
+									class="input"
+									[type]="showPassword ? 'text' : 'password'"
+									[(ngModel)]="credentials.password"
+									name="password"
+									required
+									[disabled]="isLoading"
+								>
+								<button class="btn-outline password-toggle" type="button" (click)="togglePassword()" [disabled]="isLoading" [attr.aria-pressed]="showPassword" aria-label="Afficher ou masquer le mot de passe">
+									<span class="eye-icon" aria-hidden="true">{{ showPassword ? '🙈' : '👁️' }}</span>
+									<span>{{ showPassword ? 'Cacher' : 'Afficher' }}</span>
+								</button>
+							</div>
+						</label>
+
+						<label class="field" *ngIf="isMedicalStaffUserType()">
+							<span>Code d'acces <em>*</em></span>
+							<input
+								class="input"
+								type="password"
+								[(ngModel)]="credentials.accessCode"
+								name="accessCode"
+								placeholder="Code fourni par l'administrateur"
+								required
+								[disabled]="isLoading"
+							>
+							<small class="muted">Code obligatoire pour le personnel de sante</small>
+						</label>
+
+						<button class="btn-primary" type="submit" [disabled]="isLoading">
+							{{ isLoading ? 'Connexion en cours...' : 'Se connecter' }}
+						</button>
+
+						<button class="btn-outline" type="button" (click)="backToStep1()" [disabled]="isLoading">
+							Changer de profil
+						</button>
+					</form>
+
+					<div class="alert" [class.alert-error]="messageType === 'error'" [class.alert-success]="messageType === 'success'" *ngIf="message">
+						{{ message }}
+					</div>
+
+					<p class="muted text-center">
+						Pas encore de compte ? <a routerLink="/register">Créer un compte</a>
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>

@@ -1,0 +1,143 @@
+<section class="panel profile-wrap">
+  <header class="profile-header">
+    <div>
+      <p class="muted">Dossier patient complet</p>
+      <h3>Profil medical</h3>
+    </div>
+    <div class="profile-actions">
+      <button type="button" class="nav-chip" *ngIf="canEdit" (click)="toggleEditMode()">
+        {{ isEditMode ? 'Annuler' : 'Modifier' }}
+      </button>
+      <button type="button" class="nav-chip" *ngIf="canEdit && isEditMode" [disabled]="saving" (click)="saveProfile()">
+        {{ saving ? 'Enregistrement...' : 'Enregistrer' }}
+      </button>
+      <a class="nav-chip" [routerLink]="[baseRoute, 'planning']">Retour a la liste</a>
+    </div>
+  </header>
+
+  <p class="muted" *ngIf="loading">Chargement du profil patient...</p>
+  <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+  <p class="muted" *ngIf="successMessage">{{ successMessage }}</p>
+  <p class="muted" *ngIf="!canEdit">Interface infirmiere: profil patient en lecture seule.</p>
+
+  <ng-container *ngIf="!loading && profileData && !errorMessage">
+    <section class="identity-grid">
+      <article class="identity-card">
+        <span>Nom</span>
+        <ng-container *ngIf="canEdit && isEditMode; else readNom">
+          <input class="inline-input" type="text" name="nomInline" [(ngModel)]="editForm.nom">
+        </ng-container>
+        <ng-template #readNom>
+          <strong>{{ profileData.patient.nom || '-' }}</strong>
+        </ng-template>
+      </article>
+      <article class="identity-card">
+        <span>Prenom</span>
+        <ng-container *ngIf="canEdit && isEditMode; else readPrenom">
+          <input class="inline-input" type="text" name="prenomInline" [(ngModel)]="editForm.prenom">
+        </ng-container>
+        <ng-template #readPrenom>
+          <strong>{{ profileData.patient.prenom || '-' }}</strong>
+        </ng-template>
+      </article>
+      <article class="identity-card">
+        <span>Date de naissance</span>
+        <ng-container *ngIf="canEdit && isEditMode; else readDateNaissance">
+          <input class="inline-input" type="date" name="dateNaissanceInline" [(ngModel)]="editForm.dateNaissance">
+        </ng-container>
+        <ng-template #readDateNaissance>
+          <strong>{{ formatShortDate(profileData.patient.dateNaissance) }}</strong>
+        </ng-template>
+      </article>
+      <article class="identity-card">
+        <span>Age</span>
+        <strong>{{ profileData.patient.age ?? '-' }}</strong>
+      </article>
+      <article class="identity-card">
+        <span>CIN</span>
+        <ng-container *ngIf="canEdit && isEditMode; else readCin">
+          <input class="inline-input" type="text" name="cinInline" [(ngModel)]="editForm.cin">
+        </ng-container>
+        <ng-template #readCin>
+          <strong>{{ profileData.patient.cin || '-' }}</strong>
+        </ng-template>
+      </article>
+      <article class="identity-card">
+        <span>Sexe</span>
+        <ng-container *ngIf="canEdit && isEditMode; else readSexe">
+          <select class="inline-input" name="sexeInline" [(ngModel)]="editForm.sexe">
+            <option value="">Selectionner</option>
+            <option value="Feminin">Feminin</option>
+            <option value="Masculin">Masculin</option>
+          </select>
+        </ng-container>
+        <ng-template #readSexe>
+          <strong>{{ profileData.patient.sexe || '-' }}</strong>
+        </ng-template>
+      </article>
+      <article class="identity-card">
+        <span>Email</span>
+        <ng-container *ngIf="canEdit && isEditMode; else readEmail">
+          <input class="inline-input" type="email" name="emailInline" [(ngModel)]="editForm.email">
+        </ng-container>
+        <ng-template #readEmail>
+          <strong>{{ profileData.patient.email || '-' }}</strong>
+        </ng-template>
+      </article>
+      <article class="identity-card">
+        <span>Telephone</span>
+        <ng-container *ngIf="canEdit && isEditMode; else readTelephone">
+          <input class="inline-input" type="text" name="telephoneInline" [(ngModel)]="editForm.telephone">
+        </ng-container>
+        <ng-template #readTelephone>
+          <strong>{{ profileData.patient.telephone || '-' }}</strong>
+        </ng-template>
+      </article>
+    </section>
+
+    <section class="health-grid">
+      <article class="health-card">
+        <h4>Allergies</h4>
+        <ng-container *ngIf="canEdit && isEditMode; else readAllergies">
+          <input class="inline-input" type="text" name="allergiesInline" [(ngModel)]="editForm.allergies" placeholder="Ex: Penicilline, Arachide">
+        </ng-container>
+        <ng-template #readAllergies>
+          <p class="muted" *ngIf="!profileData.patient.allergies || profileData.patient.allergies.length === 0">Aucune information enregistree.</p>
+          <ul *ngIf="profileData.patient.allergies && profileData.patient.allergies.length > 0">
+            <li *ngFor="let allergy of profileData.patient.allergies">{{ allergy }}</li>
+          </ul>
+        </ng-template>
+      </article>
+      <article class="health-card">
+        <h4>Maladies</h4>
+        <ng-container *ngIf="canEdit && isEditMode; else readMaladies">
+          <input class="inline-input" type="text" name="maladiesInline" [(ngModel)]="editForm.maladies" placeholder="Ex: Diabete, Asthme">
+        </ng-container>
+        <ng-template #readMaladies>
+          <p class="muted" *ngIf="!profileData.patient.maladies || profileData.patient.maladies.length === 0">Aucune information enregistree.</p>
+          <ul *ngIf="profileData.patient.maladies && profileData.patient.maladies.length > 0">
+            <li *ngFor="let disease of profileData.patient.maladies">{{ disease }}</li>
+          </ul>
+        </ng-template>
+      </article>
+    </section>
+
+    <section class="history-block">
+      <h4>Historique recent des rendez-vous</h4>
+      <p class="muted" *ngIf="profileData.appointments.length === 0">Aucun rendez-vous precedent avec ce patient.</p>
+      <div class="history-list" *ngIf="profileData.appointments.length > 0">
+        <article class="history-item" *ngFor="let item of profileData.appointments | slice:0:10">
+          <div>
+            <strong>{{ formatShortDate(item.dateRDV) }}</strong>
+            <p>{{ formatShortTime(item.heureDebut) }} - {{ formatShortTime(item.heureFin) }}</p>
+          </div>
+          <div>
+            <p>{{ item.motifConsultation || 'consultation' }}</p>
+            <span class="status-pill" *ngIf="item.statut">{{ item.statut }}</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+  </ng-container>
+</section>

@@ -1,0 +1,59 @@
+<section class="section">
+  <div class="dashboard-hero reveal">
+    <div>
+      <span class="pill">{{ statusLabel }}</span>
+      <h2>Bonjour {{ displayName }}, bienvenue.</h2>
+      <p *ngIf="displayEmail">{{ displayEmail }}</p>
+      <p *ngIf="!displayEmail">Connectez-vous pour acceder a votre espace.</p>
+    </div>
+    <div class="dash-cta">
+      <a class="btn-primary" routerLink="/patient/rdv/new">Nouveau rendez-vous</a>
+      <a class="btn-ghost" routerLink="/patient/rdvs">Voir la liste</a>
+    </div>
+  </div>
+
+  <div class="dashboard-grid">
+    <article class="tile reveal" style="--delay: 0.3s">
+      <h3>Indicateurs de sante</h3>
+      <div class="progress-block">
+        <div>
+          <span>Hydratation</span>
+          <strong>72%</strong>
+        </div>
+        <div class="progress-bar"><span style="width: 72%"></span></div>
+      </div>
+      <div class="progress-block">
+        <div>
+          <span>Sommeil</span>
+          <strong>6h40</strong>
+        </div>
+        <div class="progress-bar"><span style="width: 64%"></span></div>
+      </div>
+      <div class="progress-block">
+        <div>
+          <span>Activite</span>
+          <strong>4/7 jours</strong>
+        </div>
+        <div class="progress-bar"><span style="width: 57%"></span></div>
+      </div>
+    </article>
+
+    <article class="tile reveal" style="--delay: 0.4s">
+      <h3>Profil patient</h3>
+      <div class="profile-card">
+        <div class="avatar" *ngIf="!profile?.photoUrl">{{ initials }}</div>
+        <img
+          *ngIf="profile?.photoUrl"
+          class="avatar-img"
+          [src]="profile?.photoUrl"
+          alt="Photo de profil">
+        <div>
+          <strong>{{ displayName }}</strong>
+          <p>{{ statusLabel }}</p>
+        </div>
+      </div>
+      <p class="tile-sub">Consultez ou mettez a jour vos informations.</p>
+      <button class="btn-ghost" type="button" routerLink="/patient/profile">Mettre a jour</button>
+    </article>
+  </div>
+</section>
