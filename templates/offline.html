@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hors connexion — OptiClinic</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pwa.css') }}">
+    <meta name="theme-color" content="#0d6efd">
+  </head>
+  <body class="pwa-offline">
+    <main class="offline-card" role="main">
+      <h1>Vous êtes hors ligne</h1>
+      <p>OptiClinic n'est pas connecté à Internet. Certaines fonctionnalités (météo, notifications, recherche en temps réel) nécessitent une connexion réseau.</p>
+      <div class="offline-actions">
+        <button class="btn" onclick="window.location.href='/'">Retour à l'accueil</button>
+        <button class="btn-outline" id="retryBtn">Réessayer</button>
+      </div>
+      <p class="pwa-install-hint">Astuce : installez l'application pour un accès plus rapide et un meilleur support hors-ligne.</p>
+    </main>
+
+    <script>
+      document.getElementById('retryBtn').addEventListener('click', function(){
+        location.reload();
+      });
+    </script>
+  </body>
+</html>

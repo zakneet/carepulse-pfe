@@ -4,7 +4,9 @@
 
 export const environment = {
   production: false,
-  apiUrl: 'http://127.0.0.1:5000'
+  apiUrl: 'http://127.0.0.1:5000',
+  // Démon météo local (dev). Changez si vous intégrez dans le backend principal.
+  weatherUrl: 'http://127.0.0.1:5000'
 };
 
 /*

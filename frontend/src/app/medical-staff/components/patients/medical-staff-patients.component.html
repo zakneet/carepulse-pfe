@@ -8,14 +8,27 @@
   <div class="list-header">
     <div>
       <h3>Patients suivis</h3>
-      <p class="muted" *ngIf="!loading && !errorMessage">{{ patients.length }} patient(s)</p>
+      <p class="muted" *ngIf="!loading && !errorMessage">
+        {{ filteredPatients.length }} patient(s) affiché(s) sur {{ patients.length }}
+      </p>
     </div>
+  </div>
+
+  <div class="search-bar" *ngIf="!loading && !errorMessage && patients.length > 0">
+    <input
+      type="text"
+      class="search-input"
+      [value]="searchTerm"
+      (input)="onSearchTermChange($event)"
+      placeholder="Rechercher par nom, email, téléphone ou ID"
+      aria-label="Rechercher dans la liste des patients"
+    />
   </div>
 
   <p class="muted" *ngIf="loading">Chargement des patients...</p>
   <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
-  <div class="patients-table" *ngIf="!loading && !errorMessage && patients.length > 0">
+  <div class="patients-table" *ngIf="!loading && !errorMessage && filteredPatients.length > 0">
     <div class="table-head row">
       <span>Patient</span>
       <span>Contact</span>
@@ -23,7 +36,7 @@
       <span>Action</span>
     </div>
 
-    <article class="row patient-row" *ngFor="let p of patients">
+    <article class="row patient-row" *ngFor="let p of filteredPatients">
       <div class="cell patient-name">
         <h4>{{ p.prenom }} {{ p.nom }}</h4>
         <p class="muted">ID: {{ p.id }}</p>
@@ -45,4 +58,7 @@
   </div>
 
   <p class="muted empty-state" *ngIf="!loading && !errorMessage && patients.length === 0">Aucun patient trouve.</p>
+  <p class="muted empty-state" *ngIf="!loading && !errorMessage && patients.length > 0 && filteredPatients.length === 0">
+    Aucun patient ne correspond a votre recherche.
+  </p>
 </section>

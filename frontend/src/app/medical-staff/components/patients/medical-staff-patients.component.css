@@ -20,6 +20,32 @@
   margin-bottom: 0.8rem;
 }
 
+.search-bar {
+  margin-bottom: 1rem;
+}
+
+.search-input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.8rem 0.95rem;
+  background: #f8fbff;
+  color: #0f172a;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.search-input::placeholder {
+  color: #94a3b8;
+}
+
+.search-input:focus {
+  border-color: #38bdf8;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+}
+
 .list-header h3 {
   margin: 0;
 }

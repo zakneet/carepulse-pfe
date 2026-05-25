@@ -47,8 +47,17 @@
 						<span>Confirmer le mot de passe</span>
 						<div class="input-row">
 							<input
+								*ngIf="!showConfirmPassword"
 								class="input"
-								[type]="showConfirmPassword ? 'text' : 'password'"
+								type="password"
+								[(ngModel)]="confirmPassword"
+								name="confirmPassword"
+								required
+							>
+							<input
+								*ngIf="showConfirmPassword"
+								class="input"
+								type="text"
 								[(ngModel)]="confirmPassword"
 								name="confirmPassword"
 								required
@@ -65,7 +74,8 @@
 				</form>
 
 				<div class="alert" *ngIf="message">{{ message }}</div>
-				<p class="muted">Deja inscrit ? <a routerLink="/login">Se connecter</a></p>
+				<p class="muted" *ngIf="returnUrl">Une fois le compte cree, vous reviendrez a la prise de RDV.</p>
+				<p class="muted">La connexion est désactivée sur cette version.</p>
 			</div>
 		</div>
 	</div>

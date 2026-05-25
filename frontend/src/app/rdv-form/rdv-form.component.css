@@ -10,23 +10,23 @@
 	align-items: center;
 	justify-content: center;
 	padding: 0.62rem 0.95rem;
-	border-radius: 999px;
-	background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
-	border: 1px solid #93c5fd;
+	border-radius: 10px;
+	background: #f8fbff;
+	border: 1px solid #dbeafe;
 	color: #1d4ed8;
-	font-weight: 700;
+	font-weight: 600;
 	text-decoration: none;
 }
 
 .patient-chip:hover,
 .patient-chip.active {
-	background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-	color: #0f3d8a;
+	background: #eff6ff;
+	color: #1e40af;
 }
 
 .slots {
 	border: 1px solid var(--card-border);
-	background: rgba(255, 255, 255, 0.75);
+	background: #ffffff;
 	border-radius: 12px;
 	padding: 12px;
 }
@@ -54,11 +54,11 @@
 }
 
 .slot-table tbody tr:hover {
-	background: rgba(11, 114, 133, 0.08);
+	background: rgba(42, 127, 255, 0.08);
 }
 
 .slot-table tbody tr.selected-row {
-	background: rgba(11, 114, 133, 0.18);
+	background: rgba(42, 127, 255, 0.14);
 }
 
 .btn-choose {
@@ -69,9 +69,9 @@
 	margin-top: 8px;
 	padding: 6px 12px;
 	font-size: 0.875rem;
-	background: linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%);
-	border: 1px solid #fecaca;
-	color: #991b1b;
+	background: #eff6ff;
+	border: 1px solid #bfd7ff;
+	color: #1d4ed8;
 	border-radius: 6px;
 	cursor: pointer;
 	font-weight: 600;
@@ -79,19 +79,45 @@
 }
 
 .btn-small:hover {
-	background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%);
-	color: #7f1d1d;
+	background: #dbeafe;
+	color: #1e40af;
 }
 
 .selected-slot {
 	border-left: 4px solid var(--accent-1);
-	background: rgba(11, 114, 133, 0.08);
+	background: rgba(42, 127, 255, 0.08);
 	padding: 10px 12px;
 	border-radius: 8px;
+}
+
+.auth-choice {
+	border: 1px solid #cbd5e1;
+	background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+	border-radius: 14px;
+	padding: 14px 16px;
+	margin-bottom: 14px;
+	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.auth-choice-title {
+	margin: 0 0 4px;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.auth-choice-actions {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-top: 12px;
 }
 
 @media (max-width: 768px) {
 	.patient-chip {
 		width: 100%;
+	}
+
+	.auth-choice-actions {
+		flex-direction: column;
 	}
 }

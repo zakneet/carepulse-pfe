@@ -1,43 +1,242 @@
-<section class="patient-history shell">
-  <div class="history-header">
-    <h2>Consultations effectuees</h2>
-    <p>Historique des consultations deja realisees avec les medecins visites.</p>
-  </div>
+<section class="section patient-medical-shell bg-black text-on-dark">
+  <div class="shell patient-dashboard">
+    <header class="hero-card">
+      <div>
+        <p class="eyebrow">OptiClinic · Espace patient</p>
+        <h1>Rendez-vous confirmés</h1>
+        <p class="subtitle">Chaque rendez-vous affiche une notice météo en français. L’affichage reste disponible même si la météo échoue.</p>
+      </div>
+      <div class="hero-actions">
+        <button type="button" class="home-btn" (click)="goHome()">Accueil</button>
+        <button type="button" class="logout-btn ghost" (click)="logout()">Se deconnecter</button>
+      </div>
+    </header>
 
-  <div *ngIf="isLoading" class="state-card">
-    Chargement des consultations...
-  </div>
+    <p class="muted status-line" *ngIf="isLoading">Chargement de votre profil...</p>
+    <p class="error status-line" *ngIf="errorMessage">{{ errorMessage }}</p>
+    <div class="status-line" *ngIf="errorMessage && !isAuthenticated">
+      <button type="button" class="home-btn" (click)="goToLogin()">Se connecter</button>
+    </div>
 
-  <div *ngIf="!isLoading && errorMessage" class="state-card error">
-    {{ errorMessage }}
-  </div>
+    <ng-container *ngIf="!isLoading && profile && !errorMessage">
+      <section class="travel-address-card">
+        <div class="section-head compact">
+          <div>
+            <h2>Adresse de départ</h2>
+            <p>Enregistrez votre adresse pour calculer l’heure idéale de départ vers la clinique.</p>
+          </div>
+          <button type="button" class="toggle-btn" (click)="requestTravelNotificationsPermission()">
+            {{ travelNotificationsEnabled ? 'Alertes activées' : 'Activer alertes' }}
+          </button>
+        </div>
 
-  <div *ngIf="!isLoading && !errorMessage && consultations.length === 0" class="state-card">
-    Aucune consultation effectuee pour le moment.
-  </div>
+        <div class="travel-address-row">
+          <input
+            type="text"
+            class="travel-address-input"
+            [(ngModel)]="patientAddress"
+            name="patientAddress"
+            placeholder="Ex: 12 avenue Habib Bourguiba, Tunis"
+            autocomplete="off"
+          >
+          <button type="button" class="home-btn" (click)="savePatientAddress()" [disabled]="addressSaving || !patientAddress.trim()">
+            {{ addressSaving ? 'Enregistrement...' : 'Enregistrer' }}
+          </button>
+        </div>
 
-  <div *ngIf="!isLoading && consultations.length > 0" class="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Heure</th>
-          <th>Medecin visite</th>
-          <th>Motif</th>
-          <th>Statut</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let consultation of consultations">
-          <td>{{ consultation.dateLabel }}</td>
-          <td>{{ consultation.heureLabel }}</td>
-          <td>{{ consultation.medecin }}</td>
-          <td>{{ consultation.motif }}</td>
-          <td>
-            <span class="badge">{{ consultation.statut }}</span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+        <p class="muted travel-address-message" *ngIf="addressMessage">{{ addressMessage }}</p>
+      </section>
+
+      <section class="appointments-card">
+        <div class="section-head">
+          <div>
+            <h2>Vos rendez-vous</h2>
+            <p>Interface sombre, cartes arrondies et météo intégrée à droite.</p>
+          </div>
+          <button type="button" class="toggle-btn" (click)="toggleRdvList()">
+            {{ isRdvListExpanded ? 'Réduire' : 'Afficher' }}
+          </button>
+        </div>
+
+        <div class="appointments-list" [class.expanded]="isRdvListExpanded">
+          <p class="muted empty-note" *ngIf="profile.appointments.length === 0">Aucun rendez-vous précédent.</p>
+
+          <article class="appointment-card" *ngFor="let item of profile.appointments; let i = index">
+            <div class="card-left">
+              <div class="card-title">{{ getPatientFullName() }} avec {{ item.motifConsultation || 'Consultation' }}</div>
+              <div class="doctor-line">Dr {{ item.medecinNom || item.medecin || (item.medecinPrenom ? (item.medecinPrenom + ' ' + item.medecinNom) : '') }}</div>
+              <div class="specialty-line">{{ item.specialite || 'Généraliste' }}</div>
+              <div class="card-meta">
+                <span>Date: {{ formatShortDate(item.dateRDV) }}</span>
+                <span>Heure: {{ formatShortTime(item.heureDebut) }} - {{ formatShortTime(item.heureFin) }}</span>
+                <span>Lieu: {{ item.location || 'Cabinet' }}</span>
+                <span class="badge-today" *ngIf="isToday(item.dateRDV)">Aujourd'hui</span>
+              </div>
+              <div class="card-actions">
+                <span [class]="'status-pill ' + getStatutBadgeClass(item.statut)">{{ item.statut }}</span>
+                <button type="button" class="btn-track-cabinet" (click)="startCabinetTracking(item)" *ngIf="canTrackCabinet(item.statut)">
+                  Suivre le cabinet
+                </button>
+              </div>
+            </div>
+
+            <div class="card-right">
+              <div class="travel-block" *ngIf="getTravelNotice(item) as travelState">
+                <div class="travel-block-head">
+                  <span [class]="getTrafficBadgeClass(travelState.notice?.traffic_level)">{{ travelState.notice?.traffic_level === 'dense' ? 'Trafic dense' : travelState.notice?.traffic_level === 'moyen' ? 'Trafic moyen' : travelState.notice?.traffic_level === 'fluide' ? 'Trafic fluide' : 'Trafic indisponible' }}</span>
+                  <span class="travel-time" *ngIf="travelState.notice?.departure_time">Départ recommandé {{ travelState.notice?.departure_time }}</span>
+                </div>
+
+                <div class="travel-row" *ngIf="travelState.notice?.status === 'ok'; else travelErrorTpl">
+                  <div class="travel-icon">🚗</div>
+                  <div class="travel-rec">{{ travelState.notice?.recommendation }}</div>
+                </div>
+
+                <ng-template #travelErrorTpl>
+                  <div class="travel-na">{{ travelState.error || travelState.notice?.message || 'Notice de trajet indisponible' }}</div>
+                </ng-template>
+
+                <div class="travel-stats" *ngIf="travelState.notice?.status === 'ok'">
+                  Normal: {{ travelState.notice?.duration_normal }} min ·
+                  Actuel: {{ travelState.notice?.duration_current }} min ·
+                  Départ idéal: {{ travelState.notice?.departure_time || '-' }}
+                </div>
+
+                <div class="travel-weather-warning" *ngIf="travelState.notice?.weather_is_bad && travelState.notice?.traffic_level === 'dense'">
+                  ⚠️ Mauvais temps et circulation dense : prévoyez un départ anticipé.
+                </div>
+              </div>
+
+              <div class="weather-block" [class.loading]="weatherMap[getAppointmentKey(item,i)]?.loading">
+                <div class="weather-title">Notice météo</div>
+                <ng-container *ngIf="weatherMap[getAppointmentKey(item,i)]?.loading; else weatherReady">
+                  <div class="weather-na">Chargement...</div>
+                </ng-container>
+                <ng-template #weatherReady>
+                  <ng-container *ngIf="weatherMap[getAppointmentKey(item,i)]?.recommendation !== null; else weatherUnavailable">
+                    <div class="weather-row">
+                      <div class="weather-icon">
+                        <span *ngIf="weatherMap[getAppointmentKey(item,i)]?.recommendation?.includes('défavorable')">⚠️</span>
+                        <span *ngIf="!weatherMap[getAppointmentKey(item,i)]?.recommendation?.includes('défavorable')">☀️</span>
+                      </div>
+                      <div class="weather-rec">{{ weatherMap[getAppointmentKey(item,i)]?.recommendation }}</div>
+                    </div>
+                    <div class="weather-stats" *ngIf="weatherMap[getAppointmentKey(item,i)]?.temperature !== undefined">
+                      Température: {{ weatherMap[getAppointmentKey(item,i)]?.temperature }} °C · Vent: {{ weatherMap[getAppointmentKey(item,i)]?.windspeed }} km/h
+                    </div>
+                  </ng-container>
+                  <ng-template #weatherUnavailable>
+                    <div class="weather-na">Météo indisponible</div>
+                  </ng-template>
+                </ng-template>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="medical-file-card">
+        <div class="section-head compact">
+          <div>
+            <h2>Dossier médical</h2>
+            <p>Lecture seule · Vos informations médicales.</p>
+          </div>
+        </div>
+
+        <div class="medical-grid">
+          <div class="medical-item">
+            <span>Nom</span>
+            <strong>{{ getPatientFullName() }}</strong>
+          </div>
+          <div class="medical-item">
+            <span>Age</span>
+            <strong>{{ profile.patient.age }} ans</strong>
+          </div>
+          <div class="medical-item">
+            <span>Sexe</span>
+            <strong>{{ profile.patient.sexe || '-' }}</strong>
+          </div>
+          <div class="medical-item wide" *ngIf="profile.maladies && profile.maladies.length > 0">
+            <span>Maladies</span>
+            <div class="tag-list">
+              <span class="tag" *ngFor="let maladie of profile.maladies">{{ maladie }}</span>
+            </div>
+          </div>
+          <div class="medical-item wide" *ngIf="profile.allergies && profile.allergies.length > 0">
+            <span>Allergies</span>
+            <div class="tag-list">
+              <span class="tag" *ngFor="let allergy of profile.allergies">{{ allergy }}</span>
+            </div>
+          </div>
+          <div class="medical-item wide" *ngIf="profile.historiqueMedical">
+            <span>Traitements / Historique médical</span>
+            <strong class="history-text">{{ profile.historiqueMedical }}</strong>
+          </div>
+        </div>
+
+        <p class="muted empty-note" *ngIf="!profile.historiqueMedical && (!profile.maladies || profile.maladies.length === 0) && (!profile.allergies || profile.allergies.length === 0)">
+          Aucune information médicale enregistrée.
+        </p>
+      </section>
+    </ng-container>
+
+    <!-- Cabinet Tracking Modal -->
+    <div class="modal-overlay" *ngIf="isTrackingModalOpen" (click)="closeCabinetTracking()">
+      <div class="modal-content cabinet-tracking" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h2>Suivi du Cabinet</h2>
+          <button type="button" class="modal-close" (click)="closeCabinetTracking()">×</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="rdv-info" *ngIf="selectedRdvForTracking">
+            <h3>Votre rendez-vous</h3>
+            <p><strong>Date:</strong> {{ formatShortDate(selectedRdvForTracking.dateRDV) }}</p>
+            <p><strong>Heure:</strong> {{ formatShortTime(selectedRdvForTracking.heureDebut) }}</p>
+            <p><strong>Motif:</strong> {{ selectedRdvForTracking.motifConsultation || 'Consultation' }}</p>
+          </div>
+
+          <div class="cabinet-status" *ngIf="cabinetStatus; else loadingStatus">
+            <div [class]="'status-card ' + (cabinetStatus.isOpen ? 'open' : 'closed')">
+              <h3>État du Cabinet</h3>
+              <p class="status-indicator">
+                <span [class]="'dot ' + (cabinetStatus.isOpen ? 'active' : 'inactive')"></span>
+                {{ cabinetStatus.isOpen ? 'Ouvert' : 'Fermé' }}
+              </p>
+            </div>
+
+            <div class="cabinet-info">
+              <div class="info-item">
+                <span class="label">Médecin disponible</span>
+                <span class="value">{{ cabinetStatus.doctorAvailable ? 'Oui' : 'Non' }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">Patients en attente</span>
+                <span class="value">{{ cabinetStatus.totalPatients }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">Temps d'attente estimé</span>
+                <span class="value">{{ cabinetStatus.waitTime }} min</span>
+              </div>
+            </div>
+
+            <div class="cabinet-message" *ngIf="cabinetStatus.message">
+              <p>{{ cabinetStatus.message }}</p>
+            </div>
+          </div>
+
+          <ng-template #loadingStatus>
+            <div class="loading-status">
+              <p>Connexion au suivi du cabinet en temps réel...</p>
+              <div class="spinner"></div>
+            </div>
+          </ng-template>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" (click)="closeCabinetTracking()">Fermer</button>
+        </div>
+      </div>
+    </div>
   </div>
 </section>

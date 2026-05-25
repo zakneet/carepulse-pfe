@@ -2,31 +2,58 @@
 import argparse
 from datetime import datetime, timedelta
 
-from app import app, db, Rdv, User
-
-
-def resolve_user_role_column():
-    if hasattr(User, "statut"):
-        return "statut"
-    if hasattr(User, "role"):
-        return "role"
-    return None
+from app import app, db, Rdv
 
 
 def find_doctor_and_patient():
-    role_column = resolve_user_role_column()
+    with db.engine.connect() as conn:
+        doctor = conn.exec_driver_sql(
+            """
+            SELECT id_personnel AS id, nom, prenom
+            FROM personnel_de_sante
+            WHERE type_personnel IN ('medecin', 'secretaire')
+            ORDER BY id_personnel ASC
+            LIMIT 1
+            """
+        ).mappings().first()
 
-    if role_column == "statut":
-        doctor = User.query.filter(User.statut == 2).order_by(User.id.asc()).first()
-        patient = User.query.filter(User.statut == 1).order_by(User.id.asc()).first()
-        return doctor, patient
+        patient = conn.exec_driver_sql(
+            """
+            SELECT id_patient AS id, nom, prenom
+            FROM patient
+            ORDER BY id_patient ASC
+            LIMIT 1
+            """
+        ).mappings().first()
 
-    if role_column == "role":
-        doctor = User.query.filter(User.role == "medical_staff").order_by(User.id.asc()).first()
-        patient = User.query.filter(User.role == "patient").order_by(User.id.asc()).first()
-        return doctor, patient
+    return doctor, patient
 
-    return None, None
+
+def find_doctor_and_patient_by_id(personnel_id=None):
+    with db.engine.connect() as conn:
+        if personnel_id:
+            doctor = conn.exec_driver_sql(
+                """
+                SELECT id_personnel AS id, nom, prenom
+                FROM personnel_de_sante
+                WHERE id_personnel = %s
+                LIMIT 1
+                """,
+                (personnel_id,)
+            ).mappings().first()
+        else:
+            doctor = None
+
+        patient = conn.exec_driver_sql(
+            """
+            SELECT id_patient AS id, nom, prenom
+            FROM patient
+            ORDER BY id_patient ASC
+            LIMIT 1
+            """
+        ).mappings().first()
+
+    return doctor, patient
 
 
 def parse_args():
@@ -34,8 +61,35 @@ def parse_args():
     parser.add_argument(
         "--date",
         dest="date_value",
-        default=datetime.now().strftime("%Y-%m-%d"),
+        default=(datetime.now()).strftime("%Y-%m-%d"),
         help="Target date in YYYY-MM-DD format. Defaults to today.",
+    )
+    parser.add_argument(
+        "--count",
+        dest="count",
+        type=int,
+        default=4,
+        help="Number of test appointments to create (default: 4)",
+    )
+    parser.add_argument(
+        "--duration",
+        dest="duration",
+        type=int,
+        default=30,
+        help="Duration of each test appointment in minutes (default: 30)",
+    )
+    parser.add_argument(
+        "--start",
+        dest="start_time",
+        default=None,
+        help="Optional start time for the first slot (HH:MM). If omitted, a context-aware default is used.",
+    )
+    parser.add_argument(
+        "--idPersonnel",
+        dest="id_personnel",
+        type=int,
+        default=None,
+        help="Optional personnel id to create test RDVs for (default: first doctor found)",
     )
     return parser.parse_args()
 
@@ -54,7 +108,17 @@ with app.app_context():
     args = parse_args()
     test_date = datetime.strptime(args.date_value, "%Y-%m-%d").date()
 
-    doctor, patient = find_doctor_and_patient()
+    # Allow specifying personnel id via CLI
+    doctor, patient = (None, None)
+    if args.id_personnel:
+        doctor, patient = find_doctor_and_patient_by_id(args.id_personnel)
+        if not doctor:
+            print(f"ERROR: personnel with id {args.id_personnel} not found")
+            raise SystemExit(1)
+
+    if not doctor or not patient:
+        # fallback to default discovery
+        doctor, patient = find_doctor_and_patient()
     if not doctor or not patient:
         print("ERROR: doctor or patient not found")
         raise SystemExit(1)
@@ -73,25 +137,36 @@ with app.app_context():
         db.session.delete(rdv)
     db.session.commit()
 
-    # Four consecutive appointments make it easy to verify that only one RDV changes.
+    # Generate consecutive appointments
     now = datetime.now()
     current_minutes = now.hour * 60 + now.minute
+    slot_count = args.count
+    slot_duration = args.duration
+
     # Dashboard grid shows slots from 08:00 to 18:00.
-    # Keep 4 x 30-minute appointments fully inside this range.
-    base_minutes = max(8 * 60, ((current_minutes - 30) // 30) * 30)
+    # If user provided a start time, use it; otherwise pick a context-aware default.
+    if args.start_time:
+        try:
+            sh, sm = map(int, args.start_time.split(":"))
+            base_minutes = sh * 60 + sm
+        except Exception:
+            base_minutes = max(8 * 60, ((current_minutes - 30) // 30) * 30)
+    else:
+        base_minutes = max(8 * 60, ((current_minutes - 30) // 30) * 30)
+
     base_minutes = min(base_minutes, 16 * 60)
 
     times = []
-    for index in range(4):
-        start_minutes = base_minutes + (index * 30)
-        end_minutes = start_minutes + 30
+    for index in range(slot_count):
+        start_minutes = base_minutes + (index * slot_duration)
+        end_minutes = start_minutes + slot_duration
         times.append((minutes_to_time(start_minutes), minutes_to_time(end_minutes), f"TEST - Consultation {index + 1}"))
 
     created_ids = []
     for start_time, end_time, motif in times:
         rdv = Rdv(
-            idPatient=patient.id,
-            idPersonnel=doctor.id,
+            idPatient=int(patient["id"]),
+            idPersonnel=int(doctor["id"]),
             dateRDV=test_date,
             heureDebut=start_time,
             heureFin=end_time,
@@ -105,7 +180,7 @@ with app.app_context():
     db.session.commit()
 
     print("OK: RDV de test créés")
-    print(f"Doctor ID: {doctor.id}, Patient ID: {patient.id}")
+    print(f"Doctor ID: {doctor['id']}, Patient ID: {patient['id']}")
     print(f"Date: {test_date.isoformat()}")
     print("\nRDV créés:")
     for index, (start, end, motif) in enumerate(times):

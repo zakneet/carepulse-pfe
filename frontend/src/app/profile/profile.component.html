@@ -9,6 +9,43 @@
       <button class="btn-primary">Modifier le profil</button>
     </div>
 
+    <p *ngIf="loading" class="state-card">Chargement du dossier medical...</p>
+    <p *ngIf="!loading && errorMessage" class="state-card error">{{ errorMessage }}</p>
+
+    <article class="medical-card reveal" style="--delay: 0.15s" *ngIf="!loading && !errorMessage">
+      <h3>Dossier medical</h3>
+      <div class="medical-grid" *ngIf="dossierMedical; else emptyDossier">
+        <div class="medical-item">
+          <span>Sexe</span>
+          <strong>{{ dossierMedical?.sexe || '-' }}</strong>
+        </div>
+        <div class="medical-item">
+          <span>Date de naissance</span>
+          <strong>{{ dossierMedical?.dateNaissance || '-' }}</strong>
+        </div>
+        <div class="medical-item wide">
+          <span>Historique medical</span>
+          <strong>{{ dossierMedical?.historique || 'Aucune information renseignee.' }}</strong>
+        </div>
+        <div class="medical-item wide" *ngIf="dossierMedical?.allergies?.length">
+          <span>Allergies</span>
+          <div class="tag-list">
+            <span class="tag" *ngFor="let item of dossierMedical?.allergies">{{ item }}</span>
+          </div>
+        </div>
+        <div class="medical-item wide" *ngIf="dossierMedical?.maladies?.length">
+          <span>Maladies / traitements</span>
+          <div class="tag-list">
+            <span class="tag" *ngFor="let item of dossierMedical?.maladies">{{ item }}</span>
+          </div>
+        </div>
+      </div>
+
+      <ng-template #emptyDossier>
+        <p class="muted">Aucune information medicale disponible pour le moment.</p>
+      </ng-template>
+    </article>
+
     <div class="profile-grid">
       <article class="profile-card reveal" style="--delay: 0.2s">
         <div class="profile-avatar">{{ (profile.prenom || 'P') | slice:0:1 }}{{ (profile.nom || 'P') | slice:0:1 }}</div>

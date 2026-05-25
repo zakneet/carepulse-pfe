@@ -1,16 +1,31 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
+import functools
 import os
+import threading
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template, session, abort, send_from_directory
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
 import jwt
-
+from ortools.sat.python import cp_model
+from sqlalchemy import text
+import smtplib
+from email.message import EmailMessage
+import json
+try:
+    from pywebpush import webpush, WebPushException
+    _HAS_PYWEBPUSH = True
+except Exception:
+    _HAS_PYWEBPUSH = False
 app = Flask(__name__)
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-prod")
 
 # Enable CORS for Angular frontend.
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Enable Socket.IO with CORS for Angular frontend.
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # MySQL configuration.
 MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
@@ -25,10 +40,344 @@ app.config["SQLALCHEMY_DATABASE_URI"] = (
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+DB_READY = False
+
+# Make project root importable so we can reuse services.weather_service
+import os, sys
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+try:
+    from services.weather_service import get_weather, get_current_weather
+except Exception:
+    # Fallback: define a minimal get_weather that returns unavailable
+    def get_weather(city: str):
+        return {"status": "error", "message": "weather unavailable", "status_code": 502, "weather_recommendation": "Météo indisponible", "current_weather": {}}
+
+    def get_current_weather(lat: float, lon: float):
+        return {"status": "error", "message": "weather unavailable", "status_code": 502, "weather_recommendation": "Météo indisponible", "current_weather": {}}
+
+try:
+    from services.traffic_service import get_default_start_coords, get_traffic_notice, get_travel_notice
+except Exception:
+    def get_default_start_coords():
+        return (10.10, 36.80)
+
+    def get_traffic_notice(start_coords, end_coords):
+        return {"status": "error", "recommendation": "Information trafic indisponible", "duration_normal": None, "duration_current": None, "traffic_delay_percent": None}
+
+    def get_travel_notice(patient_address, clinic_address, appointment_time):
+        return {"status": "error", "recommendation": "Information trafic indisponible", "duration_normal": None, "duration_current": None, "traffic_delay_percent": None}
+
+DEFAULT_CLINIC_ADDRESS = os.getenv("CLINIC_ADDRESS", "Clinique OptiClinic, Tunis, Tunisie")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:4200")
+# SMTP notification configuration (optional). If not set, emails will be skipped and logged.
+NOTIF_SMTP_HOST = os.getenv("NOTIF_SMTP_HOST")
+NOTIF_SMTP_PORT = int(os.getenv("NOTIF_SMTP_PORT", "0")) if os.getenv("NOTIF_SMTP_PORT") else None
+NOTIF_SMTP_USER = os.getenv("NOTIF_SMTP_USER")
+NOTIF_SMTP_PASS = os.getenv("NOTIF_SMTP_PASS")
+NOTIF_FROM_EMAIL = os.getenv("NOTIF_FROM_EMAIL", "no-reply@gestion-rdv.local")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
+VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", f"mailto:{NOTIF_FROM_EMAIL}")
+
+def _send_email(to_email: str, subject: str, body: str) -> bool:
+    """Send a plain-text email using configured SMTP server. Returns True on success."""
+    if not NOTIF_SMTP_HOST or not NOTIF_SMTP_PORT:
+        print("[notify] SMTP not configured, skipping email send", flush=True)
+        return False
+    try:
+        msg = EmailMessage()
+        msg["From"] = NOTIF_FROM_EMAIL
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.set_content(body)
+
+        with smtplib.SMTP(NOTIF_SMTP_HOST, NOTIF_SMTP_PORT, timeout=10) as s:
+            s.ehlo()
+            if NOTIF_SMTP_USER and NOTIF_SMTP_PASS:
+                try:
+                    s.starttls()
+                except Exception:
+                    pass
+                s.login(NOTIF_SMTP_USER, NOTIF_SMTP_PASS)
+            s.send_message(msg)
+        return True
+    except Exception as exc:
+        print(f"[notify] Failed to send email to {to_email}: {exc}", flush=True)
+        return False
+
+
+def _notify_patients_of_reschedule(updated_rows: list, date_rdv):
+    """Notify patients by email (if available) about their new slot after reschedule."""
+    if not updated_rows:
+        return
+    for r in updated_rows:
+        try:
+            patient_id = int(r.get("idPatient") or 0)
+        except Exception:
+            continue
+        if not patient_id:
+            continue
+        with db.engine.connect() as conn:
+            patient = conn.exec_driver_sql(
+                "SELECT prenom, nom, email, telephone FROM patient WHERE id_patient = %s LIMIT 1",
+                (patient_id,),
+            ).mappings().first()
+
+        if not patient:
+            continue
+
+        new_time = f"{r.get('heureDebut')} - {r.get('heureFin')}"
+        previous = r.get("previousHeureDebut") or r.get("previousStart")
+        subject = "Changement de votre rendez-vous"
+        body = (
+            f"Bonjour {patient.get('prenom') or ''},\n\n"
+            f"Votre rendez-vous prévu le {date_rdv.isoformat()} a été déplacé à {new_time} en raison d'une urgence médicale.\n\n"
+            "Souhaitez-vous modifier ce créneau ? Répondez à cet e-mail ou contactez la clinique. "
+            f"Vous pouvez aussi gérer vos rendez-vous ici: {FRONTEND_URL}/patient/appointments\n\n"
+            "Cordialement,\nClinique"
+        )
+
+        if patient.get("email"):
+            sent = _send_email(patient.get("email"), subject, body)
+            print(f"[notify] email sent={sent} to {patient.get('email')}", flush=True)
+        else:
+            print(f"[notify] no email for patient {patient_id}, telephone={patient.get('telephone')}", flush=True)
+
+        # Send Web Push if subscription exists for this patient
+        payload = {
+            "title": "Changement de rendez-vous",
+            "body": f"Votre rendez-vous du {date_rdv.isoformat()} a été déplacé à {new_time}",
+            "url": f"{FRONTEND_URL}/patient/appointments",
+            "rdvId": r.get("id"),
+        }
+        try:
+            for sub in list(PUSH_SUBSCRIPTIONS):
+                try:
+                    if not isinstance(sub, dict):
+                        continue
+                    # Expect frontend to include 'patientId' in subscription record
+                    if int(sub.get("patientId") or 0) != int(patient_id):
+                        continue
+                    _send_webpush(sub.get("subscription") or sub, payload)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+
+def _notify_patients_of_cancellation(rdv_ids: list, target_date):
+    if not rdv_ids:
+        return
+    for rdv_id in rdv_ids:
+        try:
+            with db.engine.connect() as conn:
+                row = conn.exec_driver_sql(
+                    "SELECT p.prenom, p.nom, p.email, p.telephone, r.heureDebut, r.heureFin "
+                    "FROM rdv r JOIN patient p ON p.id_patient = r.idPatient WHERE r.idRDV = %s LIMIT 1",
+                    (int(rdv_id),),
+                ).mappings().first()
+        except Exception:
+            row = None
+
+        if not row:
+            continue
+
+        time_text = f"{_format_time_for_client(row.get('heureDebut'))} - {_format_time_for_client(row.get('heureFin'))}"
+        subject = "Annulation de votre rendez-vous"
+        body = (
+            f"Bonjour {row.get('prenom') or ''},\n\n"
+            f"Votre rendez-vous prévu le {target_date.isoformat()} à {time_text} a été annulé en raison d'une urgence médicale.\n\n"
+            "Veuillez contacter la clinique pour fixer un nouveau rendez-vous ou gérer vos créneaux ici: "
+            f"{FRONTEND_URL}/patient/appointments\n\nCordialement,\nClinique"
+        )
+
+        if row.get('email'):
+            sent = _send_email(row.get('email'), subject, body)
+            print(f"[notify] cancellation email sent={sent} to {row.get('email')}", flush=True)
+        else:
+            print(f"[notify] no email for patient of rdv {rdv_id}, tel={row.get('telephone')}", flush=True)
+
+        # Push notification
+        payload = {
+            "title": "Rendez-vous annulé",
+            "body": f"Votre rendez-vous du {target_date.isoformat()} a été annulé.",
+            "url": f"{FRONTEND_URL}/patient/appointments",
+            "rdvId": rdv_id,
+        }
+        try:
+            for sub in list(PUSH_SUBSCRIPTIONS):
+                try:
+                    if not isinstance(sub, dict):
+                        continue
+                    if int(sub.get("patientId") or 0) != int(row.get("id_patient") or 0):
+                        continue
+                    _send_webpush(sub.get("subscription") or sub, payload)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+
+def _send_webpush(subscription_info, payload: dict) -> bool:
+    """Send a Web Push notification using pywebpush. subscription_info should
+    be the object returned by `pushManager.subscribe()` on the client.
+    Returns True on success.
+    """
+    if not _HAS_PYWEBPUSH or not VAPID_PRIVATE_KEY:
+        print("[notify] WebPush not available or VAPID key missing, skipping", flush=True)
+        return False
+    try:
+        webpush(
+            subscription_info=subscription_info,
+            data=json.dumps(payload),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={"sub": VAPID_SUBJECT},
+        )
+        return True
+    except WebPushException as ex:
+        print(f"[notify] WebPushException: {ex}", flush=True)
+        return False
+    except Exception as exc:
+        print(f"[notify] WebPush send failed: {exc}", flush=True)
+        return False
+
+
+try:
+    from services.optimal_departure_service import get_optimal_departure, resolve_city_coordinates
+except Exception:
+    def resolve_city_coordinates(city):
+        return (10.10, 36.80)
+
+    def get_optimal_departure(start_coords, end_coords, city):
+        return {"status": "error", "recommendation": "Information de départ indisponible", "base_duration": None, "traffic_duration": None, "weather_penalty": None, "traffic_penalty": None, "final_duration": None, "tone": "normal"}
 
 USER_STATUS = {1: "patient", 2: "personnel medical"}
-RDV_STATUTS = {"urgence", "consultation", "controle", "confirme", "Décalé (urgence patient)", "Annule (urgence medecin)"}
+RDV_STATUTS = {"urgence", "consultation", "controle", "confirme", "decale (urgence patient)", "annule (urgence medecin)"}
 RDV_CREATION_STATUTS = {"consultation", "controle"}
+RDV_URGENT_STATUT = "urgence"
+TRAVEL_NOTICE_CACHE: dict[tuple[int, int], dict] = {}
+TRAVEL_NOTICE_REFRESH_SECONDS = int(os.getenv("TRAVEL_NOTICE_REFRESH_SECONDS", "900"))
+TRAVEL_NOTICE_WINDOW_MINUTES = int(os.getenv("TRAVEL_NOTICE_WINDOW_MINUTES", "120"))
+TRAVEL_NOTICE_CACHE_TTL_SECONDS = int(os.getenv("TRAVEL_NOTICE_CACHE_TTL_SECONDS", "1800"))
+TRAVEL_NOTICE_WORKER_STARTED = False
+
+
+def _normalize_status(value):
+    if value is None:
+        return ""
+
+    normalized = str(value).strip().lower()
+    return (
+        normalized
+        .replace("é", "e")
+        .replace("è", "e")
+        .replace("ê", "e")
+        .replace("à", "a")
+        .replace("ç", "c")
+    )
+
+
+def debug_route(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            print(f"\n>>> DEBUG ROUTE {func.__name__} called: path={request.path} args={dict(request.args)}", flush=True)
+            if request.is_json:
+                print(f"    JSON body: {request.get_json(silent=True)}", flush=True)
+            else:
+                raw = request.get_data(as_text=True)
+                if raw:
+                    print(f"    Raw body: {raw}", flush=True)
+        except Exception as e:
+            print(f">>> DEBUG ROUTE logging failed: {str(e)}", flush=True)
+        return func(*args, **kwargs)
+    return wrapper
+
+
+@app.route("/weather", methods=["GET"])
+def weather_api():
+    """Return current weather by coordinates or by city name."""
+    try:
+        latitude = request.args.get("latitude", type=float)
+        longitude = request.args.get("longitude", type=float)
+        city = (request.args.get("city") or request.args.get("ville") or "").strip()
+
+        if latitude is not None and longitude is not None:
+            return jsonify(get_current_weather(latitude, longitude)), 200
+
+        if city:
+            return jsonify(get_weather(city)), 200
+
+        return jsonify({
+            "status": "error",
+            "message": "latitude/longitude ou city sont obligatoires",
+            "status_code": 400,
+            "weather_recommendation": "Météo indisponible",
+            "current_weather": {},
+        }), 400
+    except Exception as exc:
+        return jsonify({
+            "status": "error",
+            "message": f"erreur serveur: {str(exc)}",
+            "status_code": 500,
+            "weather_recommendation": "Météo indisponible",
+            "current_weather": {},
+        }), 500
+
+
+@app.route('/manifest.json')
+def manifest_route():
+    """Serve manifest.json from the static folder so browsers can fetch /manifest.json."""
+    return send_from_directory('static', 'manifest.json')
+
+
+@app.route('/offline')
+def offline_page():
+    """Render a friendly offline page used by the service worker as fallback."""
+    return render_template('offline.html')
+
+
+@app.route('/sw.js')
+@app.route('/service-worker.js')
+def service_worker():
+    """Expose the service worker at the site root so it can control the whole origin scope."""
+    return send_from_directory(os.path.join('static', 'js'), 'sw.js')
+
+
+# --- PUSH subscription placeholders ---------------------------------
+# The following endpoints provide a minimal, safe storage for push subscriptions.
+# They are intentionally simple: a production-ready implementation should store
+# subscriptions in a persistent database and use WebPush (pywebpush) with VAPID keys
+# to send notifications to clients. This placeholder keeps routes available
+# and documents where to implement VAPID authentication later.
+
+PUSH_SUBSCRIPTIONS = []
+
+
+@app.route('/push/subscribe', methods=['POST'])
+def push_subscribe():
+    """Store a push subscription (JSON) sent from the client.
+
+    Production: validate the payload, persist the subscription, and return
+    a resource ID. For now we accept and keep it in memory to ease local testing.
+    """
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({'status': 'error', 'message': 'payload missing'}), 400
+        PUSH_SUBSCRIPTIONS.append(data)
+        return jsonify({'status': 'success', 'stored': True}), 201
+    except Exception:
+        return jsonify({'status': 'error', 'message': 'invalid payload'}), 400
+
+
+@app.route('/push/subscriptions', methods=['GET'])
+def push_list():
+    """Return current in-memory push subscriptions (debug only)."""
+    return jsonify({'count': len(PUSH_SUBSCRIPTIONS), 'subscriptions': PUSH_SUBSCRIPTIONS})
+
 
 
 class User(db.Model):
@@ -64,6 +413,35 @@ class User(db.Model):
         }
 
 
+class Patient(db.Model):
+    __tablename__ = 'patient'
+    __table_args__ = {'mysql_engine': 'InnoDB'}
+
+    id_patient = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(100), nullable=False)
+    prenom = db.Column(db.String(100), nullable=False)
+    telephone = db.Column(db.String(30), nullable=True)
+    email = db.Column(db.String(120), nullable=True)
+    adresse = db.Column(db.String(255), nullable=True)
+    cin = db.Column(db.String(50), nullable=True)
+    password = db.Column(db.String(255), nullable=False, default="")
+
+
+class PersonnelDeSante(db.Model):
+    __tablename__ = 'personnel_de_sante'
+    __table_args__ = {'mysql_engine': 'InnoDB'}
+
+    id_personnel = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(100), nullable=False)
+    prenom = db.Column(db.String(100), nullable=False)
+    telephone = db.Column(db.String(30), nullable=True)
+    email = db.Column(db.String(120), nullable=True)
+    specialite = db.Column(db.String(120), nullable=True)
+    type_personnel = db.Column(db.String(50), nullable=False, default='medecin')
+    password = db.Column(db.String(255), nullable=False, default="")
+    access_code = db.Column(db.String(120), nullable=True)
+
+
 class Planning(db.Model):
     __tablename__ = 'planning'
     __table_args__ = {'mysql_engine': 'InnoDB'}
@@ -73,20 +451,14 @@ class Planning(db.Model):
     heure_debut = db.Column("heureDebut", db.Time, nullable=False)
     heure_fin = db.Column("heureFin", db.Time, nullable=False)
     duree_creneau = db.Column(db.Integer, nullable=False, default=30)
-    idPersonnel = db.Column(
-        db.Integer,
-        db.ForeignKey("user.id", name="fk_planning_personnel", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=False,
-    )
-
-    personnel = db.relationship("User", backref="plannings", foreign_keys=[idPersonnel])
+    idPersonnel = db.Column(db.Integer, nullable=False, index=True)
 
     def to_dict(self):
         return {
             "idPlanning": self.idPlanning,
             "date": self.date.isoformat(),
-            "heure_debut": self.heure_debut.strftime("%H:%M:%S"),
-            "heure_fin": self.heure_fin.strftime("%H:%M:%S"),
+            "heure_debut": _format_sql_time(self.heure_debut),
+            "heure_fin": _format_sql_time(self.heure_fin),
             "duree_creneau": self.duree_creneau,
             "idPersonnel": self.idPersonnel,
         }
@@ -97,24 +469,13 @@ class Rdv(db.Model):
     __table_args__ = {'mysql_engine': 'InnoDB'}
     
     idRdv = db.Column("idRDV", db.Integer, primary_key=True, autoincrement=True)
-    idPatient = db.Column(
-        db.Integer,
-        db.ForeignKey("user.id", name="fk_rdv_patient", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=False,
-    )
-    idPersonnel = db.Column(
-        db.Integer,
-        db.ForeignKey("user.id", name="fk_rdv_personnel", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=False,
-    )
+    idPatient = db.Column(db.Integer, nullable=False, index=True)
+    idPersonnel = db.Column(db.Integer, nullable=False, index=True)
     dateRDV = db.Column(db.Date, nullable=False)
     heureDebut = db.Column(db.Time, nullable=False)
     heureFin = db.Column(db.Time, nullable=False)
     motifConsultation = db.Column(db.Text, nullable=False, default="")
     statut = db.Column(db.String(50), nullable=False)
-
-    patient = db.relationship("User", foreign_keys=[idPatient], backref="rdvs_patient")
-    personnel = db.relationship("User", foreign_keys=[idPersonnel], backref="rdvs_personnel")
 
     def to_dict(self):
         return {
@@ -124,8 +485,8 @@ class Rdv(db.Model):
             "idPatient": self.idPatient,
             "idPersonnel": self.idPersonnel,
             "dateRDV": self.dateRDV.isoformat(),
-            "heureDebut": self.heureDebut.strftime("%H:%M:%S"),
-            "heureFin": self.heureFin.strftime("%H:%M:%S"),
+            "heureDebut": _format_sql_time(self.heureDebut),
+            "heureFin": _format_sql_time(self.heureFin),
             "motifConsultation": self.motifConsultation,
             "statut": self.statut,
         }
@@ -162,7 +523,16 @@ def _generate_unique_patient_email(prefix="patient"):
     for attempt in range(20):
         suffix = f"{base_suffix + attempt:06d}"
         email = f"{prefix}_{suffix}@gestion-rdv.local"
-        if not User.query.filter_by(email=email).first():
+        with db.engine.connect() as conn:
+            existing = conn.exec_driver_sql(
+                """
+                SELECT id_patient FROM patient
+                WHERE LOWER(email) = LOWER(%s)
+                LIMIT 1
+                """,
+                (email,),
+            ).mappings().first()
+        if not existing:
             return email
 
     return f"{prefix}_{int(time.time() * 1000)}@gestion-rdv.local"
@@ -225,6 +595,175 @@ def _ensure_optional_user_columns():
             except Exception:
                 # Keep API available even if schema migration rights are restricted.
                 pass
+
+
+def _ensure_patient_table_columns():
+    with db.engine.begin() as conn:
+        conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS password VARCHAR(255) NOT NULL DEFAULT ''")
+        conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS adresse VARCHAR(255) NULL")
+    _ensure_rdv_table_columns()
+
+
+def _ensure_rdv_table_columns():
+    with db.engine.begin() as conn:
+        existing_columns = {
+            row[0]
+            for row in conn.exec_driver_sql(
+                """
+                SELECT COLUMN_NAME
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'rdv'
+                """
+            ).fetchall()
+        }
+
+        if "statut" not in existing_columns:
+            try:
+                conn.exec_driver_sql("ALTER TABLE rdv ADD COLUMN `statut` VARCHAR(50) NULL")
+            except Exception:
+                # Keep API available even if schema migration rights are restricted.
+                pass
+
+
+def _get_personnel_row(id_personnel):
+    with db.engine.connect() as conn:
+        return conn.exec_driver_sql(
+            """
+            SELECT id_personnel, type_personnel, specialite
+            FROM personnel_de_sante
+            WHERE id_personnel = %s
+            LIMIT 1
+            """,
+            (int(id_personnel),),
+        ).mappings().first()
+
+
+@app.route('/appointments')
+def appointments_page():
+    # Secure: require logged in user via session
+    user_id = session.get('user_id')
+    if not user_id:
+        return abort(403)
+
+    # Query RDVs strictly for this patient
+    rdvs = Rdv.query.filter_by(idPatient=int(user_id)).order_by(Rdv.dateRDV.asc(), Rdv.heureDebut.asc()).all()
+
+    # Build appointments for template
+    appointments = []
+    # Try to fetch patient name
+    patient_row = None
+    try:
+        patient_row = db.session.execute(text("SELECT nom, prenom FROM patient WHERE id_patient = :id"), {"id": int(user_id)}).mappings().first()
+    except Exception:
+        patient_row = None
+
+    patient_name = (f"{patient_row['prenom']} {patient_row['nom']}" if patient_row else "Patient")
+    start_lon = request.args.get('start_lon', type=float)
+    start_lat = request.args.get('start_lat', type=float)
+    patient_origin = (start_lon, start_lat) if None not in (start_lon, start_lat) else get_default_start_coords()
+
+    city_coords = {
+        'tunis': (10.10, 36.80),
+        'ariana': (10.19, 36.86),
+        'ben arous': (10.19, 36.75),
+        'sousse': (10.64, 35.83),
+    }
+
+    def _destination_coords(location_value):
+        if not location_value:
+            return None
+        location_text = str(location_value).strip().lower()
+        for city_name, coords in city_coords.items():
+            if city_name in location_text:
+                return coords
+        return city_coords['tunis']
+
+    for r in rdvs:
+        # try get doctor name
+        person = None
+        try:
+            person = db.session.execute(text("SELECT nom, prenom FROM personnel_de_sante WHERE id_personnel = :id"), {"id": int(r.idPersonnel)}).mappings().first()
+        except Exception:
+            person = None
+
+        doctor_name = (f"{person['prenom']} {person['nom']}" if person else "Médecin inconnu")
+
+        # Default city/location; attempt to infer destination coordinates for traffic.
+        city = 'Tunis'
+
+        # Fetch weather via service (geocoding + forecast). Non-blocking for UX would be ideal,
+        # but server-side we call synchronously and the template will render whatever we get.
+        try:
+            weather = get_weather(city)
+        except Exception:
+            weather = {"status": "error", "weather_recommendation": "Météo indisponible", "current_weather": {}}
+
+        destination_coords = _destination_coords(getattr(r, 'lieu', None) if hasattr(r, 'lieu') else city)
+        if destination_coords:
+            traffic_notice = get_traffic_notice(patient_origin, destination_coords)
+            optimal_departure = get_optimal_departure(patient_origin, destination_coords, city)
+        else:
+            traffic_notice = {
+                'status': 'error',
+                'recommendation': 'Information trafic indisponible',
+                'duration_normal': None,
+                'duration_current': None,
+                'traffic_delay_percent': None,
+            }
+            optimal_departure = {
+                'status': 'error',
+                'recommendation': 'Information de départ indisponible',
+                'base_duration': None,
+                'traffic_duration': None,
+                'weather_penalty': None,
+                'traffic_penalty': None,
+                'final_duration': None,
+                'tone': 'normal',
+            }
+
+        appointments.append({
+            'patient_name': patient_name,
+            'doctor_name': doctor_name,
+            'date': r.dateRDV.isoformat(),
+            'time': r.heureDebut.strftime('%H:%M'),
+            'location': getattr(r, 'lieu', 'Cabinet') if hasattr(r, 'lieu') else 'Cabinet',
+            'weather': weather,
+            'traffic_notice': traffic_notice,
+            'optimal_departure': optimal_departure,
+        })
+
+    today = datetime.utcnow().date().isoformat()
+    return render_template('appointments.html', appointments=appointments, today=today)
+
+
+def _get_patient_row_by_cin(cin):
+    with db.engine.connect() as conn:
+        return conn.exec_driver_sql(
+            """
+            SELECT id_patient, nom, prenom, email, telephone, cin, password
+            FROM patient
+            WHERE LOWER(TRIM(cin)) = %s
+            LIMIT 1
+            """,
+            (str(cin).strip().lower(),),
+        ).mappings().first()
+
+
+def _patient_payload_from_row(row):
+    if not row:
+        return None
+
+    return {
+        "id": int(row["id_patient"]),
+        "nom": row["nom"],
+        "prenom": row["prenom"],
+        "cin": row["cin"],
+        "telephone": row["telephone"],
+        "email": row["email"],
+        "statut": 1,
+        "statut_label": "patient",
+    }
 
 
 def _get_patient_health_fields(id_patient):
@@ -309,25 +848,60 @@ def _get_patient_health_fields(id_patient):
     return result
 
 
-def is_medical_staff(user: User) -> bool:
-    if not user:
+def is_medical_staff(staff_id: int) -> bool:
+    """Check if an ID belongs to medical staff in personnel_de_sante table."""
+    if not staff_id or not isinstance(staff_id, int):
         return False
-    specialite = (user.specialite or "").strip()
-    return user.statut == 2 or bool(specialite)
+    try:
+        with db.engine.connect() as conn:
+            row = conn.exec_driver_sql(
+                """
+                SELECT id_personnel, type_personnel
+                FROM personnel_de_sante
+                WHERE id_personnel = %s
+                LIMIT 1
+                """,
+                (staff_id,),
+            ).mappings().first()
+            return bool(row and row["type_personnel"] in ("medecin", "infirmier"))
+    except Exception:
+        return False
 
 
-def get_staff_category(user: User) -> str:
-    specialite = (user.specialite or "").strip().lower()
-    if "infirm" in specialite:
-        return "nurse"
-    return "doctor"
+def get_staff_category(staff_id: int) -> str:
+    """Get staff category (doctor/nurse) from personnel_de_sante table."""
+    if not staff_id or not isinstance(staff_id, int):
+        return "secretary"
+    try:
+        with db.engine.connect() as conn:
+            row = conn.exec_driver_sql(
+                """
+                SELECT specialite
+                FROM personnel_de_sante
+                WHERE id_personnel = %s
+                LIMIT 1
+                """,
+                (staff_id,),
+            ).mappings().first()
+            if row:
+                specialite = (row["specialite"] or "").strip().lower()
+                if "infirm" in specialite:
+                    return "nurse"
+            return "doctor"
+    except Exception:
+        return "secretary"
 
 
-def is_doctor(user: User) -> bool:
-    return is_medical_staff(user) and get_staff_category(user) == "doctor"
+def is_doctor(staff_id: int) -> bool:
+    """Check if staff member is a doctor (not a nurse)."""
+    return is_medical_staff(staff_id) and get_staff_category(staff_id) == "doctor"
 
 
 def _to_minutes(value):
+    if isinstance(value, timedelta):
+        return int(value.total_seconds() // 60)
+    if isinstance(value, (int, float)):
+        return int(value)
     return (value.hour * 60) + value.minute
 
 
@@ -335,6 +909,487 @@ def _to_hhmmss(total_minutes):
     h = total_minutes // 60
     m = total_minutes % 60
     return f"{h:02d}:{m:02d}:00"
+
+
+def refresh_db_status():
+    global DB_READY
+    try:
+        db.session.execute(text("SELECT 1"))
+        DB_READY = True
+    except Exception:
+        DB_READY = False
+    return DB_READY
+
+
+def _coerce_time_value(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.time()
+    if hasattr(value, "hour") and hasattr(value, "minute") and hasattr(value, "second"):
+        return value
+    if isinstance(value, str):
+        return parse_time(value)
+    return None
+
+
+def _coerce_minutes_value(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        minute_value = int(value)
+        if 0 <= minute_value <= (24 * 60):
+            return minute_value
+        return None
+
+    parsed_time = _coerce_time_value(value)
+    if parsed_time is None:
+        return None
+    return _to_minutes(parsed_time)
+
+
+def optimize_schedule(patients, doctor_schedule):
+    """Optimize appointment start times with CP-SAT.
+
+    Returns a list of dictionaries with patient_id, start, and end.
+    Returns None when the model is infeasible or input validation fails.
+    """
+    if not isinstance(patients, list) or not isinstance(doctor_schedule, dict):
+        return None
+
+    doctor_start = _coerce_minutes_value(
+        doctor_schedule.get("start_time") or doctor_schedule.get("start") or doctor_schedule.get("heure_debut")
+    )
+    doctor_end = _coerce_minutes_value(
+        doctor_schedule.get("end_time") or doctor_schedule.get("end") or doctor_schedule.get("heure_fin")
+    )
+
+    if doctor_start is None or doctor_end is None:
+        return None
+
+    if doctor_end <= doctor_start:
+        return None
+
+    model = cp_model.CpModel()
+    intervals = []
+    start_vars = {}
+    end_vars = {}
+    waiting_vars = []
+
+    for patient in patients:
+        if not isinstance(patient, dict):
+            return None
+
+        patient_id = patient.get("id")
+        if patient_id is None:
+            patient_id = patient.get("patient_id")
+        preferred_start = _coerce_minutes_value(
+            patient.get("preferred_start_time")
+            or patient.get("preferred_start")
+            or patient.get("start")
+            or patient.get("start_time")
+        )
+        preferred_end = _coerce_minutes_value(
+            patient.get("preferred_end_time")
+            or patient.get("preferred_end")
+            or patient.get("end")
+            or patient.get("end_time")
+        )
+
+        try:
+            duration = int(patient.get("duration"))
+        except (TypeError, ValueError):
+            return None
+
+        priority_value = patient.get("priority")
+        if priority_value is None:
+            priority_value = 1 if bool(patient.get("isUrgent", False)) else 0
+
+        try:
+            priority = int(priority_value)
+        except (TypeError, ValueError):
+            return None
+
+        if priority < 0:
+            return None
+
+        if patient_id is None or preferred_start is None or preferred_end is None or duration <= 0:
+            return None
+
+        latest_start_by_patient = preferred_end - duration
+        latest_start_by_doctor = doctor_end - duration
+        earliest_start = max(preferred_start, doctor_start)
+        latest_start = min(latest_start_by_patient, latest_start_by_doctor)
+
+        if earliest_start > latest_start:
+            return None
+
+        start_var = model.NewIntVar(earliest_start, latest_start, f"start_{patient_id}")
+        end_var = model.NewIntVar(earliest_start + duration, latest_start + duration, f"end_{patient_id}")
+        model.Add(end_var == start_var + duration)
+
+        # Add one interval per patient and enforce no overlap globally.
+        interval_var = model.NewIntervalVar(start_var, duration, end_var, f"interval_{patient_id}")
+        waiting_var = model.NewIntVar(0, doctor_end - doctor_start, f"waiting_{patient_id}")
+        model.Add(waiting_var == start_var - preferred_start)
+
+        intervals.append(interval_var)
+        start_vars[patient_id] = start_var
+        end_vars[patient_id] = end_var
+        priority_weight = max(1, priority)
+        if bool(patient.get("isUrgent", False)):
+            priority_weight = max(priority_weight, 1000)
+        waiting_vars.append(waiting_var * priority_weight)
+
+    if not intervals:
+        return []
+
+    model.AddNoOverlap(intervals)
+    model.Minimize(sum(waiting_vars))
+
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = 5.0
+    solver.parameters.num_search_workers = 8
+
+    status = solver.Solve(model)
+    print(f"[OR-TOOLS] solver status: {solver.StatusName(status)}")
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return None
+
+    print(f"[OR-TOOLS] objective value: {solver.ObjectiveValue()}")
+
+    optimized_schedule = []
+    for patient in patients:
+        patient_id = patient.get("id")
+        if patient_id is None:
+            patient_id = patient.get("patient_id")
+        start_minute = solver.Value(start_vars[patient_id])
+        end_minute = solver.Value(end_vars[patient_id])
+        optimized_schedule.append(
+            {
+                "patient_id": patient_id,
+                "start": start_minute,
+                "end": end_minute,
+            }
+        )
+        print(f"[OR-TOOLS] appointment patient={patient_id} start={start_minute} end={end_minute}")
+
+    optimized_schedule.sort(key=lambda item: item["start"])
+    return optimized_schedule
+
+def optimize_full_day(patients, start_window, end_window):
+    if not isinstance(patients, list):
+        return None
+    window_start = _coerce_minutes_value(start_window)
+    window_end = _coerce_minutes_value(end_window)
+    if window_start is None or window_end is None or window_end <= window_start:
+        return None
+    normalized = []
+    for p in patients:
+        if not isinstance(p, dict) or "id" not in p:
+            return None
+        dur = _coerce_minutes_value(p.get("duration") or p.get("duree"))
+        if dur is None or dur <= 0:
+            return None
+        normalized.append({"id": p["id"], "duration": int(dur)})
+    model = cp_model.CpModel()
+    starts, intervals = [], []
+    for i, p in enumerate(normalized):
+        max_start = window_end - p["duration"]
+        if max_start < window_start:
+            return None
+        s = model.NewIntVar(window_start, max_start, f"s_{i}")
+        e = model.NewIntVar(window_start + p["duration"], window_end, f"e_{i}")
+        model.Add(e == s + p["duration"])
+        interval = model.NewIntervalVar(s, p["duration"], e, f"int_{i}")
+        starts.append(s)
+        intervals.append(interval)
+    model.AddNoOverlap(intervals)
+    gaps = []
+    for i in range(len(starts) - 1):
+        gap = model.NewIntVar(0, window_end - window_start, f"gap_{i}")
+        model.Add(gap == starts[i + 1] - (starts[i] + normalized[i]["duration"]))
+        gaps.append(gap)
+    if gaps:
+        model.Minimize(sum(gaps))
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = 5.0
+    status = solver.Solve(model)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return None
+    result = []
+    for i, p in enumerate(normalized):
+        start_min = int(solver.Value(starts[i]))
+        end_min = start_min + p["duration"]
+        result.append({"patientId": p["id"], "heureDebut": _to_hhmmss(start_min), "heureFin": _to_hhmmss(end_min)})
+    return result
+
+
+def optimize_day_with_absence(existing_rdvs, day_start, day_end, absence_start, absence_end):
+    """Apply a strict delay around a short absence window.
+
+    Business rule: if absence is N hours, impacted appointments are delayed by N hours.
+    """
+    if not isinstance(existing_rdvs, list):
+        return None
+
+    window_start = _coerce_minutes_value(day_start)
+    window_end = _coerce_minutes_value(day_end)
+    blocked_start = _coerce_minutes_value(absence_start)
+    blocked_end = _coerce_minutes_value(absence_end)
+
+    if None in (window_start, window_end, blocked_start, blocked_end):
+        return None
+
+    if window_end <= window_start or blocked_end <= blocked_start:
+        return None
+
+    if blocked_start < window_start or blocked_end > window_end:
+        return None
+
+    blocked_duration = blocked_end - blocked_start
+
+    normalized = []
+    for index, rdv in enumerate(existing_rdvs):
+        if not isinstance(rdv, dict):
+            return None
+
+        rdv_id = rdv.get("id") or rdv.get("idRdv") or rdv.get("idRDV")
+        if rdv_id is None:
+            rdv_id = index
+
+        start = _coerce_minutes_value(rdv.get("start") or rdv.get("heureDebut"))
+        duration = _coerce_minutes_value(rdv.get("duration") or rdv.get("duree"))
+        if start is None or duration is None or duration <= 0:
+            return None
+
+        if (start + duration) <= window_start:
+            return None
+
+        normalized.append({"id": rdv_id, "start": int(start), "duration": int(duration)})
+
+    if not normalized:
+        return []
+
+    normalized.sort(key=lambda value: value["start"])
+
+    optimized_plan = []
+    previous_end = window_start
+    for rdv in normalized:
+        old_start = rdv["start"]
+        duration = rdv["duration"]
+        old_end = old_start + duration
+
+        in_absence_scope = old_start < blocked_end and old_end > blocked_start
+        after_absence_in_day = old_start >= blocked_end
+        requested_start = old_start + blocked_duration if (in_absence_scope or after_absence_in_day) else old_start
+
+        # Keep a valid chronological planning after shifting.
+        new_start = max(requested_start, previous_end)
+        new_end = new_start + duration
+
+        if new_end > (24 * 60):
+            return None
+
+        optimized_plan.append(
+            {
+                "id": rdv["id"],
+                "heureDebut": _to_hhmmss(new_start),
+                "heureFin": _to_hhmmss(new_end),
+                "old_start": old_start,
+                "new_start": new_start,
+                "new_end": new_end,
+            }
+        )
+        previous_end = new_end
+
+    return optimized_plan
+
+
+def schedule_with_emergency(existing_rdvs, duration, start_window, end_window):
+    if not isinstance(existing_rdvs, list):
+        return None
+    urgent_duration = _coerce_minutes_value(duration)
+    window_start = _coerce_minutes_value(start_window)
+    window_end = _coerce_minutes_value(end_window)
+    if urgent_duration is None or window_start is None or window_end is None:
+        return None
+    if urgent_duration <= 0 or window_end <= window_start:
+        return None
+    model = cp_model.CpModel()
+    starts, intervals, shifts, normalized_rdvs = [], [], [], []
+    for index, rdv in enumerate(existing_rdvs):
+        if not isinstance(rdv, dict):
+            return None
+        rdv_id = rdv.get("id") or rdv.get("idRdv") or index
+        rdv_start = _coerce_minutes_value(rdv.get("start") or rdv.get("heureDebut"))
+        rdv_duration = _coerce_minutes_value(rdv.get("duration") or rdv.get("duree"))
+        if rdv_start is None or rdv_duration is None or rdv_duration <= 0:
+            return None
+        latest_start = window_end - rdv_duration
+        if latest_start < window_start:
+            return None
+        s = model.NewIntVar(window_start, latest_start, f"s_{index}")
+        e = model.NewIntVar(window_start + rdv_duration, window_end, f"e_{index}")
+        model.Add(e == s + rdv_duration)
+        interval = model.NewIntervalVar(s, rdv_duration, e, f"int_{index}")
+        shift = model.NewIntVar(0, window_end - window_start, f"shift_{index}")
+        model.AddAbsEquality(shift, s - rdv_start)
+        starts.append(s)
+        intervals.append(interval)
+        shifts.append(shift)
+        normalized_rdvs.append({"id": rdv_id, "start": rdv_start, "duration": rdv_duration})
+    u_start = model.NewIntVar(window_start, window_end - urgent_duration, "u_start")
+    u_end = model.NewIntVar(window_start + urgent_duration, window_end, "u_end")
+    model.Add(u_end == u_start + urgent_duration)
+    u_interval = model.NewIntervalVar(u_start, urgent_duration, u_end, "u_int")
+    model.AddNoOverlap(intervals + [u_interval])
+    model.Minimize(u_start + (sum(shifts) * 10 if shifts else 0))
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = 5.0
+    status = solver.Solve(model)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return None
+    updated = []
+    for i, rdv in enumerate(normalized_rdvs):
+        updated.append({"id": rdv["id"], "old_start": rdv["start"], "new_start": solver.Value(starts[i]), "new_end": solver.Value(starts[i]) + rdv["duration"]})
+    return {"urgent_start": solver.Value(u_start), "urgent_end": solver.Value(u_end), "updated": updated}
+
+
+def _get_doctor_planning_window(id_personnel, date_rdv):
+    """Return the effective working window for a doctor on a given day."""
+    plannings = (
+        Planning.query
+        .filter_by(idPersonnel=id_personnel, date=date_rdv)
+        .order_by(Planning.heure_debut.asc())
+        .all()
+    )
+
+    if plannings:
+        window_start = min(_to_minutes(plan.heure_debut) for plan in plannings)
+        window_end = max(_to_minutes(plan.heure_fin) for plan in plannings)
+        return window_start, window_end, plannings, False
+
+    return 9 * 60, 17 * 60, [], True
+
+
+def _get_doctor_rdvs_for_day(id_personnel, date_rdv):
+    """Load all appointments for one doctor and one date in chronological order."""
+    return (
+        Rdv.query
+        .filter_by(idPersonnel=id_personnel, dateRDV=date_rdv)
+        .order_by(Rdv.heureDebut.asc())
+        .all()
+    )
+
+
+def _build_rdv_snapshot(rdv):
+    return {
+        "id": rdv.idRdv,
+        "start": _to_minutes(rdv.heureDebut),
+        "duration": _to_minutes(rdv.heureFin) - _to_minutes(rdv.heureDebut),
+        "patientId": rdv.idPatient,
+    }
+
+
+def _apply_rescheduled_appointments(id_personnel, date_rdv, result):
+    """Persist the optimized urgent slot and the shifted appointments."""
+    urgent_start = parse_time(_to_hhmmss(result["urgent_start"]))
+    urgent_end = parse_time(_to_hhmmss(result["urgent_end"]))
+
+    if urgent_start is None or urgent_end is None:
+        return None
+
+    rdv_rows = {
+        rdv.idRdv: rdv
+        for rdv in Rdv.query.filter_by(idPersonnel=id_personnel, dateRDV=date_rdv).all()
+    }
+
+    updated_rows = []
+    for item in result.get("updated", []):
+        rdv = rdv_rows.get(item.get("id"))
+        if not rdv:
+            continue
+        rdv.heureDebut = parse_time(_to_hhmmss(int(item["new_start"])))
+        rdv.heureFin = parse_time(_to_hhmmss(int(item["new_end"])))
+        updated_rows.append({
+            "id": rdv.idRdv,
+            "heureDebut": _format_time_for_client(rdv.heureDebut),
+            "heureFin": _format_time_for_client(rdv.heureFin),
+            "idPatient": rdv.idPatient,
+            "idPersonnel": rdv.idPersonnel,
+            "statut": rdv.statut,
+        })
+
+    return {
+        "urgent_start": urgent_start,
+        "urgent_end": urgent_end,
+        "updated_rows": updated_rows,
+    }
+
+
+def _apply_optimized_day_plan(id_personnel, date_rdv, optimized_plan):
+    """Persist an optimized day plan returned by optimize_full_day."""
+    if not isinstance(optimized_plan, list):
+        return None
+
+    rdv_rows = {
+        rdv.idRdv: rdv
+        for rdv in Rdv.query.filter_by(idPersonnel=id_personnel, dateRDV=date_rdv).all()
+    }
+
+    updated_rows = []
+    for item in optimized_plan:
+        if not isinstance(item, dict):
+            continue
+
+        rdv_id = item.get("id") or item.get("idRdv") or item.get("idRDV") or item.get("patientId")
+        try:
+            rdv_id = int(rdv_id)
+        except (TypeError, ValueError):
+            continue
+
+        rdv = rdv_rows.get(rdv_id)
+        if not rdv:
+            continue
+
+        heure_debut = parse_time(item.get("heureDebut") or _to_hhmmss(item.get("start")))
+        heure_fin = parse_time(item.get("heureFin") or _to_hhmmss(item.get("end")))
+        if heure_debut is None or heure_fin is None:
+            continue
+
+        previous_start = _to_minutes(rdv.heureDebut)
+        previous_end = _to_minutes(rdv.heureFin)
+        next_start = _to_minutes(heure_debut)
+        next_end = _to_minutes(heure_fin)
+
+        # Keep previous times for notification payload before overwriting.
+        previous_start_str = _format_time_for_client(rdv.heureDebut)
+        previous_end_str = _format_time_for_client(rdv.heureFin)
+
+        rdv.heureDebut = heure_debut
+        rdv.heureFin = heure_fin
+
+        if previous_start != next_start or previous_end != next_end:
+            rdv.statut = "decale (urgence medecin courte)"
+
+        updated_rows.append(
+            {
+                "id": rdv.idRdv,
+                "heureDebut": _format_time_for_client(rdv.heureDebut),
+                "heureFin": _format_time_for_client(rdv.heureFin),
+                "idPatient": rdv.idPatient,
+                "idPersonnel": rdv.idPersonnel,
+                "statut": rdv.statut,
+                "previousHeureDebut": previous_start_str,
+                "previousHeureFin": previous_end_str,
+            }
+        )
+
+    return updated_rows
+
 
 
 def check_appointment_conflict(idPersonnel, dateRDV, heureDebut, heureFin):
@@ -362,6 +1417,123 @@ def check_appointment_conflict(idPersonnel, dateRDV, heureDebut, heureFin):
     return (False, None)
 
 
+def _build_available_slots_for_doctor(id_personnel, date_rdv, slot_duration=30, single_proposal=False, proposal_index=0):
+    """Build the slot candidates used by OR-Tools suggestions for one doctor/day."""
+    slot_duration = _coerce_minutes_value(slot_duration) or 30
+    if slot_duration <= 0:
+        slot_duration = 30
+
+    plannings = (
+        Planning.query
+        .filter_by(idPersonnel=id_personnel, date=date_rdv)
+        .order_by(Planning.heure_debut.asc())
+        .all()
+    )
+
+    with db.engine.connect() as conn:
+        appointment_rows = conn.exec_driver_sql(
+            """
+            SELECT idRDV, heureDebut, heureFin
+            FROM rdv
+            WHERE idPersonnel = %s AND dateRDV = %s
+            ORDER BY heureDebut ASC
+            """,
+            (id_personnel, date_rdv),
+        ).mappings().all()
+
+    appointments = [
+        {
+            "idRdv": row["idRDV"],
+            "heureDebut": row["heureDebut"],
+            "heureFin": row["heureFin"],
+        }
+        for row in appointment_rows
+    ]
+
+    booked_ranges = [(_to_minutes(r["heureDebut"]), _to_minutes(r["heureFin"])) for r in appointments]
+
+    planning_ranges = [(_to_minutes(plan.heure_debut), _to_minutes(plan.heure_fin)) for plan in plannings]
+    used_default_planning = False
+    if not planning_ranges:
+        planning_ranges = [(9 * 60, 17 * 60)]
+        used_default_planning = True
+
+    suggested_slots = []
+    for start_min, end_min in planning_ranges:
+        if end_min <= start_min:
+            continue
+
+        cursor = start_min
+        while cursor + slot_duration <= end_min:
+            slot_start = cursor
+            slot_end = cursor + slot_duration
+            overlaps = any(slot_start < booked_end and slot_end > booked_start for booked_start, booked_end in booked_ranges)
+            if not overlaps:
+                suggested_slots.append({"heureDebut": _to_hhmmss(slot_start), "heureFin": _to_hhmmss(slot_end)})
+            cursor += slot_duration
+
+    optimized_suggested_slots = None
+    try:
+        normalized = []
+        for r in appointments:
+            if r.get("heureDebut") is None or r.get("heureFin") is None:
+                continue
+            dur = _to_minutes(r["heureFin"]) - _to_minutes(r["heureDebut"])
+            if dur <= 0:
+                continue
+            normalized.append({"id": r.get("idRdv"), "duration": dur})
+
+        earliest_booked_start = min((start for start, _ in booked_ranges), default=None)
+        latest_booked_end = max((end for _, end in booked_ranges), default=None)
+        overall_start = min(start for start, _ in planning_ranges)
+        overall_end = max(end for _, end in planning_ranges)
+        if earliest_booked_start is not None:
+            overall_start = min(overall_start, earliest_booked_start)
+        if latest_booked_end is not None:
+            overall_end = max(overall_end, latest_booked_end)
+
+        if normalized:
+            compact = optimize_full_day(normalized, overall_start, overall_end)
+            if compact:
+                opt_booked = []
+                for ap in compact:
+                    tstart = parse_time(ap.get("heureDebut"))
+                    tend = parse_time(ap.get("heureFin"))
+                    if tstart is None or tend is None:
+                        continue
+                    opt_booked.append((_to_minutes(tstart), _to_minutes(tend)))
+
+                opt_slots = []
+                for start_min, end_min in planning_ranges:
+                    if end_min <= start_min:
+                        continue
+                    cursor = start_min
+                    while cursor + slot_duration <= end_min:
+                        slot_start = cursor
+                        slot_end = cursor + slot_duration
+                        overlaps_opt = any(slot_start < booked_end and slot_end > booked_start for booked_start, booked_end in opt_booked)
+                        if not overlaps_opt:
+                            opt_slots.append({"heureDebut": _to_hhmmss(slot_start), "heureFin": _to_hhmmss(slot_end)})
+                        cursor += slot_duration
+                optimized_suggested_slots = opt_slots
+    except Exception:
+        optimized_suggested_slots = None
+
+    if single_proposal:
+        candidate_slots = optimized_suggested_slots or suggested_slots
+        if candidate_slots:
+            selected_slot = candidate_slots[proposal_index % len(candidate_slots)]
+            suggested_slots = [selected_slot]
+            optimized_suggested_slots = [selected_slot] if optimized_suggested_slots else None
+
+    return {
+        "suggestedSlots": suggested_slots,
+        "optimizedSuggestedSlots": optimized_suggested_slots,
+        "planningSource": "default" if used_default_planning else "planning",
+        "slotDuration": slot_duration,
+    }
+
+
 def normalize_access_code(value: str) -> str:
     return "".join(str(value or "").strip().split()).lower()
 
@@ -382,10 +1554,286 @@ def create_jwt_token(user_id: int, role: str) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 
+def _get_authenticated_patient_id():
+    auth_header = request.headers.get("Authorization", "")
+    try:
+        preview = (auth_header or "")[:100]
+        print(f"[auth] path={request.path} Authorization={preview}", flush=True)
+    except Exception:
+        pass
+    if not auth_header.startswith("Bearer "):
+        return None, (jsonify({"access": False, "message": "Token manquant ou invalide"}), 401)
+
+    token = auth_header[7:]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except jwt.InvalidTokenError:
+        return None, (jsonify({"access": False, "message": "Token invalide"}), 401)
+
+    patient_id = payload.get("user_id")
+    if payload.get("role") != "patient" or not patient_id:
+        return None, (jsonify({"access": False, "message": "Acces refuse - patient seulement"}), 403)
+
+    return int(patient_id), None
+
+
+def _format_time_for_client(value):
+    return _format_sql_time(value, "%H:%M")
+
+
+def _normalize_sql_time(value):
+    if value is None:
+        return None
+
+    if isinstance(value, timedelta):
+        total_seconds = int(value.total_seconds()) % (24 * 3600)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return datetime.min.replace(hour=hours, minute=minutes, second=seconds).time()
+
+    if hasattr(value, "hour") and hasattr(value, "minute") and hasattr(value, "second"):
+        return value
+
+    value_str = str(value).strip()
+    if not value_str:
+        return None
+
+    parts = value_str.split(":")
+    if len(parts) < 2:
+        return None
+
+
+def _format_sql_time(value, format_string="%H:%M:%S"):
+    normalized = _normalize_sql_time(value)
+    if normalized is None:
+        return None
+
+    return normalized.strftime(format_string)
+
+    try:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        seconds = int(parts[2]) if len(parts) > 2 else 0
+        return datetime.min.replace(hour=hours, minute=minutes, second=seconds).time()
+    except ValueError:
+        return None
+
+
+def _resolve_patient_doctor_status(patient_id, selected_date):
+    with db.engine.connect() as conn:
+        patient_rdvs = conn.exec_driver_sql(
+            """
+            SELECT
+                r.idRDV AS id,
+                r.idPersonnel,
+                r.dateRDV,
+                r.heureDebut,
+                r.heureFin
+            FROM rdv r
+            WHERE r.idPatient = %s
+              AND r.dateRDV = %s
+            ORDER BY r.heureDebut ASC
+            """,
+            (patient_id, selected_date),
+        ).mappings().all()
+
+        if not patient_rdvs:
+            return None
+
+        current_time = datetime.utcnow().time()
+        current_appointment = None
+        for rdv in patient_rdvs:
+            start_time = _normalize_sql_time(rdv["heureDebut"])
+            end_time = _normalize_sql_time(rdv["heureFin"])
+            if start_time and end_time and start_time <= current_time < end_time:
+                current_appointment = rdv
+                break
+
+        selected_appointment = current_appointment or patient_rdvs[0]
+        doctor_id = selected_appointment["idPersonnel"]
+
+        doctor_rdvs = conn.exec_driver_sql(
+            """
+            SELECT
+                r.idRDV AS id,
+                r.idPatient,
+                r.heureDebut,
+                r.heureFin
+            FROM rdv r
+            WHERE r.idPersonnel = %s
+              AND r.dateRDV = %s
+            ORDER BY r.heureDebut ASC
+            """,
+            (doctor_id, selected_date),
+        ).mappings().all()
+
+    doctor_status = "disponible"
+    for rdv in doctor_rdvs:
+        start_time = _normalize_sql_time(rdv["heureDebut"])
+        end_time = _normalize_sql_time(rdv["heureFin"])
+        if start_time and end_time and start_time <= current_time < end_time:
+            doctor_status = "en consultation" if int(rdv["idPatient"]) == int(patient_id) else "occupied"
+            break
+
+    # Compute basic queue statistics for the doctor today
+    total_patients = len(doctor_rdvs)
+    patients_waiting = 0
+    wait_time_minutes = 0
+
+    # Build an OR-Tools friendly view of today's queue to estimate waiting time.
+    ortools_patients = []
+    selected_appointment_id = int(selected_appointment["id"])
+    selected_appointment_start = _normalize_sql_time(selected_appointment["heureDebut"])
+
+    for rdv in doctor_rdvs:
+        start_time = _normalize_sql_time(rdv["heureDebut"])
+        end_time = _normalize_sql_time(rdv["heureFin"])
+        if start_time is None or end_time is None:
+            continue
+
+        start_minutes = _to_minutes(start_time)
+        end_minutes = _to_minutes(end_time)
+        duration_minutes = max(1, end_minutes - start_minutes)
+        ortools_patients.append(
+            {
+                "id": int(rdv["id"]),
+                "start": start_minutes,
+                "end": end_minutes,
+                "duration": duration_minutes,
+                "priority": 1000 if int(rdv["idPatient"]) == int(patient_id) else 1,
+                "isUrgent": False,
+            }
+        )
+
+    doctor_schedule = {
+        "start": _to_minutes(_normalize_sql_time(doctor_rdvs[0]["heureDebut"])) if doctor_rdvs else _to_minutes(selected_appointment_start),
+        "end": _to_minutes(_normalize_sql_time(doctor_rdvs[-1]["heureFin"])) if doctor_rdvs else _to_minutes(selected_appointment_start),
+    }
+
+    optimized_wait_time = None
+    if ortools_patients and doctor_schedule["start"] is not None and doctor_schedule["end"] is not None:
+        try:
+            optimized_plan = optimize_schedule(ortools_patients, doctor_schedule)
+            if optimized_plan:
+                optimized_map = {int(item["patient_id"]): int(item["start"]) for item in optimized_plan}
+                optimized_start = optimized_map.get(selected_appointment_id)
+                if optimized_start is not None:
+                    now_minutes = _to_minutes(current_time)
+                    optimized_wait_time = max(0, optimized_start - now_minutes)
+        except Exception:
+            optimized_wait_time = None
+
+    # Count patients with appointments later than now
+    for rdv in doctor_rdvs:
+        start_time = _normalize_sql_time(rdv["heureDebut"])
+        if start_time and start_time > current_time:
+            patients_waiting += 1
+
+    # Prefer the OR-Tools estimate; fall back to a direct time difference if needed.
+    if optimized_wait_time is not None:
+        wait_time_minutes = int(optimized_wait_time)
+    else:
+        selected_start = _normalize_sql_time(selected_appointment["heureDebut"])
+        if selected_start and selected_start > current_time:
+            today_dt = datetime.combine(selected_date, selected_start)
+            now_dt = datetime.combine(selected_date, current_time)
+            delta = today_dt - now_dt
+            wait_time_minutes = int(delta.total_seconds() // 60)
+        else:
+            wait_time_minutes = 0
+
+    return {
+        "access": True,
+        "doctor_status": doctor_status,
+        "your_appointment_time": _format_time_for_client(selected_appointment["heureDebut"]),
+        "totalPatients": int(total_patients),
+        "patientsWaiting": int(patients_waiting),
+        "waitTime": int(wait_time_minutes),
+    }
+
+
 def migrate_mysql_schema():
     """Ensure MySQL schema matches models and foreign keys are enforced."""
     try:
         with db.engine.begin() as conn:
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS personnel_de_sante (
+                    id_personnel INT NOT NULL AUTO_INCREMENT,
+                    nom VARCHAR(100) NOT NULL,
+                    prenom VARCHAR(100) NOT NULL,
+                    telephone VARCHAR(30) NULL,
+                    email VARCHAR(120) NULL,
+                    specialite VARCHAR(120) NULL,
+                    type_personnel VARCHAR(50) NOT NULL DEFAULT 'medecin',
+                    password VARCHAR(255) NOT NULL DEFAULT '',
+                    access_code VARCHAR(120) NULL,
+                    PRIMARY KEY (id_personnel),
+                    UNIQUE KEY uq_personnel_email (email),
+                    UNIQUE KEY uq_personnel_access_code (access_code)
+                ) ENGINE=InnoDB
+                """
+            )
+
+            conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN IF NOT EXISTS password VARCHAR(255) NOT NULL DEFAULT ''")
+            conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN IF NOT EXISTS access_code VARCHAR(120) NULL")
+            conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD UNIQUE INDEX IF NOT EXISTS uq_personnel_email (email)")
+            conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD UNIQUE INDEX IF NOT EXISTS uq_personnel_access_code (access_code)")
+
+            conn.exec_driver_sql(
+                """
+                INSERT INTO personnel_de_sante (id_personnel, nom, prenom, telephone, email, specialite, type_personnel, password, access_code)
+                SELECT id, nom, prenom, telephone, email, specialite, 'medecin', COALESCE(password, ''), access_code
+                FROM user
+                WHERE role = 2
+                ON DUPLICATE KEY UPDATE
+                    nom = VALUES(nom),
+                    prenom = VALUES(prenom),
+                    telephone = VALUES(telephone),
+                    email = VALUES(email),
+                    specialite = VALUES(specialite),
+                    password = VALUES(password),
+                    access_code = VALUES(access_code)
+                """
+            )
+
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS patient (
+                    id_patient INT NOT NULL AUTO_INCREMENT,
+                    nom VARCHAR(100) NOT NULL,
+                    prenom VARCHAR(100) NOT NULL,
+                    telephone VARCHAR(30) NULL,
+                    email VARCHAR(120) NULL,
+                    cin VARCHAR(50) NULL,
+                    password VARCHAR(255) NOT NULL DEFAULT '',
+                    PRIMARY KEY (id_patient)
+                ) ENGINE=InnoDB
+                """
+            )
+
+            conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS cin VARCHAR(50) NULL")
+            conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS password VARCHAR(255) NOT NULL DEFAULT ''")
+            # Drop UNIQUE constraint on email to allow NULL values and optional email
+            conn.exec_driver_sql("ALTER TABLE patient DROP INDEX IF EXISTS uq_patient_email")
+
+            conn.exec_driver_sql(
+                """
+                INSERT INTO patient (id_patient, nom, prenom, telephone, email, cin, password)
+                SELECT id, nom, prenom, telephone, email, cin, COALESCE(password, cin, '')
+                FROM user
+                WHERE role = 1
+                ON DUPLICATE KEY UPDATE
+                    nom = VALUES(nom),
+                    prenom = VALUES(prenom),
+                    telephone = VALUES(telephone),
+                    email = VALUES(email),
+                    cin = VALUES(cin),
+                    password = VALUES(password)
+                """
+            )
+
             # Create canonical `user` table if missing.
             conn.exec_driver_sql(
                 """
@@ -497,28 +1945,29 @@ def migrate_mysql_schema():
 
             # Remove orphan rows before adding FK constraints.
             conn.exec_driver_sql(
-                "DELETE r FROM rdv r LEFT JOIN user u ON r.idPatient = u.id WHERE r.idPatient IS NOT NULL AND u.id IS NULL"
+                "DELETE r FROM rdv r LEFT JOIN patient p ON r.idPatient = p.id_patient WHERE r.idPatient IS NOT NULL AND p.id_patient IS NULL"
             )
             conn.exec_driver_sql(
-                "DELETE r FROM rdv r LEFT JOIN user u ON r.idPersonnel = u.id WHERE r.idPersonnel IS NOT NULL AND u.id IS NULL"
+                "DELETE r FROM rdv r LEFT JOIN personnel_de_sante ps ON r.idPersonnel = ps.id_personnel WHERE r.idPersonnel IS NOT NULL AND ps.id_personnel IS NULL"
             )
             conn.exec_driver_sql(
-                "DELETE p FROM planning p LEFT JOIN user u ON p.idPersonnel = u.id WHERE p.idPersonnel IS NOT NULL AND u.id IS NULL"
+                "DELETE p FROM planning p LEFT JOIN personnel_de_sante ps ON p.idPersonnel = ps.id_personnel WHERE p.idPersonnel IS NOT NULL AND ps.id_personnel IS NULL"
             )
 
-            # Recreate FK constraints against `user`.
+            # Recreate FK constraints against `patient` and `personnel_de_sante`.
             conn.exec_driver_sql(
-                "ALTER TABLE rdv ADD CONSTRAINT fk_rdv_patient FOREIGN KEY (idPatient) REFERENCES user(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+                "ALTER TABLE rdv ADD CONSTRAINT fk_rdv_patient FOREIGN KEY (idPatient) REFERENCES patient(id_patient) ON UPDATE CASCADE ON DELETE RESTRICT"
             )
             conn.exec_driver_sql(
-                "ALTER TABLE rdv ADD CONSTRAINT fk_rdv_personnel FOREIGN KEY (idPersonnel) REFERENCES user(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+                "ALTER TABLE rdv ADD CONSTRAINT fk_rdv_personnel FOREIGN KEY (idPersonnel) REFERENCES personnel_de_sante(id_personnel) ON UPDATE CASCADE ON DELETE RESTRICT"
             )
             conn.exec_driver_sql(
-                "ALTER TABLE planning ADD CONSTRAINT fk_planning_personnel FOREIGN KEY (idPersonnel) REFERENCES user(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+                "ALTER TABLE planning ADD CONSTRAINT fk_planning_personnel FOREIGN KEY (idPersonnel) REFERENCES personnel_de_sante(id_personnel) ON UPDATE CASCADE ON DELETE RESTRICT"
             )
 
-            # Legacy table removal after migration.
+            # Drop user table now that all data has been migrated.
             conn.exec_driver_sql("DROP TABLE IF EXISTS users")
+            conn.exec_driver_sql("DROP TABLE IF EXISTS user")
     except Exception as exc:
         print(f"Migration MySQL warning: {exc}")
 
@@ -558,27 +2007,88 @@ def register_user():
         if statut == 2 and not access_code:
             return jsonify({"error": "accessCode est obligatoire pour le personnel medical"}), 400
 
-        if email:
-            existing = User.query.filter_by(email=email).first()
-            if existing:
-                return jsonify({"error": "email deja utilise"}), 409
+        if statut == 1:
+            _ensure_patient_table_columns()
+            with db.engine.begin() as conn:
+                existing = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, email, telephone, cin, password
+                    FROM patient
+                    WHERE LOWER(email) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    (email,),
+                ).mappings().first()
 
-        user = User(
-            nom=nom,
-            prenom=prenom,
-            telephone=telephone,
-            email=email,
-            specialite=specialite,
-            disponibilite=disponibilite,
-            statut=statut,
-            password=password,
-            access_code=access_code,
-        )
+                if existing:
+                    return jsonify({"error": "email deja utilise"}), 409
 
-        db.session.add(user)
-        db.session.commit()
+                conn.exec_driver_sql(
+                    """
+                    INSERT INTO patient (nom, prenom, telephone, email, cin, password)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (nom, prenom, telephone, email, None, password),
+                )
 
-        return jsonify({"message": "utilisateur cree avec succes", "user": user.to_dict()}), 201
+                patient_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, email, telephone, cin
+                    FROM patient
+                    WHERE LOWER(email) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    (email,),
+                ).mappings().first()
+
+            return jsonify({"message": "patient cree avec succes", "patient": _patient_payload_from_row(patient_row)}), 201
+
+        if statut == 2:
+            with db.engine.begin() as conn:
+                existing = conn.exec_driver_sql(
+                    """
+                    SELECT id_personnel, nom, prenom, email, specialite, type_personnel, access_code
+                    FROM personnel_de_sante
+                    WHERE LOWER(email) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    (email,),
+                ).mappings().first()
+
+                if existing:
+                    return jsonify({"error": "email deja utilise"}), 409
+
+                conn.exec_driver_sql(
+                    """
+                    INSERT INTO personnel_de_sante (nom, prenom, telephone, email, specialite, type_personnel, password, access_code)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (nom, prenom, telephone, email, specialite, "medecin", password, access_code),
+                )
+
+                staff_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_personnel, nom, prenom, email, specialite, type_personnel
+                    FROM personnel_de_sante
+                    WHERE LOWER(email) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    (email,),
+                ).mappings().first()
+
+            return jsonify({
+                "message": "personnel medical cree avec succes",
+                "user": {
+                    "id": int(staff_row["id_personnel"]),
+                    "nom": staff_row["nom"],
+                    "prenom": staff_row["prenom"],
+                    "email": staff_row["email"],
+                    "specialite": staff_row["specialite"],
+                    "type_personnel": staff_row["type_personnel"]
+                }
+            }), 201
+
+        return jsonify({"error": "statut invalide (doit etre 1 pour patient ou 2 pour personnel medical)"}), 400
 
     except Exception as exc:
         db.session.rollback()
@@ -599,61 +2109,90 @@ def login_user():
 
             normalized_input = normalize_access_code(access_code)
 
-            user = None
-            candidates = User.query.filter(User.statut == 2, User.access_code.isnot(None)).all()
-            for candidate in candidates:
-                if normalize_access_code(candidate.access_code) == normalized_input:
-                    user = candidate
-                    break
+            staff_row = None
+            with db.engine.connect() as conn:
+                candidates = conn.exec_driver_sql(
+                    """
+                    SELECT id_personnel, nom, prenom, email, specialite, type_personnel, access_code
+                    FROM personnel_de_sante
+                    WHERE type_personnel = 'medecin'
+                    """
+                ).mappings().all()
 
-            if not user and normalized_input in TEST_ACCESS_CODE_ALIASES and candidates:
-                user = candidates[0]
+                for candidate in candidates:
+                    if candidate["access_code"] and normalize_access_code(candidate["access_code"]) == normalized_input:
+                        staff_row = candidate
+                        break
 
-            if not user or not is_medical_staff(user):
+                if not staff_row and normalized_input in TEST_ACCESS_CODE_ALIASES and candidates:
+                    staff_row = candidates[0]
+
+            if not staff_row:
                 return jsonify({"error": "code d'acces invalide (ou non configure pour ce personnel)"}), 401
 
-            role = role_to_auth_role(user.statut)
-            token = create_jwt_token(user.id, role)
+            token = create_jwt_token(int(staff_row["id_personnel"]), "medical_staff")
             return jsonify({
                 "message": "Connexion reussie",
                 "token": token,
                 "user": {
-                    "id": user.id,
-                    "nom": user.nom,
-                    "prenom": user.prenom,
-                    "email": user.email,
-                    "role": role,
+                    "id": int(staff_row["id_personnel"]),
+                    "nom": staff_row["nom"],
+                    "prenom": staff_row["prenom"],
+                    "email": staff_row["email"],
+                    "role": "medical_staff",
                     "userType": "medical_staff",
-                    "specialite": user.specialite,
-                    "staffCategory": get_staff_category(user)
+                    "specialite": staff_row["specialite"],
+                    "staffCategory": "doctor" if staff_row["specialite"] else "secretary"
                 }
             }), 200
 
-        # Mode patient: email + mot de passe
+        # Mode patient: telephone/email + mot de passe
+        telephone = (data.get("telephone") or "").strip()
         email = (data.get("email") or "").strip().lower()
-        password = data.get("password") or ""
+        password = (data.get("password") or "").strip()
 
-        if not email or not password:
-            return jsonify({"error": "email et mot de passe obligatoires"}), 400
+        if not password or (not email and not telephone):
+            return jsonify({"error": "telephone/email et mot de passe obligatoires"}), 400
 
-        user = User.query.filter_by(email=email, password=password).first()
-        if not user:
-            return jsonify({"error": "email ou mot de passe incorrect"}), 401
+        _ensure_patient_table_columns()
 
-        role = role_to_auth_role(user.statut)
-        if role != "patient":
-            return jsonify({"error": "utilisez la connexion personnel de sante"}), 403
+        patient_row = None
+        with db.engine.connect() as conn:
+            if telephone:
+                patient_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, email, telephone, cin, password
+                    FROM patient
+                    WHERE telephone = %s AND password = %s
+                    LIMIT 1
+                    """,
+                    (telephone, password),
+                ).mappings().first()
+            if not patient_row and email:
+                patient_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, email, telephone, cin, password
+                    FROM patient
+                    WHERE LOWER(email) = LOWER(%s) AND password = %s
+                    LIMIT 1
+                    """,
+                    (email, password),
+                ).mappings().first()
 
-        token = create_jwt_token(user.id, role)
+        if not patient_row:
+            return jsonify({"error": "identifiants patient incorrects"}), 401
+
+        token = create_jwt_token(int(patient_row["id_patient"]), "patient")
         return jsonify({
             "message": "Connexion reussie",
             "token": token,
             "user": {
-                "id": user.id,
-                "nom": user.nom,
-                "prenom": user.prenom,
-                "email": user.email,
-                "role": role,
+                "id": int(patient_row["id_patient"]),
+                "nom": patient_row["nom"],
+                "prenom": patient_row["prenom"],
+                "email": patient_row["email"],
+                "telephone": patient_row["telephone"],
+                "role": "patient",
                 "userType": "patient"
             }
         }), 200
@@ -664,35 +2203,87 @@ def login_user():
 
 @app.route("/users", methods=["GET"])
 def get_users():
+    """Legacy endpoint - user table has been deprecated. Returns combined patients and staff."""
     try:
-        users = User.query.all()
-        return jsonify([u.to_dict() for u in users]), 200
+        _ensure_patient_table_columns()
+        patients = []
+        staff = []
+        
+        with db.engine.connect() as conn:
+            patient_rows = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin
+                FROM patient
+                ORDER BY nom ASC, prenom ASC
+                """
+            ).mappings().all()
+            
+            for row in patient_rows:
+                patients.append({
+                    "id": row["id_patient"],
+                    "nom": row["nom"],
+                    "prenom": row["prenom"],
+                    "email": row["email"],
+                    "telephone": row["telephone"],
+                    "role": "patient",
+                    "statut": 1
+                })
+            
+            staff_rows = conn.exec_driver_sql(
+                """
+                SELECT id_personnel, nom, prenom, email, specialite, type_personnel
+                FROM personnel_de_sante
+                ORDER BY nom ASC, prenom ASC
+                """
+            ).mappings().all()
+            
+            for row in staff_rows:
+                staff.append({
+                    "id": row["id_personnel"],
+                    "nom": row["nom"],
+                    "prenom": row["prenom"],
+                    "email": row["email"],
+                    "specialite": row["specialite"],
+                    "role": "medical_staff",
+                    "statut": 2
+                })
+        
+        return jsonify(patients + staff), 200
     except Exception as exc:
         return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
 
-
 @app.route("/medical-staff", methods=["GET"])
+@debug_route
 def get_medical_staff():
     try:
-        users = User.query.order_by(User.nom.asc(), User.prenom.asc()).all()
-        staff = [user for user in users if is_medical_staff(user)]
+        with db.engine.connect() as conn:
+            personnel_rows = conn.exec_driver_sql(
+                """
+                SELECT id_personnel, nom, prenom, email, specialite, type_personnel
+                FROM personnel_de_sante
+                ORDER BY nom ASC, prenom ASC
+                """
+            ).mappings().all()
         payload = []
-        for medecin in staff:
+        for staff in personnel_rows:
             payload.append(
                 {
-                    "id": medecin.id,
-                    "nom": medecin.nom,
-                    "prenom": medecin.prenom,
-                    "specialite": (medecin.specialite or "Generaliste"),
-                    "staffCategory": get_staff_category(medecin),
+                    "id": staff["id_personnel"],
+                    "id_personnel": staff["id_personnel"],
+                    "nom": staff["nom"],
+                    "prenom": staff["prenom"],
+                    "email": staff["email"],
+                    "specialite": (staff["specialite"] or "Generaliste") if staff["type_personnel"] == "medecin" else None,
+                    "type_personnel": staff["type_personnel"],
+                    "staffCategory": "doctor" if staff["type_personnel"] == "medecin" else "secretary",
                 }
             )
         return jsonify(payload), 200
     except Exception as exc:
         return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
 
-
 @app.route("/medical-staff/patient-by-cin", methods=["GET"])
+@debug_route
 def get_medical_staff_patient_by_cin():
     try:
         id_personnel = request.args.get("idPersonnel", type=int)
@@ -703,21 +2294,24 @@ def get_medical_staff_patient_by_cin():
         if not cin:
             return jsonify({"error": "cin est obligatoire"}), 400
 
-        _ensure_optional_user_columns()
-
-        personnel = User.query.get(id_personnel)
+        personnel = _get_personnel_row(id_personnel)
         if not personnel:
             return jsonify({"error": f"Personnel #{id_personnel} introuvable"}), 404
-        if not is_medical_staff(personnel):
+        if personnel.get("type_personnel") not in {"medecin", "secretaire"}:
             return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
-        normalized_cin = cin.lower()
-        patient = (
-            User.query
-            .filter(db.func.lower(db.func.trim(User.cin)) == normalized_cin)
-            .filter(User.statut == 1)
-            .first()
-        )
+        _ensure_patient_table_columns()
+
+        with db.engine.connect() as conn:
+            patient = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin
+                FROM patient
+                WHERE LOWER(TRIM(cin)) = %s
+                LIMIT 1
+                """,
+                (cin.lower(),),
+            ).mappings().first()
 
         if not patient:
             return jsonify({"found": False, "cin": cin}), 404
@@ -725,16 +2319,7 @@ def get_medical_staff_patient_by_cin():
         return jsonify(
             {
                 "found": True,
-                "patient": {
-                    "id": patient.id,
-                    "nom": patient.nom,
-                    "prenom": patient.prenom,
-                    "cin": patient.cin,
-                    "telephone": patient.telephone,
-                    "email": patient.email,
-                    "statut": patient.statut,
-                    "statut_label": USER_STATUS.get(patient.statut, "patient"),
-                },
+                "patient": _patient_payload_from_row(patient),
             }
         ), 200
     except Exception as exc:
@@ -742,6 +2327,7 @@ def get_medical_staff_patient_by_cin():
 
 
 @app.route("/medical-staff/patient-save", methods=["POST"])
+@debug_route
 def save_medical_staff_patient():
     try:
         data = request.get_json() or {}
@@ -751,10 +2337,10 @@ def save_medical_staff_patient():
         if not id_personnel:
             return jsonify({"error": "idPersonnel est obligatoire"}), 400
 
-        personnel = User.query.get(int(id_personnel))
+        personnel = _get_personnel_row(id_personnel)
         if not personnel:
             return jsonify({"error": "personnel introuvable"}), 404
-        if not is_medical_staff(personnel):
+        if personnel.get("type_personnel") not in {"medecin", "secretaire"}:
             return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
         nom = str(patient_payload.get("nom") or "").strip()
@@ -766,82 +2352,88 @@ def save_medical_staff_patient():
         if not nom or not prenom or not cin:
             return jsonify({"error": "nom, prenom et cin sont obligatoires"}), 400
 
-        _ensure_optional_user_columns()
+        _ensure_patient_table_columns()
 
-        existing_patient = (
-            User.query
-            .filter(db.func.lower(db.func.trim(User.cin)) == cin.lower())
-            .filter(User.statut == 1)
-            .first()
-        )
+        with db.engine.begin() as conn:
+            existing_patient = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin, password
+                FROM patient
+                WHERE LOWER(TRIM(cin)) = %s
+                LIMIT 1
+                """,
+                (cin.lower(),),
+            ).mappings().first()
 
-        if existing_patient:
-            existing_patient.nom = nom
-            existing_patient.prenom = prenom
-            existing_patient.telephone = telephone
-            existing_patient.statut = 1
+            if existing_patient:
+                conn.exec_driver_sql(
+                    """
+                    UPDATE patient
+                    SET nom = %s,
+                        prenom = %s,
+                        telephone = %s,
+                        email = %s,
+                        cin = %s,
+                        password = %s
+                    WHERE id_patient = %s
+                    """,
+                    (
+                        nom,
+                        prenom,
+                        telephone,
+                        email or None,
+                        cin,
+                        cin,
+                        int(existing_patient["id_patient"]),
+                    ),
+                )
+                patient_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, email, telephone, cin, password
+                    FROM patient
+                    WHERE id_patient = %s
+                    LIMIT 1
+                    """,
+                    (int(existing_patient["id_patient"]),),
+                ).mappings().first()
 
-            if not existing_patient.email:
-                existing_patient.email = email if email and not User.query.filter_by(email=email).first() else _generate_unique_patient_email()
-            elif email and existing_patient.email != email and not User.query.filter_by(email=email).first():
-                existing_patient.email = email
+                return jsonify(
+                    {
+                        "message": "patient mis a jour avec succes",
+                        "created": False,
+                        "patient": _patient_payload_from_row(patient_row),
+                    }
+                ), 200
 
-            if hasattr(existing_patient, "cin"):
-                existing_patient.cin = cin
+            if not email or conn.exec_driver_sql(
+                "SELECT COUNT(*) FROM patient WHERE LOWER(email) = LOWER(%s)",
+                (email,),
+            ).scalar() > 0:
+                email = f"patient_{int(datetime.utcnow().timestamp() * 1000)}@gestion-rdv.local"
 
-            db.session.commit()
-            return jsonify(
-                {
-                    "message": "patient mis a jour avec succes",
-                    "created": False,
-                    "patient": {
-                        "id": existing_patient.id,
-                        "nom": existing_patient.nom,
-                        "prenom": existing_patient.prenom,
-                        "cin": existing_patient.cin,
-                        "telephone": existing_patient.telephone,
-                        "email": existing_patient.email,
-                        "statut": existing_patient.statut,
-                        "statut_label": USER_STATUS.get(existing_patient.statut, "patient"),
-                    },
-                }
-            ), 200
+            conn.exec_driver_sql(
+                """
+                INSERT INTO patient (nom, prenom, telephone, email, cin, password)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (nom, prenom, telephone, email, cin, cin),
+            )
 
-        if not email or User.query.filter_by(email=email).first():
-            email = _generate_unique_patient_email()
-
-        patient = User(
-            nom=nom,
-            prenom=prenom,
-            telephone=telephone,
-            email=email,
-            specialite=None,
-            disponibilite=None,
-            password="",
-            access_code=None,
-            statut=1,
-        )
-
-        if hasattr(patient, "cin"):
-            patient.cin = cin
-
-        db.session.add(patient)
-        db.session.commit()
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin, password
+                FROM patient
+                WHERE LOWER(TRIM(cin)) = %s
+                LIMIT 1
+                """,
+                (cin.lower(),),
+            ).mappings().first()
 
         return jsonify(
             {
                 "message": "patient cree avec succes",
                 "created": True,
-                "patient": {
-                    "id": patient.id,
-                    "nom": patient.nom,
-                    "prenom": patient.prenom,
-                    "cin": patient.cin,
-                    "telephone": patient.telephone,
-                    "email": patient.email,
-                    "statut": patient.statut,
-                    "statut_label": USER_STATUS.get(patient.statut, "patient"),
-                },
+                "patient": _patient_payload_from_row(patient_row),
             }
         ), 201
     except Exception as exc:
@@ -850,6 +2442,7 @@ def save_medical_staff_patient():
 
 
 @app.route("/medical-staff/planning", methods=["GET"])
+@debug_route
 def get_medical_staff_planning():
     try:
         id_personnel = request.args.get("idPersonnel", type=int)
@@ -858,44 +2451,70 @@ def get_medical_staff_planning():
         if not id_personnel:
             return jsonify({"error": "idPersonnel est obligatoire"}), 400
 
-        personnel = User.query.get(id_personnel)
-        if not personnel:
-            return jsonify({"error": f"Personnel #{id_personnel} introuvable"}), 404
-        
-        if not is_medical_staff(personnel):
+        with db.engine.connect() as conn:
+            personnel_row = conn.exec_driver_sql(
+                """
+                SELECT id_personnel, type_personnel, specialite
+                FROM personnel_de_sante
+                WHERE id_personnel = %s
+                LIMIT 1
+                """,
+                (id_personnel,),
+            ).mappings().first()
+
+            week_start = selected_date - timedelta(days=selected_date.weekday())
+            week_end = week_start + timedelta(days=6)
+
+            rdvs = conn.exec_driver_sql(
+                """
+                SELECT
+                    r.idRDV AS id,
+                    r.idPatient,
+                    r.idPersonnel,
+                    r.dateRDV,
+                    r.heureDebut,
+                    r.heureFin,
+                    r.motifConsultation,
+                    p.nom AS patientNom,
+                                        p.prenom AS patientPrenom,
+                                        ps.nom AS medecinNom,
+                                        ps.prenom AS medecinPrenom,
+                                        ps.specialite AS specialite
+                FROM rdv r
+                LEFT JOIN patient p ON p.id_patient = r.idPatient
+                                LEFT JOIN personnel_de_sante ps ON ps.id_personnel = r.idPersonnel
+                WHERE r.idPersonnel = %s
+                  AND r.dateRDV >= %s
+                  AND r.dateRDV <= %s
+                ORDER BY r.dateRDV ASC, r.heureDebut ASC
+                """,
+                (id_personnel, week_start, week_end),
+            ).mappings().all()
+
+        if personnel_row and personnel_row["type_personnel"] not in ("medecin", "secretaire"):
             return jsonify({
-                "error": f"L'utilisateur #{id_personnel} n'est pas du personnel medical (statut={personnel.statut}, specialite={personnel.specialite})"
+                "error": f"L'utilisateur #{id_personnel} n'est pas du personnel medical (type={personnel_row['type_personnel']}, specialite={personnel_row['specialite']})"
             }), 403
-
-        week_start = selected_date - timedelta(days=selected_date.weekday())
-        week_end = week_start + timedelta(days=6)
-
-        rdvs = (
-            Rdv.query
-            .filter(
-                Rdv.idPersonnel == id_personnel,
-                Rdv.dateRDV >= week_start,
-                Rdv.dateRDV <= week_end,
-            )
-            .order_by(Rdv.dateRDV.asc(), Rdv.heureDebut.asc())
-            .all()
-        )
 
         grouped = {}
         for rdv in rdvs:
-            day_key = rdv.dateRDV.isoformat()
+            day_key = rdv["dateRDV"].isoformat() if hasattr(rdv["dateRDV"], "isoformat") else str(rdv["dateRDV"])
             grouped.setdefault(day_key, []).append(
                 {
-                    "id": rdv.idRdv,
-                    "idPatient": rdv.idPatient,
-                    "idPersonnel": rdv.idPersonnel,
-                    "dateRDV": rdv.dateRDV.isoformat(),
-                    "heureDebut": rdv.heureDebut.strftime("%H:%M:%S"),
-                    "heureFin": rdv.heureFin.strftime("%H:%M:%S"),
-                    "motifConsultation": rdv.motifConsultation,
-                    "statut": rdv.statut,
-                    "patientNom": rdv.patient.nom if rdv.patient else "",
-                    "patientPrenom": rdv.patient.prenom if rdv.patient else "",
+                    "id": rdv["id"],
+                    "idPatient": rdv["idPatient"],
+                    "idPersonnel": rdv["idPersonnel"],
+                    "dateRDV": day_key,
+                    "heureDebut": _format_sql_time(rdv["heureDebut"]),
+                    "heureFin": _format_sql_time(rdv["heureFin"]),
+                    "motifConsultation": rdv["motifConsultation"],
+                    "statut": None,
+                    "patientNom": rdv["patientNom"] or "",
+                    "patientPrenom": rdv["patientPrenom"] or "",
+                    "medecinNom": rdv["medecinNom"] or "",
+                    "medecinPrenom": rdv["medecinPrenom"] or "",
+                    "medecin": f"{(rdv['medecinPrenom'] or '').strip()} {(rdv['medecinNom'] or '').strip()}".strip() or "",
+                    "specialite": rdv["specialite"] or "Generaliste",
                 }
             )
 
@@ -934,7 +2553,184 @@ def get_medical_staff_planning():
         return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
 
 
+@app.route("/medical-staff/cancel-all", methods=["POST"])
+@debug_route
+def cancel_all_medical_staff_day():
+    try:
+        data = request.get_json() or {}
+        id_personnel = data.get("idPersonnel") or request.args.get("idPersonnel", type=int)
+        date_value = data.get("date") or request.args.get("date")
+        target_date = parse_date(date_value) or datetime.utcnow().date()
+
+        if not id_personnel:
+            return jsonify({"error": "idPersonnel est obligatoire"}), 400
+
+        if not is_medical_staff(int(id_personnel)):
+            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
+
+        rdvs = (
+            Rdv.query
+            .filter(Rdv.idPersonnel == int(id_personnel), Rdv.dateRDV == target_date)
+            .all()
+        )
+
+        if not rdvs:
+            return jsonify({"message": "Aucun rendez-vous a annuler", "count": 0}), 200
+
+        updated = []
+        try:
+            for r in rdvs:
+                old_motif = (r.motifConsultation or "").strip()
+                if not old_motif.lower().startswith("annule"):
+                    r.motifConsultation = f"Annule - {old_motif or 'consultation'}"
+                r.statut = "annule (urgence medecin)"
+                updated.append(r.idRdv)
+            db.session.commit()
+            try:
+                _notify_patients_of_cancellation(updated, target_date)
+            except Exception:
+                import traceback
+                traceback.print_exc()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        socketio.emit("doctor_planning_cancelled", {"idPersonnel": int(id_personnel), "dateRDV": target_date.isoformat(), "cancelled": updated})
+
+        return jsonify({"message": "RDVs annules pour le personnel", "count": len(updated), "cancelled": updated}), 200
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/medical-staff/recalculate-short-absence", methods=["POST"])
+@debug_route
+def recalculate_short_absence():
+    """Recalculate a doctor's day around a short absence window using OR-Tools."""
+    try:
+        data = request.get_json(silent=True) or {}
+        id_personnel = data.get("idPersonnel") or request.args.get("idPersonnel", type=int)
+        date_value = data.get("dateRDV") or data.get("date") or request.args.get("date")
+        interval = str(data.get("interval") or "morning").strip().lower()
+        absence_hours = _coerce_minutes_value(data.get("absenceHours") or data.get("hours") or 1)
+
+        date_rdv = parse_date(date_value) or datetime.utcnow().date()
+        if not id_personnel:
+            return jsonify({"error": "idPersonnel est obligatoire"}), 400
+
+        try:
+            id_personnel = int(id_personnel)
+        except (TypeError, ValueError):
+            return jsonify({"error": "idPersonnel doit etre un entier"}), 400
+
+        if not is_medical_staff(id_personnel):
+            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
+
+        day_start, day_end, plannings, used_default_planning = _get_doctor_planning_window(id_personnel, date_rdv)
+        if day_end <= day_start:
+            return jsonify({"error": "planning invalide"}), 400
+
+        planning_window = {
+            "morning": (day_start, day_start + max(1, (day_end - day_start) // 2)),
+            "afternoon": (day_start + max(1, (day_end - day_start) // 2), day_end),
+            "full-day": (day_start, day_end),
+        }
+        if interval not in planning_window:
+            return jsonify({"error": "intervalle invalide"}), 400
+
+        interval_start, interval_end = planning_window[interval]
+        if interval_end <= interval_start:
+            return jsonify({"error": "intervalle invalide"}), 400
+
+        max_absence = interval_end - interval_start
+        if absence_hours is None or absence_hours <= 0:
+            return jsonify({"error": "absenceHours doit etre positive"}), 400
+        absence_duration = int(absence_hours) * 60
+        if absence_duration > max_absence:
+            return jsonify({"error": f"absenceHours depasse la duree disponible pour {interval}"}), 400
+
+        absence_start = interval_start
+        absence_end = absence_start + absence_duration
+
+        existing_rdvs = [_build_rdv_snapshot(rdv) for rdv in _get_doctor_rdvs_for_day(id_personnel, date_rdv)]
+        if not existing_rdvs:
+            return jsonify({
+                "message": "aucun rendez-vous a recalculer",
+                "updatedRows": [],
+                "updatedSchedule": [],
+                "absenceWindow": {
+                    "start": _to_hhmmss(absence_start),
+                    "end": _to_hhmmss(absence_end),
+                    "interval": interval,
+                },
+                "planningContext": {
+                    "hasPlanning": not used_default_planning,
+                    "planningSource": "default" if used_default_planning else "planning",
+                    "planningWindows": len(plannings),
+                },
+            }), 200
+
+        result = optimize_day_with_absence(existing_rdvs, day_start, day_end, absence_start, absence_end)
+        if result is None:
+            return jsonify({"error": "Impossible de recalculer le planning avec cette absence"}), 400
+
+        try:
+            updated_rows = _apply_optimized_day_plan(id_personnel, date_rdv, result)
+            if updated_rows is None:
+                db.session.rollback()
+                return jsonify({"error": "Impossible de sauvegarder le planning recalcule"}), 500
+            db.session.commit()
+            try:
+                _notify_patients_of_reschedule(updated_rows, date_rdv)
+            except Exception:
+                # Notification errors should not block API success; log and continue.
+                import traceback
+                traceback.print_exc()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        updated_schedule = _get_doctor_rdvs_for_day(id_personnel, date_rdv)
+        socketio.emit(
+            "doctor_planning_rearranged",
+            {
+                "idPersonnel": id_personnel,
+                "dateRDV": date_rdv.isoformat(),
+                "absenceWindow": {
+                    "start": _to_hhmmss(absence_start),
+                    "end": _to_hhmmss(absence_end),
+                    "interval": interval,
+                },
+                "optimizedPlan": result,
+            },
+        )
+
+        return jsonify({
+            "message": "planning recalcule avec succes",
+            "updatedRows": updated_rows,
+            "optimizedPlan": result,
+            "absenceWindow": {
+                "start": _to_hhmmss(absence_start),
+                "end": _to_hhmmss(absence_end),
+                "interval": interval,
+            },
+            "planningContext": {
+                "hasPlanning": not used_default_planning,
+                "planningSource": "default" if used_default_planning else "planning",
+                "planningWindows": len(plannings),
+            },
+            "updatedSchedule": [rdv.to_dict() for rdv in updated_schedule],
+        }), 200
+    except Exception as exc:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
+
+
 @app.route("/medical-staff/patient-record", methods=["GET"])
+@debug_route
 def get_medical_staff_patient_record():
     try:
         id_personnel = request.args.get("idPersonnel", type=int)
@@ -944,13 +2740,22 @@ def get_medical_staff_patient_record():
         if not id_personnel or not id_patient:
             return jsonify({"error": "idPersonnel et idPatient sont obligatoires"}), 400
 
-        personnel = User.query.get(id_personnel)
-        if not personnel:
-            return jsonify({"error": "personnel introuvable"}), 404
-        if not is_medical_staff(personnel):
+        personnel = _get_personnel_row(id_personnel)
+        if not personnel or personnel.get("type_personnel") not in {"medecin", "secretaire"}:
             return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
-        patient = User.query.get(id_patient)
+        _ensure_patient_table_columns()
+        with db.engine.connect() as conn:
+            patient = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin
+                FROM patient
+                WHERE id_patient = %s
+                LIMIT 1
+                """,
+                (id_patient,),
+            ).mappings().first()
+
         if not patient:
             return jsonify({"error": "patient introuvable"}), 404
 
@@ -971,10 +2776,9 @@ def get_medical_staff_patient_record():
 
             history.append(
                 {
-                    "id": rdv.idRdv,
                     "dateRDV": rdv.dateRDV.isoformat(),
-                    "heureDebut": rdv.heureDebut.strftime("%H:%M:%S"),
-                    "heureFin": rdv.heureFin.strftime("%H:%M:%S"),
+                    "heureDebut": _format_sql_time(rdv.heureDebut),
+                    "heureFin": _format_sql_time(rdv.heureFin),
                     "motifConsultation": rdv.motifConsultation,
                     "statut": rdv.statut,
                 }
@@ -983,15 +2787,16 @@ def get_medical_staff_patient_record():
         return jsonify(
             {
                 "patient": {
-                    "id": patient.id,
-                    "nom": patient.nom,
-                    "prenom": patient.prenom,
-                    "telephone": patient.telephone,
-                    "email": patient.email,
-                    "statut": patient.statut,
-                    "statut_label": USER_STATUS.get(patient.statut, "inconnu"),
+                    "id": int(patient["id_patient"]),
+                    "nom": patient["nom"],
+                    "prenom": patient["prenom"],
+                    "telephone": patient["telephone"],
+                    "email": patient["email"],
+                    "cin": patient["cin"],
+                    "statut": 1,
+                    "statut_label": "patient",
                 },
-                "currentDoctorId": id_personnel,
+                "currentDoctorId": int(personnel["id_personnel"]),
                 "historyCount": len(history),
                 "lastAppointment": history[0] if history else None,
                 "appointments": history,
@@ -1002,6 +2807,7 @@ def get_medical_staff_patient_record():
 
 
 @app.route("/medical-staff/patient-full-profile", methods=["GET"])
+@debug_route
 def get_medical_staff_patient_full_profile():
     try:
         id_personnel = request.args.get("idPersonnel", type=int)
@@ -1011,62 +2817,100 @@ def get_medical_staff_patient_full_profile():
         if not id_personnel or not id_patient:
             return jsonify({"error": "idPersonnel et idPatient sont obligatoires"}), 400
 
-        personnel = User.query.get(id_personnel)
-        if not personnel:
-            return jsonify({"error": "personnel introuvable"}), 404
-        if not is_medical_staff(personnel):
-            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
+        with db.engine.connect() as conn:
+            personnel_row = conn.exec_driver_sql(
+                """
+                SELECT id_personnel, type_personnel
+                FROM personnel_de_sante
+                WHERE id_personnel = %s
+                LIMIT 1
+                """,
+                (id_personnel,),
+            ).mappings().first()
 
-        patient = User.query.get(id_patient)
-        if not patient:
-            return jsonify({"error": "patient introuvable"}), 404
+            if not personnel_row:
+                return jsonify({"error": "personnel introuvable"}), 404
+            if personnel_row["type_personnel"] not in ("medecin", "secretaire"):
+                return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
-        rdvs = (
-            Rdv.query
-            .filter(
-                Rdv.idPatient == id_patient,
-                Rdv.idPersonnel == id_personnel,
-            )
-            .order_by(Rdv.dateRDV.desc(), Rdv.heureDebut.desc())
-            .all()
-        )
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin
+                FROM patient
+                WHERE id_patient = %s
+                LIMIT 1
+                """,
+                (id_patient,),
+            ).mappings().first()
+
+            if not patient_row:
+                return jsonify({"error": "patient introuvable"}), 404
+
+            dossier_row = conn.exec_driver_sql(
+                """
+                SELECT sexe, date_naissance, historique, allergies, traitements
+                FROM dossier_medical
+                WHERE idPatient = %s
+                LIMIT 1
+                """,
+                (id_patient,),
+            ).mappings().first()
+
+            rdvs = conn.exec_driver_sql(
+                """
+                SELECT
+                    idRDV AS id,
+                    dateRDV,
+                    heureDebut,
+                    heureFin,
+                    motifConsultation
+                FROM rdv
+                WHERE idPatient = %s
+                  AND idPersonnel = %s
+                ORDER BY dateRDV DESC, heureDebut DESC
+                """,
+                (id_patient, id_personnel),
+            ).mappings().all()
 
         history = []
         for rdv in rdvs:
-            if current_rdv_id and rdv.idRdv == current_rdv_id:
+            if current_rdv_id and rdv["id"] == current_rdv_id:
                 continue
 
             history.append(
                 {
-                    "id": rdv.idRdv,
-                    "dateRDV": rdv.dateRDV.isoformat(),
-                    "heureDebut": rdv.heureDebut.strftime("%H:%M:%S"),
-                    "heureFin": rdv.heureFin.strftime("%H:%M:%S"),
-                    "motifConsultation": rdv.motifConsultation,
-                    "statut": rdv.statut,
+                    "id": rdv["id"],
+                    "dateRDV": rdv["dateRDV"].isoformat() if hasattr(rdv["dateRDV"], "isoformat") else str(rdv["dateRDV"]),
+                    "heureDebut": _format_sql_time(rdv["heureDebut"]),
+                    "heureFin": _format_sql_time(rdv["heureFin"]),
+                    "motifConsultation": rdv["motifConsultation"],
+                    "statut": None,
                 }
             )
 
-        health_fields = _get_patient_health_fields(id_patient)
-        nom_complet = f"{(patient.prenom or '').strip()} {(patient.nom or '').strip()}".strip()
+        allergies = _split_health_values(dossier_row["allergies"]) if dossier_row and dossier_row.get("allergies") else []
+        maladies = _split_health_values(dossier_row["traitements"]) if dossier_row and dossier_row.get("traitements") else []
+        date_naissance = dossier_row["date_naissance"] if dossier_row else None
+        age = _compute_age(date_naissance) if date_naissance else None
+        nom_complet = f"{(patient_row['prenom'] or '').strip()} {(patient_row['nom'] or '').strip()}".strip()
 
         return jsonify(
             {
                 "patient": {
-                    "id": patient.id,
-                    "nom": patient.nom,
-                    "prenom": patient.prenom,
-                    "nomComplet": nom_complet or f"Patient #{patient.id}",
-                    "cin": health_fields["cin"],
-                    "sexe": health_fields["sexe"],
-                    "telephone": patient.telephone,
-                    "email": patient.email,
-                    "statut": patient.statut,
-                    "statut_label": USER_STATUS.get(patient.statut, "inconnu"),
-                    "dateNaissance": health_fields["dateNaissance"],
-                    "age": health_fields["age"],
-                    "allergies": health_fields["allergies"],
-                    "maladies": health_fields["maladies"],
+                    "id": int(patient_row["id_patient"]),
+                    "nom": patient_row["nom"],
+                    "prenom": patient_row["prenom"],
+                    "nomComplet": nom_complet or f"Patient #{patient_row['id_patient']}",
+                    "cin": patient_row["cin"],
+                    "sexe": dossier_row["sexe"] if dossier_row else None,
+                    "telephone": patient_row["telephone"],
+                    "email": patient_row["email"],
+                    "statut": 1,
+                    "statut_label": "patient",
+                    "dateNaissance": date_naissance.isoformat() if hasattr(date_naissance, "isoformat") else (str(date_naissance) if date_naissance else None),
+                    "age": age,
+                    "allergies": allergies,
+                    "maladies": maladies,
                 },
                 "currentDoctorId": id_personnel,
                 "historyCount": len(history),
@@ -1077,48 +2921,743 @@ def get_medical_staff_patient_full_profile():
     except Exception as exc:
         return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
 
-
 @app.route("/medical-staff/patients", methods=["GET"])
+@debug_route
 def get_medical_staff_patients():
     try:
         id_personnel = request.args.get("idPersonnel", type=int)
         if not id_personnel:
             return jsonify({"error": "idPersonnel est obligatoire"}), 400
 
-        personnel = User.query.get(id_personnel)
-        if not personnel or not is_medical_staff(personnel):
-            return jsonify({"error": "personnel medical introuvable"}), 404
+        with db.engine.connect() as conn:
+            personnel_row = conn.exec_driver_sql(
+                """
+                SELECT id_personnel, type_personnel
+                FROM personnel_de_sante
+                WHERE id_personnel = %s
+                LIMIT 1
+                """,
+                (id_personnel,),
+            ).mappings().first()
 
-        rows = (
-            db.session.query(
-                User.id,
-                User.nom,
-                User.prenom,
-                User.email,
-                User.telephone,
-                db.func.count(Rdv.idRdv).label("rdvCount"),
-            )
-            .join(Rdv, Rdv.idPatient == User.id)
-            .filter(Rdv.idPersonnel == id_personnel)
-            .group_by(User.id, User.nom, User.prenom, User.email, User.telephone)
-            .order_by(User.nom.asc(), User.prenom.asc())
-            .all()
-        )
+            if not personnel_row or personnel_row.get("type_personnel") not in {"medecin", "secretaire"}:
+                app.logger.warning(f"medical staff not found for id_personnel={id_personnel}")
+                return jsonify([]), 200
+
+            rows = conn.exec_driver_sql(
+                """
+                SELECT
+                    p.id_patient AS id,
+                    p.nom,
+                    p.prenom,
+                    p.email,
+                    p.telephone,
+                    COUNT(r.idRdv) AS rdvCount
+                FROM patient p
+                LEFT JOIN rdv r
+                    ON r.idPatient = p.id_patient
+                   AND r.idPersonnel = %s
+                GROUP BY p.id_patient, p.nom, p.prenom, p.email, p.telephone
+                ORDER BY p.nom ASC, p.prenom ASC
+                """,
+                (id_personnel,),
+            ).mappings().all()
 
         return jsonify([
             {
-                "id": row.id,
-                "nom": row.nom,
-                "prenom": row.prenom,
-                "email": row.email,
-                "telephone": row.telephone,
-                "rdvCount": int(row.rdvCount or 0),
+                "id": int(row["id"]),
+                "nom": row["nom"],
+                "prenom": row["prenom"],
+                "email": row["email"],
+                "telephone": row["telephone"],
+                "rdvCount": int(row["rdvCount"] or 0),
             }
             for row in rows
         ]), 200
     except Exception as exc:
         return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
 
+
+@app.route("/patient/today-access", methods=["GET"])
+def get_patient_today_access():
+    try:
+        patient_id, auth_error = _get_authenticated_patient_id()
+        # If authentication failed, allow a public fallback when a patientId is provided
+        if auth_error:
+            pid_param = request.args.get('patientId') or request.args.get('idPatient')
+            if pid_param:
+                try:
+                    patient_id = int(pid_param)
+                    auth_error = None
+                except Exception:
+                    return auth_error
+            else:
+                return auth_error
+
+        today = datetime.utcnow().date()
+        access_payload = _resolve_patient_doctor_status(patient_id, today)
+
+        if not access_payload:
+            return jsonify(
+                {
+                    "access": False,
+                    "message": "Acces autorise uniquement le jour de votre rendez-vous",
+                }
+            ), 403
+
+        return jsonify(access_payload), 200
+    except Exception as exc:
+        return jsonify({"access": False, "message": f"erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/patient/rdvs", methods=["GET"])
+def get_patient_rdvs():
+    """Get all RDVs for the authenticated patient with doctor details and statut."""
+    try:
+        # Extract patient ID from JWT token
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Token manquant ou invalide"}), 401
+        
+        token = auth_header[7:]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            patient_id = payload.get("user_id")
+            user_role = payload.get("role")
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Token invalide"}), 401
+        
+        if user_role != "patient" or not patient_id:
+            return jsonify({"error": "Acces refuse - patient seulement"}), 403
+        
+        _ensure_patient_table_columns()
+        
+        with db.engine.connect() as conn:
+            # Verify patient exists
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin, adresse
+                FROM patient
+                WHERE id_patient = %s
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).mappings().first()
+            
+            if not patient_row:
+                return jsonify({"error": "Patient non trouve"}), 404
+            
+            # Get all RDVs for this patient with doctor details
+            rdvs = conn.exec_driver_sql(
+                """
+                SELECT
+                    r.idRDV AS id,
+                    r.dateRDV,
+                    r.heureDebut,
+                    r.heureFin,
+                    r.motifConsultation,
+                    r.statut,
+                    ps.id_personnel,
+                    ps.nom AS medecin_nom,
+                    ps.prenom AS medecin_prenom,
+                    ps.specialite
+                FROM rdv r
+                LEFT JOIN personnel_de_sante ps ON r.idPersonnel = ps.id_personnel
+                WHERE r.idPatient = %s
+                ORDER BY r.dateRDV DESC, r.heureDebut DESC
+                """,
+                (patient_id,),
+            ).mappings().all()
+        
+        result = []
+        for rdv in rdvs:
+            medecin_nom = f"{(rdv.get('medecin_prenom') or '').strip()} {(rdv.get('medecin_nom') or '').strip()}".strip()
+            heure_debut = _normalize_sql_time(rdv["heureDebut"])
+            heure_fin = _normalize_sql_time(rdv["heureFin"])
+            result.append({
+                "id": int(rdv["id"]),
+                "idRdv": int(rdv["id"]),
+                "idRDV": int(rdv["id"]),
+                "idPatient": int(patient_id),
+                "idPersonnel": int(rdv["id_personnel"]),
+                "dateRDV": rdv["dateRDV"].isoformat() if rdv["dateRDV"] else None,
+                "heureDebut": heure_debut.strftime("%H:%M:%S") if heure_debut else None,
+                "heureFin": heure_fin.strftime("%H:%M:%S") if heure_fin else None,
+                "motifConsultation": rdv["motifConsultation"] or "",
+                "statut": rdv["statut"] or "Confirme",
+                "medecinNom": (rdv.get('medecin_nom') or None),
+                "medecinPrenom": (rdv.get('medecin_prenom') or None),
+                "medecin": medecin_nom or "Non assigne",
+                "specialite": rdv["specialite"] or "Generaliste"
+            })
+        
+        return jsonify(result), 200
+    except Exception as exc:
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/patient/dossier-medical", methods=["GET"])
+def get_patient_dossier_medical():
+    """Get patient's medical record (read-only)."""
+    try:
+        # Extract patient ID from JWT token
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Token manquant ou invalide"}), 401
+        
+        token = auth_header[7:]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            patient_id = payload.get("user_id")
+            user_role = payload.get("role")
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Token invalide"}), 401
+        
+        if user_role != "patient" or not patient_id:
+            return jsonify({"error": "Acces refuse - patient seulement"}), 403
+        
+        _ensure_patient_table_columns()
+        
+        with db.engine.connect() as conn:
+            # Get patient info
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin
+                FROM patient
+                WHERE id_patient = %s
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).mappings().first()
+            
+            if not patient_row:
+                return jsonify({"error": "Patient non trouve"}), 404
+            
+            # Get medical record
+            dossier_row = conn.exec_driver_sql(
+                """
+                SELECT
+                    idPatient,
+                    sexe,
+                    date_naissance,
+                    historique,
+                    allergies,
+                    traitements
+                FROM dossier_medical
+                WHERE idPatient = %s
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).mappings().first()
+        
+        date_naissance = dossier_row["date_naissance"] if dossier_row else None
+        age = _compute_age(date_naissance) if date_naissance else None
+        
+        allergies = _split_health_values(dossier_row["allergies"]) if dossier_row and dossier_row.get("allergies") else []
+        traitements = _split_health_values(dossier_row["traitements"]) if dossier_row and dossier_row.get("traitements") else []
+        historique = (dossier_row["historique"] or "").strip() if dossier_row else ""
+        
+        return jsonify({
+            "patient": {
+                "id": int(patient_row["id_patient"]),
+                "nom": patient_row["nom"],
+                "prenom": patient_row["prenom"],
+                "email": patient_row["email"],
+                "telephone": patient_row["telephone"],
+                "cin": patient_row["cin"],
+            },
+            "dossier": {
+                "sexe": dossier_row["sexe"] if dossier_row else None,
+                "date_naissance": date_naissance.isoformat() if date_naissance else None,
+                "age": age,
+                "historique": historique,
+                "allergies": allergies,
+                "traitements": traitements,
+            }
+        }), 200
+    except Exception as exc:
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/patient/dashboard", methods=["GET"])
+def get_patient_dashboard():
+    """Aggregate patient dashboard data (profile, medical record, and appointment history)."""
+    try:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Token manquant ou invalide"}), 401
+
+        token = auth_header[7:]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            patient_id = payload.get("user_id")
+            user_role = payload.get("role")
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Token invalide"}), 401
+
+        if user_role != "patient" or not patient_id:
+            return jsonify({"error": "Acces refuse - patient seulement"}), 403
+
+        _ensure_patient_table_columns()
+
+        with db.engine.connect() as conn:
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin
+                FROM patient
+                WHERE id_patient = %s
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).mappings().first()
+
+            if not patient_row:
+                return jsonify({"error": "Patient non trouve"}), 404
+
+            dossier_row = conn.exec_driver_sql(
+                """
+                SELECT sexe, date_naissance, historique, allergies, traitements
+                FROM dossier_medical
+                WHERE idPatient = %s
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).mappings().first()
+
+            rdv_rows = conn.exec_driver_sql(
+                """
+                SELECT
+                    r.idRDV AS id,
+                    r.dateRDV,
+                    r.heureDebut,
+                    r.heureFin,
+                    r.motifConsultation,
+                    r.statut,
+                    ps.nom AS medecin_nom,
+                    ps.prenom AS medecin_prenom,
+                    ps.specialite
+                FROM rdv r
+                LEFT JOIN personnel_de_sante ps ON r.idPersonnel = ps.id_personnel
+                WHERE r.idPatient = %s
+                ORDER BY r.dateRDV DESC, r.heureDebut DESC
+                """,
+                (patient_id,),
+            ).mappings().all()
+
+        appointments = []
+        for row in rdv_rows:
+            medecin_prenom = (row.get("medecin_prenom") or "").strip()
+            medecin_nom = (row.get("medecin_nom") or "").strip()
+            medecin_full = f"{medecin_prenom} {medecin_nom}".strip()
+            appointments.append(
+                {
+                    "id": int(row["id"]),
+                    "dateRDV": row["dateRDV"].isoformat() if row["dateRDV"] else None,
+                    "heureDebut": _format_sql_time(row["heureDebut"]),
+                    "heureFin": _format_sql_time(row["heureFin"]),
+                    "motifConsultation": row["motifConsultation"] or "",
+                    "statut": row["statut"] or "Confirme",
+                    "medecin": medecin_full or "Medecin non renseigne",
+                    "medecinNom": medecin_nom or None,
+                    "medecinPrenom": medecin_prenom or None,
+                    "specialite": row["specialite"] or "Generaliste",
+                }
+            )
+
+        date_naissance = dossier_row["date_naissance"] if dossier_row else None
+        allergies = _split_health_values(dossier_row["allergies"]) if dossier_row and dossier_row.get("allergies") else []
+        maladies = _split_health_values(dossier_row["traitements"]) if dossier_row and dossier_row.get("traitements") else []
+
+        nom_complet = f"{(patient_row['prenom'] or '').strip()} {(patient_row['nom'] or '').strip()}".strip()
+
+        return jsonify(
+            {
+                "patient": {
+                    "id": int(patient_row["id_patient"]),
+                    "nom": patient_row["nom"],
+                    "prenom": patient_row["prenom"],
+                    "nomComplet": nom_complet,
+                    "email": patient_row["email"],
+                    "telephone": patient_row["telephone"],
+                    "cin": patient_row["cin"],
+                    "adresse": None,
+                },
+                "dossierMedical": {
+                    "sexe": dossier_row["sexe"] if dossier_row else None,
+                    "dateNaissance": date_naissance.isoformat() if date_naissance else None,
+                    "historique": (dossier_row["historique"] or "").strip() if dossier_row else None,
+                    "allergies": allergies,
+                    "maladies": maladies,
+                },
+                "historyCount": len(appointments),
+                "appointments": appointments,
+                "lastAppointment": appointments[0] if appointments else None,
+            }
+        ), 200
+    except Exception as exc:
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+@app.route("/patient/profile", methods=["GET"])
+def get_patient_profile():
+    """Get complete patient profile (read-only) with medical data and recent appointments."""
+    try:
+        # Extract patient ID from JWT token
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Token manquant ou invalide"}), 401
+        
+        token = auth_header[7:]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            patient_id = payload.get("user_id")
+            user_role = payload.get("role")
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Token invalide"}), 401
+        
+        if user_role != "patient" or not patient_id:
+            return jsonify({"error": "Acces refuse - patient seulement"}), 403
+        
+        _ensure_patient_table_columns()
+        
+        with db.engine.connect() as conn:
+            # Get patient info
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin
+                FROM patient
+                WHERE id_patient = %s
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).mappings().first()
+            
+            if not patient_row:
+                return jsonify({"error": "Patient non trouve"}), 404
+            
+            # Get medical record
+            dossier_row = conn.exec_driver_sql(
+                """
+                SELECT
+                    idPatient,
+                    sexe,
+                    date_naissance,
+                    historique,
+                    allergies,
+                    traitements
+                FROM dossier_medical
+                WHERE idPatient = %s
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).mappings().first()
+            
+            # Get recent appointments (last 10)
+            appointments_rows = conn.exec_driver_sql(
+                """
+                SELECT
+                    r.idRDV AS id,
+                    r.dateRDV,
+                    r.heureDebut,
+                    r.heureFin,
+                    r.motifConsultation,
+                    r.statut,
+                    ps.nom AS medecin_nom,
+                    ps.prenom AS medecin_prenom,
+                    ps.specialite
+                FROM rdv r
+                LEFT JOIN personnel_de_sante ps ON r.idPersonnel = ps.id_personnel
+                WHERE r.idPatient = %s
+                ORDER BY r.dateRDV DESC, r.heureDebut DESC
+                LIMIT 10
+                """,
+                (patient_id,),
+            ).mappings().all()
+        
+        # Process appointments
+        appointments = []
+        for row in appointments_rows:
+            medecin_prenom = (row.get("medecin_prenom") or "").strip()
+            medecin_nom = (row.get("medecin_nom") or "").strip()
+            medecin_full = f"{medecin_prenom} {medecin_nom}".strip()
+            appointments.append({
+                "id": int(row["id"]),
+                "dateRDV": row["dateRDV"].isoformat() if row["dateRDV"] else None,
+                "heureDebut": _format_sql_time(row["heureDebut"]),
+                "heureFin": _format_sql_time(row["heureFin"]),
+                "motifConsultation": row["motifConsultation"] or "consultation",
+                "statut": row["statut"] or "Confirme",
+                "medecinNom": medecin_nom,
+                "medecinPrenom": medecin_prenom,
+                "medecin": medecin_full,
+                "specialite": (row.get("specialite") or "Généraliste")
+            })
+        
+        # Calculate age
+        date_naissance = dossier_row["date_naissance"] if dossier_row else None
+        age = _compute_age(date_naissance) if date_naissance else None
+        
+        # Parse health arrays
+        allergies = _split_health_values(dossier_row["allergies"]) if dossier_row and dossier_row.get("allergies") else []
+        maladies = _split_health_values(dossier_row["traitements"]) if dossier_row and dossier_row.get("traitements") else []
+        historique_medical = (dossier_row["historique"] or "").strip() if dossier_row else ""
+        
+        return jsonify({
+            "patient": {
+                "id": int(patient_row["id_patient"]),
+                "nom": patient_row["nom"],
+                "prenom": patient_row["prenom"],
+                "email": patient_row["email"] or "",
+                "telephone": patient_row["telephone"] or "",
+                "cin": patient_row["cin"] or "",
+                "adresse": patient_row["adresse"] or "",
+                "dateNaissance": date_naissance.isoformat() if date_naissance else None,
+                "age": age,
+                "sexe": dossier_row["sexe"] if dossier_row else None,
+            },
+            "allergies": allergies,
+            "maladies": maladies,
+            "historiqueMedical": historique_medical,
+            "appointments": appointments,
+        }), 200
+    except Exception as exc:
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+
+
+def _get_authenticated_patient_id():
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None, (jsonify({"error": "Token manquant ou invalide"}), 401)
+
+    token = auth_header[7:]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except jwt.InvalidTokenError:
+        return None, (jsonify({"error": "Token invalide"}), 401)
+
+    patient_id = payload.get("user_id")
+    user_role = payload.get("role")
+    if user_role != "patient" or not patient_id:
+        return None, (jsonify({"error": "Acces refuse - patient seulement"}), 403)
+
+    return int(patient_id), None
+
+
+@app.route("/patient/profile/address", methods=["PUT"])
+def update_patient_profile_address():
+    try:
+        patient_id, auth_error = _get_authenticated_patient_id()
+        if auth_error:
+            return auth_error
+
+        data = request.get_json() or {}
+        address = str(data.get("adresse") or data.get("address") or "").strip()
+        if not address:
+            return jsonify({"error": "adresse est obligatoire"}), 400
+
+        _ensure_patient_table_columns()
+        with db.engine.begin() as conn:
+            result = conn.exec_driver_sql(
+                "UPDATE patient SET adresse = %s WHERE id_patient = %s",
+                (address, patient_id),
+            )
+
+        return jsonify({"message": "adresse patient mise a jour", "adresse": address}), 200
+    except Exception as exc:
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/patient/travel-notices", methods=["GET"])
+def get_patient_travel_notices():
+    try:
+        patient_id, auth_error = _get_authenticated_patient_id()
+        if auth_error:
+            return auth_error
+
+        clinic_address = (request.args.get("clinicAddress") or DEFAULT_CLINIC_ADDRESS).strip()
+        _ensure_patient_table_columns()
+
+        with db.engine.connect() as conn:
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, adresse, nom, prenom
+                FROM patient
+                WHERE id_patient = %s
+                LIMIT 1
+                """,
+                (patient_id,),
+            ).mappings().first()
+
+            if not patient_row:
+                return jsonify({"error": "Patient non trouve"}), 404
+
+            appointments_rows = conn.exec_driver_sql(
+                """
+                SELECT idRDV AS id, dateRDV, heureDebut, heureFin, motifConsultation, statut
+                FROM rdv
+                WHERE idPatient = %s
+                  AND dateRDV >= CURDATE()
+                ORDER BY dateRDV ASC, heureDebut ASC
+                LIMIT 12
+                """,
+                (patient_id,),
+            ).mappings().all()
+
+        patient_address = (patient_row.get("adresse") or "").strip()
+        notices = []
+        for appointment in appointments_rows:
+            appointment_date = appointment.get("dateRDV")
+            appointment_time = appointment.get("heureDebut")
+            appointment_dt = None
+            if appointment_date and appointment_time:
+                appointment_dt = datetime.combine(appointment_date, appointment_time)
+
+            if not patient_address:
+                notices.append({
+                    "rdvId": int(appointment["id"]),
+                    "appointmentDate": appointment_date.isoformat() if appointment_date else None,
+                    "appointmentTime": appointment_time.strftime("%H:%M:%S") if appointment_time else None,
+                    "notice": {
+                        "status": "error",
+                        "message": "Renseignez votre adresse pour calculer le trajet.",
+                        "recommendation": "Renseignez votre adresse pour calculer le trajet.",
+                    },
+                })
+                continue
+
+            cached_notice = _get_cached_travel_notice(patient_id, int(appointment["id"]))
+            notice = cached_notice or get_travel_notice(patient_address, clinic_address, appointment_dt)
+            if notice.get("status") == "ok" and cached_notice is None:
+                _store_travel_notice_cache(patient_id, int(appointment["id"]), notice)
+            notices.append({
+                "rdvId": int(appointment["id"]),
+                "appointmentDate": appointment_date.isoformat() if appointment_date else None,
+                "appointmentTime": appointment_time.strftime("%H:%M:%S") if appointment_time else None,
+                "notice": notice,
+            })
+
+        return jsonify({
+            "patientId": patient_id,
+            "patientAddress": patient_address,
+            "clinicAddress": clinic_address,
+            "notices": notices,
+        }), 200
+    except Exception as exc:
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/patient/travel-notice", methods=["POST"])
+def get_patient_travel_notice():
+    try:
+        patient_id, auth_error = _get_authenticated_patient_id()
+        if auth_error:
+            return auth_error
+
+        data = request.get_json() or {}
+        clinic_address = (data.get("clinicAddress") or DEFAULT_CLINIC_ADDRESS).strip()
+        appointment_time = data.get("appointmentTime") or data.get("appointmentDateTime")
+        patient_address = str(data.get("patientAddress") or "").strip()
+
+        if not patient_address:
+            _ensure_patient_table_columns()
+            with db.engine.connect() as conn:
+                patient_row = conn.exec_driver_sql(
+                    "SELECT adresse FROM patient WHERE id_patient = %s LIMIT 1",
+                    (patient_id,),
+                ).mappings().first()
+            patient_address = (patient_row.get("adresse") or "").strip() if patient_row else ""
+
+        if not patient_address:
+            return jsonify({"error": "adresse patient manquante"}), 400
+
+        if not appointment_time:
+            return jsonify({"error": "appointmentTime est obligatoire"}), 400
+
+        notice = get_travel_notice(patient_address, clinic_address, appointment_time)
+        notice["patientId"] = patient_id
+        return jsonify(notice), 200
+    except Exception as exc:
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+
+
+def _travel_notice_cache_key(patient_id: int, rdv_id: int) -> tuple[int, int]:
+    return int(patient_id), int(rdv_id)
+
+
+def _get_cached_travel_notice(patient_id: int, rdv_id: int):
+    cache_entry = TRAVEL_NOTICE_CACHE.get(_travel_notice_cache_key(patient_id, rdv_id))
+    if not cache_entry:
+        return None
+
+    cached_at = cache_entry.get("cachedAt")
+    if isinstance(cached_at, datetime):
+        if (datetime.utcnow() - cached_at).total_seconds() > TRAVEL_NOTICE_CACHE_TTL_SECONDS:
+            TRAVEL_NOTICE_CACHE.pop(_travel_notice_cache_key(patient_id, rdv_id), None)
+            return None
+
+    return cache_entry.get("notice")
+
+
+def _store_travel_notice_cache(patient_id: int, rdv_id: int, notice: dict):
+    TRAVEL_NOTICE_CACHE[_travel_notice_cache_key(patient_id, rdv_id)] = {
+        "cachedAt": datetime.utcnow(),
+        "notice": notice,
+    }
+
+
+def _refresh_travel_notice_cache():
+    window_end = datetime.utcnow() + timedelta(minutes=TRAVEL_NOTICE_WINDOW_MINUTES)
+
+    try:
+        with app.app_context():
+            with db.engine.connect() as conn:
+                upcoming_rows = conn.exec_driver_sql(
+                    """
+                    SELECT
+                        r.idRDV AS rdv_id,
+                        r.dateRDV,
+                        r.heureDebut,
+                        p.id_patient,
+                        p.adresse
+                    FROM rdv r
+                    INNER JOIN patient p ON p.id_patient = r.idPatient
+                    WHERE p.adresse IS NOT NULL
+                      AND p.adresse <> ''
+                      AND r.dateRDV >= CURDATE()
+                    ORDER BY r.dateRDV ASC, r.heureDebut ASC
+                    LIMIT 50
+                    """
+                ).mappings().all()
+
+            for row in upcoming_rows:
+                appointment_date = row.get("dateRDV")
+                appointment_time = row.get("heureDebut")
+                if not appointment_date or not appointment_time:
+                    continue
+
+                appointment_dt = datetime.combine(appointment_date, appointment_time)
+                if not (datetime.utcnow() <= appointment_dt <= window_end):
+                    continue
+
+                notice = get_travel_notice(row.get("adresse"), DEFAULT_CLINIC_ADDRESS, appointment_dt)
+                if notice.get("status") == "ok":
+                    _store_travel_notice_cache(int(row.get("id_patient")), int(row.get("rdv_id")), notice)
+    except Exception:
+        app.logger.exception("Erreur lors du rafraichissement des notices de trajet")
+
+
+def _travel_notice_worker():
+    while True:
+        _refresh_travel_notice_cache()
+        threading.Event().wait(TRAVEL_NOTICE_REFRESH_SECONDS)
+
+
+def start_travel_notice_worker():
+    global TRAVEL_NOTICE_WORKER_STARTED
+    if TRAVEL_NOTICE_WORKER_STARTED:
+        return
+
+    TRAVEL_NOTICE_WORKER_STARTED = True
+    worker = threading.Thread(target=_travel_notice_worker, daemon=True)
+    worker.start()
 
 @app.route("/medical-staff/patient-full-profile/update", methods=["PUT"])
 def update_medical_staff_patient_full_profile():
@@ -1131,80 +3670,53 @@ def update_medical_staff_patient_full_profile():
         if not id_personnel or not id_patient:
             return jsonify({"error": "idPersonnel et idPatient sont obligatoires"}), 400
 
-        personnel = User.query.get(int(id_personnel))
-        if not personnel or not is_medical_staff(personnel):
+        personnel = _get_personnel_row(id_personnel)
+        if not personnel or personnel.get("type_personnel") not in {"medecin", "secretaire"}:
             return jsonify({"error": "personnel medical introuvable"}), 404
-        if not is_doctor(personnel):
+        if personnel.get("type_personnel") != "medecin":
             return jsonify({"error": "Seul le medecin peut modifier le profil patient"}), 403
 
-        patient = User.query.get(int(id_patient))
-        if not patient:
-            return jsonify({"error": "patient introuvable"}), 404
-
-        if payload.get("nom") is not None:
-            patient.nom = str(payload.get("nom") or "").strip() or patient.nom
-        if payload.get("prenom") is not None:
-            patient.prenom = str(payload.get("prenom") or "").strip() or patient.prenom
-        if payload.get("email") is not None:
-            patient.email = str(payload.get("email") or "").strip() or None
-        if payload.get("telephone") is not None:
-            patient.telephone = str(payload.get("telephone") or "").strip() or None
-
-        db.session.commit()
-
-        _ensure_optional_user_columns()
+        _ensure_patient_table_columns()
 
         with db.engine.begin() as conn:
-            existing_user_columns = {
-                row[0]
-                for row in conn.exec_driver_sql(
-                    """
-                    SELECT COLUMN_NAME
-                    FROM information_schema.COLUMNS
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = 'user'
-                      AND COLUMN_NAME IN ('cin', 'sexe', 'genre', 'sex', 'date_naissance', 'allergies', 'maladies')
-                    """
-                ).fetchall()
-            }
+            patient = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, email, telephone, cin
+                FROM patient
+                WHERE id_patient = %s
+                LIMIT 1
+                """,
+                (int(id_patient),),
+            ).mappings().first()
 
-            updates = []
-            params = {"id": int(id_patient)}
+            if not patient:
+                return jsonify({"error": "patient introuvable"}), 404
 
-            if "cin" in existing_user_columns and payload.get("cin") is not None:
-                updates.append("cin = %(cin)s")
-                params["cin"] = str(payload.get("cin") or "").strip() or None
-
-            sexe_value = payload.get("sexe")
-            if sexe_value is not None:
-                if "sexe" in existing_user_columns:
-                    updates.append("sexe = %(sexe)s")
-                    params["sexe"] = str(sexe_value).strip() or None
-                elif "genre" in existing_user_columns:
-                    updates.append("genre = %(sexe)s")
-                    params["sexe"] = str(sexe_value).strip() or None
-                elif "sex" in existing_user_columns:
-                    updates.append("sex = %(sexe)s")
-                    params["sexe"] = str(sexe_value).strip() or None
-
-            if "date_naissance" in existing_user_columns and payload.get("dateNaissance") is not None:
-                updates.append("date_naissance = %(date_naissance)s")
-                params["date_naissance"] = parse_date(payload.get("dateNaissance"))
-
-            if "allergies" in existing_user_columns and payload.get("allergies") is not None:
-                value = payload.get("allergies")
-                params["allergies"] = ", ".join(value) if isinstance(value, list) else str(value).strip()
-                updates.append("allergies = %(allergies)s")
-
-            if "maladies" in existing_user_columns and payload.get("maladies") is not None:
-                value = payload.get("maladies")
-                params["maladies"] = ", ".join(value) if isinstance(value, list) else str(value).strip()
-                updates.append("maladies = %(maladies)s")
-
-            if updates:
+            if payload.get("nom") is not None:
                 conn.exec_driver_sql(
-                    f"UPDATE user SET {', '.join(updates)} WHERE id = %(id)s",
-                    params,
+                    "UPDATE patient SET nom = %s WHERE id_patient = %s",
+                    (str(payload.get("nom") or "").strip() or patient["nom"], int(id_patient)),
+                )
+            if payload.get("prenom") is not None:
+                conn.exec_driver_sql(
+                    "UPDATE patient SET prenom = %s WHERE id_patient = %s",
+                    (str(payload.get("prenom") or "").strip() or patient["prenom"], int(id_patient)),
+                )
+            if payload.get("email") is not None:
+                conn.exec_driver_sql(
+                    "UPDATE patient SET email = %s WHERE id_patient = %s",
+                    (str(payload.get("email") or "").strip() or None, int(id_patient)),
+                )
+            if payload.get("telephone") is not None:
+                conn.exec_driver_sql(
+                    "UPDATE patient SET telephone = %s WHERE id_patient = %s",
+                    (str(payload.get("telephone") or "").strip() or None, int(id_patient)),
+                )
+            if payload.get("cin") is not None:
+                cin_value = str(payload.get("cin") or "").strip() or None
+                conn.exec_driver_sql(
+                    "UPDATE patient SET cin = %s, password = %s WHERE id_patient = %s",
+                    (cin_value, cin_value or "", int(id_patient)),
                 )
 
         return jsonify({"message": "profil patient mis a jour"}), 200
@@ -1221,22 +3733,46 @@ def suggest_available_slots():
         date_rdv = parse_date(data.get("dateRDV"))
         slot_duration = data.get("slotDuration", 30)
         is_urgent = bool(data.get("isUrgent", False))
+        proposal_index = data.get("proposalIndex", 0)
 
         if not id_personnel or not date_rdv:
             return jsonify({"error": "idPersonnel et dateRDV sont obligatoires"}), 400
+
+        try:
+            id_personnel = int(id_personnel)
+        except (TypeError, ValueError):
+            return jsonify({"error": "idPersonnel doit etre un entier"}), 400
 
         try:
             slot_duration = int(slot_duration)
         except (TypeError, ValueError):
             return jsonify({"error": "slotDuration doit etre un entier"}), 400
 
+        try:
+            proposal_index = int(proposal_index)
+        except (TypeError, ValueError):
+            return jsonify({"error": "proposalIndex doit etre un entier"}), 400
+
         if slot_duration <= 0:
             return jsonify({"error": "slotDuration doit etre superieur a 0"}), 400
 
-        personnel = User.query.get(id_personnel)
-        if not personnel:
+        if proposal_index < 0:
+            proposal_index = 0
+
+        with db.engine.connect() as conn:
+            personnel_row = conn.exec_driver_sql(
+                """
+                SELECT id_personnel, type_personnel
+                FROM personnel_de_sante
+                WHERE id_personnel = %s
+                LIMIT 1
+                """,
+                (id_personnel,),
+            ).mappings().first()
+
+        if not personnel_row:
             return jsonify({"error": "personnel introuvable"}), 404
-        if not is_medical_staff(personnel):
+        if personnel_row["type_personnel"] not in ("medecin", "secretaire"):
             return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
         plannings = (
@@ -1246,14 +3782,70 @@ def suggest_available_slots():
             .all()
         )
 
-        appointments = (
-            Rdv.query
-            .filter_by(idPersonnel=id_personnel, dateRDV=date_rdv)
-            .order_by(Rdv.heureDebut.asc())
-            .all()
-        )
+        with db.engine.connect() as conn:
+            appointment_rows = conn.exec_driver_sql(
+                """
+                SELECT idRDV, heureDebut, heureFin
+                FROM rdv
+                WHERE idPersonnel = %s AND dateRDV = %s
+                ORDER BY heureDebut ASC
+                """,
+                (id_personnel, date_rdv),
+            ).mappings().all()
 
-        booked_ranges = [(_to_minutes(r.heureDebut), _to_minutes(r.heureFin)) for r in appointments]
+        appointments = [
+            {
+                "idRdv": row["idRDV"],
+                "heureDebut": row["heureDebut"],
+                "heureFin": row["heureFin"],
+            }
+            for row in appointment_rows
+        ]
+
+        if is_urgent:
+            existing = [
+                {
+                    "id": r["idRdv"],
+                    "start": _to_minutes(r["heureDebut"]),
+                    "duration": _to_minutes(r["heureFin"]) - _to_minutes(r["heureDebut"]),
+                }
+                for r in appointments
+                if r["heureDebut"] is not None and r["heureFin"] is not None
+            ]
+
+            if plannings:
+                window_start = min(_to_minutes(plan.heure_debut) for plan in plannings)
+                window_end = max(_to_minutes(plan.heure_fin) for plan in plannings)
+            else:
+                window_start = 9 * 60
+                window_end = 17 * 60
+
+            result = schedule_with_emergency(
+                existing_rdvs=existing,
+                duration=slot_duration,
+                start_window=window_start,
+                end_window=window_end,
+            )
+
+            if not result:
+                return jsonify({"error": "Impossible d'inserer l'urgence"}), 200
+
+            return jsonify(
+                {
+                    "type": "urgent_optimized",
+                    "dateRDV": date_rdv.isoformat(),
+                    "idPersonnel": id_personnel,
+                    "isUrgent": True,
+                    "slotDuration": slot_duration,
+                    "urgentSlot": {
+                        "heureDebut": _to_hhmmss(result["urgent_start"]),
+                        "heureFin": _to_hhmmss(result["urgent_end"]),
+                    },
+                    "rescheduledAppointments": result["updated"],
+                }
+            ), 200
+
+        booked_ranges = [(_to_minutes(r["heureDebut"]), _to_minutes(r["heureFin"])) for r in appointments]
 
         planning_ranges = []
         for plan in plannings:
@@ -1265,6 +3857,7 @@ def suggest_available_slots():
             planning_ranges = [(9 * 60, 17 * 60)]
             used_default_planning = True
 
+        # Build basic suggested slots using current bookings (no shifting)
         suggested_slots = []
         for start_min, end_min in planning_ranges:
             if end_min <= start_min:
@@ -1286,6 +3879,70 @@ def suggest_available_slots():
 
                 cursor += slot_duration
 
+        # Extra: attempt an OR-Tools based compaction of the day's appointments to remove small gaps.
+        # If successful, also compute suggested slots against the optimized (shifted) schedule so
+        # the frontend can offer an "optimized" view (appointments shifted to fill gaps).
+        optimized_suggested_slots = None
+        optimized_appointments = None
+        try:
+            # Build normalized patients list: id and duration
+            normalized = []
+            for r in appointments:
+                if r.get("heureDebut") is None or r.get("heureFin") is None:
+                    continue
+                dur = _to_minutes(r["heureFin"]) - _to_minutes(r["heureDebut"])
+                if dur <= 0:
+                    continue
+                normalized.append({"id": r.get("idRdv"), "duration": dur})
+
+            # Use the overall planning window, but keep the real booked span when it extends
+            # outside of the configured planning window (common with legacy data).
+            earliest_booked_start = min((start for start, _ in booked_ranges), default=None)
+            latest_booked_end = max((end for _, end in booked_ranges), default=None)
+            overall_start = min(start for start, _ in planning_ranges)
+            overall_end = max(end for _, end in planning_ranges)
+            if earliest_booked_start is not None:
+                overall_start = min(overall_start, earliest_booked_start)
+            if latest_booked_end is not None:
+                overall_end = max(overall_end, latest_booked_end)
+
+            if normalized:
+                compact = optimize_full_day(normalized, overall_start, overall_end)
+                if compact:
+                    optimized_appointments = compact
+                    # Build booked ranges from optimized plan
+                    opt_booked = []
+                    for ap in compact:
+                        tstart = parse_time(ap.get("heureDebut"))
+                        tend = parse_time(ap.get("heureFin"))
+                        if tstart is None or tend is None:
+                            continue
+                        opt_booked.append(( _to_minutes(tstart), _to_minutes(tend) ))
+
+                    # Compute suggested slots against optimized bookings
+                    opt_slots = []
+                    for start_min, end_min in planning_ranges:
+                        if end_min <= start_min:
+                            continue
+                        cursor = start_min
+                        while cursor + slot_duration <= end_min:
+                            slot_start = cursor
+                            slot_end = cursor + slot_duration
+                            overlaps_opt = any(slot_start < booked_end and slot_end > booked_start for booked_start, booked_end in opt_booked)
+                            if not overlaps_opt:
+                                opt_slots.append({"heureDebut": _to_hhmmss(slot_start), "heureFin": _to_hhmmss(slot_end)})
+                            cursor += slot_duration
+                    optimized_suggested_slots = opt_slots
+        except Exception:
+            optimized_suggested_slots = None
+            optimized_appointments = None
+
+        candidate_slots = optimized_suggested_slots or suggested_slots
+        if candidate_slots:
+            selected_slot = candidate_slots[proposal_index % len(candidate_slots)]
+            suggested_slots = [selected_slot]
+            optimized_suggested_slots = [selected_slot] if optimized_suggested_slots else None
+
         week_start = date_rdv - timedelta(days=date_rdv.weekday())
         week_end = week_start + timedelta(days=6)
 
@@ -1301,9 +3958,10 @@ def suggest_available_slots():
 
         response = {
             "dateRDV": date_rdv.isoformat(),
-            "idPersonnel": int(id_personnel),
+            "idPersonnel": id_personnel,
             "isUrgent": is_urgent,
             "slotDuration": slot_duration,
+            "proposalIndex": proposal_index,
             "planningContext": {
                 "weekStart": week_start.isoformat(),
                 "weekEnd": week_end.isoformat(),
@@ -1314,6 +3972,8 @@ def suggest_available_slots():
                 "planningSource": "default" if used_default_planning else "planning",
             },
             "suggestedSlots": suggested_slots,
+            "optimizedSuggestedSlots": optimized_suggested_slots,
+            "optimizedPlan": optimized_appointments,
         }
 
         return jsonify(response), 200
@@ -1338,78 +3998,226 @@ def add_rdv():
         heure_debut = parse_time(data.get("heureDebut"))
         heure_fin = parse_time(data.get("heureFin"))
         statut = data.get("statut") or data.get("motifConsultation")
+        is_urgent = bool(data.get("isUrgent", False))
+        urgent_duration = _coerce_minutes_value(
+            data.get("slotDuration") or data.get("duration") or data.get("duree_creneau")
+        )
         
         print(f"    Parsed: patient={patient_nom} {patient_prenom}, personnel={id_personnel}, date={date_rdv}, time={heure_debut}-{heure_fin}, statut={statut}")
 
-        if isinstance(statut, str):
-            statut = statut.strip().lower()
+        statut = _normalize_status(statut)
 
-        if not all([id_personnel, date_rdv, heure_debut, heure_fin, statut]):
-            msg = f"Missing required fields: personnel={id_personnel}, date={date_rdv}, start={heure_debut}, end={heure_fin}, statut={statut}"
+        if not all([id_personnel, date_rdv]):
+            msg = f"Missing required fields: personnel={id_personnel}, date={date_rdv}"
+            print(f"    ERROR: {msg}")
+            return jsonify({"error": "idPersonnel et dateRDV sont obligatoires"}), 400
+
+        if not is_urgent and not all([heure_debut, heure_fin, statut]):
+            msg = f"Missing required fields: start={heure_debut}, end={heure_fin}, statut={statut}"
             print(f"    ERROR: {msg}")
             return jsonify({"error": "idPersonnel, dateRDV, heureDebut, heureFin et statut sont obligatoires"}), 400
 
-        if statut not in RDV_CREATION_STATUTS:
+        if is_urgent:
+            statut = RDV_URGENT_STATUT
+            if urgent_duration is None:
+                if heure_debut and heure_fin:
+                    urgent_duration = _to_minutes(heure_fin) - _to_minutes(heure_debut)
+                else:
+                    urgent_duration = 30
+            if urgent_duration <= 0:
+                return jsonify({"error": "slotDuration ou la duree du créneau urgent doit être superieure a 0"}), 400
+        elif statut not in RDV_CREATION_STATUTS:
             print(f"    ERROR: Invalid statut '{statut}', valid values: {RDV_CREATION_STATUTS}")
             return jsonify({"error": "statut invalide (consultation, controle)"}), 400
 
-        patient = None
-        if id_patient and int(id_patient) > 0:
-            patient = User.query.get(id_patient)
-            print(f"    Using existing patient ID {id_patient}")
-        elif patient_nom and patient_prenom:
-            # Generate unique email if not provided or if it already exists
-            email = (data.get("email") or "").strip()
-            if not email or User.query.filter_by(email=email).first():
-                # Email is missing or already exists - generate a unique one
-                email = _generate_unique_patient_email()
-                print(f"    Generated unique email: {email}")
-            
-            patient = User(
-                nom=patient_nom,
-                prenom=patient_prenom,
-                telephone=data.get("telephone"),
-                email=email,
-                specialite=None,
-                disponibilite=None,
-                statut=1,
-                password="",
-            )
-            db.session.add(patient)
-            db.session.flush()
-            id_patient = patient.id
-            print(f"    Created new patient ID {id_patient}: {patient_nom} {patient_prenom}")
-        else:
-            fallback_patient = User.query.filter_by(statut=1).order_by(User.id.asc()).first()
-            if not fallback_patient:
-                print(f"    ERROR: No fallback patient available")
-                return jsonify({"error": "aucun patient disponible pour creer un RDV public"}), 400
-            patient = fallback_patient
-            id_patient = fallback_patient.id
-            print(f"    Using fallback patient ID {id_patient}")
+        _ensure_patient_table_columns()
+        
+        patient_row = None
+        with db.engine.begin() as conn:
+            if id_patient and int(id_patient) > 0:
+                patient_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, email, telephone, cin
+                    FROM patient
+                    WHERE id_patient = %s
+                    LIMIT 1
+                    """,
+                    (int(id_patient),),
+                ).mappings().first()
+                if patient_row:
+                    print(f"    Using existing patient ID {id_patient}")
+                else:
+                    print(f"    ERROR: Patient ID {id_patient} not found in patient table")
+                    return jsonify({"error": "patient introuvable"}), 404
+            elif patient_nom and patient_prenom:
+                # Generate unique email if not provided or if it already exists
+                email = (data.get("email") or "").strip()
+                existing = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient FROM patient
+                    WHERE LOWER(email) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    (email or _generate_unique_patient_email(),),
+                ).mappings().first()
+                
+                if not email or existing:
+                    # Email is missing or already exists - generate a unique one
+                    email = _generate_unique_patient_email()
+                    print(f"    Generated unique email: {email}")
+                
+                conn.exec_driver_sql(
+                    """
+                    INSERT INTO patient (nom, prenom, telephone, email, password)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (patient_nom, patient_prenom, data.get("telephone") or "", email, ""),
+                )
+                
+                patient_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, email, telephone, cin
+                    FROM patient
+                    WHERE LOWER(email) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    (email,),
+                ).mappings().first()
+                
+                if patient_row:
+                    id_patient = patient_row["id_patient"]
+                    print(f"    Created new patient ID {id_patient}: {patient_nom} {patient_prenom}")
+            else:
+                # Get first patient as fallback
+                fallback_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, email, telephone
+                    FROM patient
+                    ORDER BY id_patient ASC
+                    LIMIT 1
+                    """
+                ).mappings().first()
+                
+                if not fallback_row:
+                    print(f"    ERROR: No fallback patient available")
+                    return jsonify({"error": "aucun patient disponible pour creer un RDV public"}), 400
+                
+                patient_row = fallback_row
+                id_patient = fallback_row["id_patient"]
+                print(f"    Using fallback patient ID {id_patient}")
 
-        personnel = User.query.get(id_personnel)
-
-        if not patient:
+        if not patient_row:
             print(f"    ERROR: Patient not found")
             return jsonify({"error": "patient introuvable"}), 404
 
-        if not personnel:
-            print(f"    ERROR: Personnel not found")
-            return jsonify({"error": "personnel introuvable"}), 404
-
-        if not is_medical_staff(personnel):
+        if not is_medical_staff(id_personnel):
             print(f"    ERROR: Personnel is not medical staff")
             return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
-        # Check for appointment conflicts
+        if not is_urgent:
+            requested_slot_duration = _coerce_minutes_value(
+                data.get("slotDuration") or data.get("duration") or data.get("duree_creneau")
+            )
+            if requested_slot_duration is None and heure_debut and heure_fin:
+                requested_slot_duration = _to_minutes(heure_fin) - _to_minutes(heure_debut)
+
+            if requested_slot_duration is None or requested_slot_duration <= 0:
+                return jsonify({"error": "duree de creneau invalide"}), 400
+
+            slot_payload = _build_available_slots_for_doctor(int(id_personnel), date_rdv, requested_slot_duration)
+            allowed_slots = slot_payload.get("optimizedSuggestedSlots") or slot_payload.get("suggestedSlots") or []
+            allowed_pairs = {
+                (
+                    _format_sql_time(parse_time(slot.get("heureDebut")), "%H:%M:%S"),
+                    _format_sql_time(parse_time(slot.get("heureFin")), "%H:%M:%S"),
+                )
+                for slot in allowed_slots
+                if slot.get("heureDebut") and slot.get("heureFin")
+            }
+
+            requested_pair = (
+                _format_sql_time(heure_debut, "%H:%M:%S"),
+                _format_sql_time(heure_fin, "%H:%M:%S"),
+            )
+
+            if requested_pair not in allowed_pairs:
+                print(f"    ERROR: Requested slot {requested_pair} is not among OR-Tools proposed slots")
+                return jsonify({
+                    "error": "Veuillez choisir un creneau propose par OR-Tools",
+                    "allowedSlots": allowed_slots,
+                }), 400
+
+        if is_urgent:
+            window_start, window_end, plannings, used_default_planning = _get_doctor_planning_window(id_personnel, date_rdv)
+            existing_rdvs = [_build_rdv_snapshot(rdv) for rdv in _get_doctor_rdvs_for_day(id_personnel, date_rdv)]
+
+            if not existing_rdvs and not plannings and urgent_duration > (window_end - window_start):
+                return jsonify({"error": "Impossible d'inserer l'urgence"}), 200
+
+            result = schedule_with_emergency(
+                existing_rdvs=existing_rdvs,
+                duration=urgent_duration,
+                start_window=window_start,
+                end_window=window_end,
+            )
+
+            if not result:
+                return jsonify({"error": "Impossible d'inserer l'urgence"}), 200
+
+            with db.session.begin():
+                persisted = _apply_rescheduled_appointments(id_personnel, date_rdv, result)
+                if not persisted:
+                    db.session.rollback()
+                    return jsonify({"error": "Impossible de sauvegarder le reordonnancement d'urgence"}), 500
+
+                urgent_rdv = Rdv(
+                    idPatient=id_patient,
+                    idPersonnel=id_personnel,
+                    dateRDV=date_rdv,
+                    heureDebut=persisted["urgent_start"],
+                    heureFin=persisted["urgent_end"],
+                    motifConsultation=data.get("motifConsultation") or "Urgence patient",
+                    statut=RDV_URGENT_STATUT,
+                )
+                db.session.add(urgent_rdv)
+                db.session.flush()
+
+            updated_schedule = _get_doctor_rdvs_for_day(id_personnel, date_rdv)
+            socketio.emit(
+                "doctor_planning_rearranged",
+                {
+                    "idPersonnel": int(id_personnel),
+                    "dateRDV": date_rdv.isoformat(),
+                    "urgentRdv": urgent_rdv.to_dict(),
+                    "rescheduledAppointments": result["updated"],
+                },
+            )
+
+            return jsonify({
+                "message": "rdv urgent cree avec succes",
+                "type": "urgent_optimized",
+                "rdv": urgent_rdv.to_dict(),
+                "urgentSlot": {
+                    "heureDebut": _format_time_for_client(persisted["urgent_start"]),
+                    "heureFin": _format_time_for_client(persisted["urgent_end"]),
+                },
+                "rescheduledAppointments": result["updated"],
+                "planningContext": {
+                    "hasPlanning": not used_default_planning,
+                    "planningSource": "default" if used_default_planning else "planning",
+                    "planningWindows": len(plannings),
+                },
+                "updatedSchedule": [rdv.to_dict() for rdv in updated_schedule],
+            }), 201
+
+        # Check for appointment conflicts for normal consultations/controls.
         has_conflict, conflicting_rdv = check_appointment_conflict(id_personnel, date_rdv, heure_debut, heure_fin)
         if has_conflict and conflicting_rdv:
             conflict_info = {
-                "heureDebut": conflicting_rdv.heureDebut.strftime("%H:%M:%S"),
-                "heureFin": conflicting_rdv.heureFin.strftime("%H:%M:%S"),
-                "patientNom": conflicting_rdv.patient.nom if conflicting_rdv.patient else "Inconnu",
-                "patientPrenom": conflicting_rdv.patient.prenom if conflicting_rdv.patient else "",
+                "heureDebut": _format_sql_time(conflicting_rdv.heureDebut),
+                "heureFin": _format_sql_time(conflicting_rdv.heureFin),
+                "patientNom": patient_row["nom"] if patient_row else "Inconnu",
+                "patientPrenom": patient_row["prenom"] if patient_row else "",
             }
             print(f"    ERROR: Conflict detected with RDV {conflicting_rdv.idRdv}")
             return jsonify({
@@ -1469,17 +4277,23 @@ def update_rdv(rdv_id):
         if not rdv:
             return jsonify({"error": "rdv introuvable"}), 404
 
+        _ensure_patient_table_columns()
+        
         if "idPatient" in data:
-            patient = User.query.get(data["idPatient"])
-            if not patient:
+            with db.engine.connect() as conn:
+                patient_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient FROM patient WHERE id_patient = %s LIMIT 1
+                    """,
+                    (int(data["idPatient"]),),
+                ).mappings().first()
+            
+            if not patient_row:
                 return jsonify({"error": "patient introuvable"}), 404
             rdv.idPatient = data["idPatient"]
 
         if "idPersonnel" in data:
-            personnel = User.query.get(data["idPersonnel"])
-            if not personnel:
-                return jsonify({"error": "personnel introuvable"}), 404
-            if not is_medical_staff(personnel):
+            if not is_medical_staff(int(data["idPersonnel"])):
                 return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
             rdv.idPersonnel = data["idPersonnel"]
 
@@ -1489,22 +4303,81 @@ def update_rdv(rdv_id):
                 return jsonify({"error": "dateRDV invalide (format YYYY-MM-DD)"}), 400
             rdv.dateRDV = parsed_date
 
+        # Parse new times but defer assigning to rdv until validation
+        parsed_start = None
+        parsed_end = None
         if "heureDebut" in data:
             parsed_start = parse_time(data.get("heureDebut"))
             if not parsed_start:
                 return jsonify({"error": "heureDebut invalide (format HH:MM ou HH:MM:SS)"}), 400
-            rdv.heureDebut = parsed_start
 
         if "heureFin" in data:
             parsed_end = parse_time(data.get("heureFin"))
             if not parsed_end:
                 return jsonify({"error": "heureFin invalide (format HH:MM ou HH:MM:SS)"}), 400
+
+        # If times or date/personnel are being changed, validate the requested slot
+        try:
+            effective_personnel = int(data.get("idPersonnel", rdv.idPersonnel))
+        except Exception:
+            effective_personnel = rdv.idPersonnel
+
+        effective_date = None
+        if "dateRDV" in data:
+            effective_date = parsed_date
+        else:
+            effective_date = rdv.dateRDV
+
+        # Determine effective start/end times for validation (use parsed if provided, else existing)
+        effective_start = parsed_start if parsed_start is not None else rdv.heureDebut
+        effective_end = parsed_end if parsed_end is not None else rdv.heureFin
+
+        # Determine effective statut (may affect validation for urgences)
+        effective_statut = data.get("statut", rdv.statut)
+        effective_statut = _normalize_status(effective_statut) if effective_statut is not None else rdv.statut
+
+        if effective_start and effective_end and effective_statut != "urgence":
+            requested_slot_duration = _coerce_minutes_value(data.get("slotDuration") or data.get("duration") or data.get("duree_creneau"))
+            if requested_slot_duration is None:
+                requested_slot_duration = _to_minutes(effective_end) - _to_minutes(effective_start)
+
+            if requested_slot_duration is None or requested_slot_duration <= 0:
+                return jsonify({"error": "duree de creneau invalide"}), 400
+
+            slot_payload = _build_available_slots_for_doctor(int(effective_personnel), effective_date, requested_slot_duration)
+            allowed_slots = slot_payload.get("optimizedSuggestedSlots") or slot_payload.get("suggestedSlots") or []
+            allowed_pairs = {
+                (
+                    _format_sql_time(parse_time(slot.get("heureDebut")), "%H:%M:%S"),
+                    _format_sql_time(parse_time(slot.get("heureFin")), "%H:%M:%S"),
+                )
+                for slot in allowed_slots
+                if slot.get("heureDebut") and slot.get("heureFin")
+            }
+
+            requested_pair = (
+                _format_sql_time(effective_start, "%H:%M:%S"),
+                _format_sql_time(effective_end, "%H:%M:%S"),
+            )
+
+            if requested_pair not in allowed_pairs:
+                print(f"    ERROR: Requested update slot {requested_pair} is not among OR-Tools proposed slots")
+                return jsonify({
+                    "error": "Veuillez choisir un creneau propose par OR-Tools",
+                    "allowedSlots": allowed_slots,
+                }), 400
+
+        # Assign parsed values now that validation passed
+        if parsed_start is not None:
+            rdv.heureDebut = parsed_start
+        if parsed_end is not None:
             rdv.heureFin = parsed_end
 
         if "statut" in data:
-            if data["statut"] not in RDV_STATUTS:
+            statut = _normalize_status(data["statut"])
+            if statut not in RDV_STATUTS:
                 return jsonify({"error": "statut invalide (urgence, consultation, controle)"}), 400
-            rdv.statut = data["statut"]
+            rdv.statut = statut
 
         if "motifConsultation" in data:
             rdv.motifConsultation = data["motifConsultation"]
@@ -1556,10 +4429,20 @@ def add_planning():
         if duree_creneau <= 0:
             return jsonify({"error": "duree_creneau doit etre superieure a 0"}), 400
 
-        personnel = User.query.get(id_personnel)
-        if not personnel:
+        with db.engine.connect() as conn:
+            personnel_row = conn.exec_driver_sql(
+                """
+                SELECT id_personnel, type_personnel
+                FROM personnel_de_sante
+                WHERE id_personnel = %s
+                LIMIT 1
+                """,
+                (id_personnel,),
+            ).mappings().first()
+
+        if not personnel_row:
             return jsonify({"error": "personnel introuvable"}), 404
-        if not is_medical_staff(personnel):
+        if personnel_row["type_personnel"] not in ("medecin", "secretaire"):
             return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
         planning = Planning(
@@ -1589,15 +4472,263 @@ def get_planning():
         return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
 
 
+@app.route("/optimize", methods=["POST"])
+
+
+@app.route("/optimize-day", methods=["POST"])
+def optimize_day():
+    try:
+        data = request.get_json(silent=True) or {}
+        patients = data.get("patients", [])
+        if not isinstance(patients, list):
+            return jsonify({"error": "patients must be a list"}), 400
+        result = optimize_full_day(
+            patients=patients,
+            start_window=9 * 60,
+            end_window=17 * 60,
+        )
+        if result is None:
+            return jsonify({"error": "impossible d'optimiser la journee"}), 400
+        return jsonify({"status": "success", "data": result}), 200
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+
+def optimize():
+    try:
+        data = request.get_json(silent=True) or {}
+        patients = data.get("patients", [])
+        doctor_schedule = data.get("doctor_schedule", {})
+
+        app.logger.info(
+            "Optimize request received: patients=%s doctor_schedule=%s",
+            len(patients) if isinstance(patients, list) else "invalid",
+            doctor_schedule,
+        )
+
+        optimized_schedule = optimize_schedule(patients, doctor_schedule)
+        if optimized_schedule is None:
+            app.logger.warning("No feasible optimization solution found")
+            return jsonify({
+                "status": "error",
+                "message": "impossible de trouver un planning compatible avec les contraintes",
+                "data": [],
+            }), 400
+
+        app.logger.info("Optimization success: appointments=%s", len(optimized_schedule))
+        return jsonify({"status": "success", "data": optimized_schedule}), 200
+    except Exception as exc:
+        app.logger.exception("Server error during optimization")
+        return jsonify({
+            "status": "error",
+            "message": f"erreur serveur: {str(exc)}",
+            "data": [],
+        }), 500
+
+
 @app.route("/", methods=["GET"])
 def health_check():
-    return jsonify({"message": "API Flask MySQL operationnelle"}), 200
+    db_ready = refresh_db_status()
+    status_code = 200 if db_ready else 503
+    return jsonify({
+        "message": "API Flask operationnelle",
+        "database": "connected" if db_ready else "unavailable",
+    }), status_code
 
 
-with app.app_context():
-    db.create_all()
-    migrate_mysql_schema()
+def initialize_database():
+    global DB_READY
+    try:
+        with app.app_context():
+            db.create_all()
+            migrate_mysql_schema()
+        DB_READY = True
+    except Exception as exc:
+        DB_READY = False
+        app.logger.warning("Database unavailable at startup: %s", str(exc))
+
+
+initialize_database()
+
+
+@socketio.on("connect")
+def handle_socket_connect():
+    print(f"[SocketIO] client connected: {request.sid}", flush=True)
+
+
+@socketio.on("disconnect")
+def handle_socket_disconnect():
+    print(f"[SocketIO] client disconnected: {request.sid}", flush=True)
+
+
+@socketio.on("message")
+def handle_message(data):
+    print(f"[SocketIO] message recu: {data}", flush=True)
+    return {"status": "ok", "echo": data}
+
+
+@socketio.on("request_cabinet_status")
+def handle_cabinet_status_request():
+    """Handle patient request for real-time cabinet status"""
+    print(f"[SocketIO] Cabinet status requested by {request.sid}", flush=True)
+    
+    try:
+        # Get current time to check if cabinet is open
+        from datetime import datetime, time as time_type
+        current_time = datetime.now().time()
+        
+        # Cabinet hours: typically 8:00 - 18:00
+        cabinet_open_time = time_type(8, 0)
+        cabinet_close_time = time_type(18, 0)
+        is_open = cabinet_open_time <= current_time <= cabinet_close_time
+        
+        # Get count of current appointments today
+        today = datetime.now().date()
+        current_rdvs = db.session.query(Rdv).filter(
+            Rdv.dateRDV == today,
+            Rdv.statut.in_(['Programme', 'Confirme'])
+        ).all()
+        
+        total_patients = len(current_rdvs)
+        
+        # Check if any doctor is available today
+        doctors_today = db.session.query(Planning).filter(
+            Planning.date == today
+        ).all()
+        doctor_available = len(doctors_today) > 0
+        
+        # Estimate wait time based on number of patients
+        # Assuming each appointment takes ~20 minutes
+        wait_time = max(0, (total_patients - 1) * 20)
+        
+        cabinet_status = {
+            "isOpen": is_open,
+            "doctorAvailable": doctor_available,
+            "waitTime": wait_time,
+            "totalPatients": total_patients,
+            "message": "Bienvenue! Le cabinet est actuellement ouvert." if is_open else "Le cabinet est fermé. Nous vous accueillerons demain."
+        }
+        
+        socketio.emit('cabinet_status_update', cabinet_status, to=request.sid)
+        print(f"[SocketIO] Cabinet status sent: {cabinet_status}", flush=True)
+        
+    except Exception as e:
+        print(f"[SocketIO] Error getting cabinet status: {str(e)}", flush=True)
+        socketio.emit('cabinet_status_update', {
+            "isOpen": False,
+            "doctorAvailable": False,
+            "waitTime": 0,
+            "totalPatients": 0,
+            "message": "Erreur lors de la récupération du statut du cabinet."
+        }, to=request.sid)
+
+
+@app.route("/medical-staff/optimize-planning", methods=["POST"])
+def optimize_and_persist_planning():
+    """Optimize and persist a doctor's planning for one date.
+
+    Payload:
+      - idPersonnel: required
+      - dateRDV: required
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        id_personnel = data.get("idPersonnel")
+        date_rdv = parse_date(data.get("dateRDV"))
+
+        if not id_personnel or not date_rdv:
+            return jsonify({"error": "idPersonnel et dateRDV sont obligatoires"}), 400
+
+        try:
+            id_personnel = int(id_personnel)
+        except (TypeError, ValueError):
+            return jsonify({"error": "idPersonnel doit etre un entier"}), 400
+
+        if not is_medical_staff(id_personnel):
+            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
+
+        window_start, window_end, plannings, used_default_planning = _get_doctor_planning_window(id_personnel, date_rdv)
+        existing_rdvs = _get_doctor_rdvs_for_day(id_personnel, date_rdv)
+
+        if not existing_rdvs:
+            return jsonify({"message": "aucun rendez-vous a optimiser", "updatedRows": [], "planningContext": {"hasPlanning": not used_default_planning, "planningSource": "default" if used_default_planning else "planning"}}), 200
+
+        booked_ranges = [(_to_minutes(rdv.heureDebut), _to_minutes(rdv.heureFin)) for rdv in existing_rdvs if rdv.heureDebut and rdv.heureFin]
+        normalized = []
+        for rdv in existing_rdvs:
+            if rdv.heureDebut is None or rdv.heureFin is None:
+                continue
+            duration = _to_minutes(rdv.heureFin) - _to_minutes(rdv.heureDebut)
+            if duration <= 0:
+                continue
+            normalized.append({"id": rdv.idRdv, "duration": duration})
+
+        if not normalized:
+            return jsonify({"error": "impossible de calculer un planning optimisable"}), 400
+
+        earliest_booked_start = min((start for start, _ in booked_ranges), default=window_start)
+        latest_booked_end = max((end for _, end in booked_ranges), default=window_end)
+        overall_start = min(window_start, earliest_booked_start)
+        overall_end = max(window_end, latest_booked_end)
+
+        optimized_plan = optimize_full_day(normalized, overall_start, overall_end)
+        if optimized_plan is None:
+            return jsonify({"error": "impossible d'optimiser le planning"}), 400
+
+        with db.session.begin():
+            updated_rows = _apply_optimized_day_plan(id_personnel, date_rdv, optimized_plan)
+            if updated_rows is None:
+                db.session.rollback()
+                return jsonify({"error": "impossible de sauvegarder le planning optimise"}), 500
+
+        updated_schedule = _get_doctor_rdvs_for_day(id_personnel, date_rdv)
+        socketio.emit(
+            "doctor_planning_rearranged",
+            {
+                "idPersonnel": id_personnel,
+                "dateRDV": date_rdv.isoformat(),
+                "optimizedPlan": optimized_plan,
+            },
+        )
+
+        return jsonify(
+            {
+                "message": "planning optimise avec succes",
+                "updatedRows": updated_rows,
+                "optimizedPlan": optimized_plan,
+                "planningContext": {
+                    "hasPlanning": not used_default_planning,
+                    "planningSource": "default" if used_default_planning else "planning",
+                    "planningWindows": len(plannings),
+                },
+                "updatedSchedule": [rdv.to_dict() for rdv in updated_schedule],
+            }
+        ), 200
+    except Exception as exc:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    start_travel_notice_worker()
+    socketio.run(app, host="127.0.0.1", port=5000, debug=True, use_reloader=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

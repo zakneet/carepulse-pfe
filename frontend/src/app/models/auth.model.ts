@@ -16,6 +16,7 @@ export enum UserType {
 
 export interface LoginRequest {
   email?: string;
+  telephone?: string;
   password?: string;
   userType: UserType; // patient, medical_staff, admin
   accessCode?: string; // Requis si userType = medical_staff

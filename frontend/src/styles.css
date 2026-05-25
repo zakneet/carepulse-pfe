@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 
 :root {
-	--bg-1: #f1f6f7;
-	--bg-2: #e3f2f1;
-	--ink-1: #0f1f2d;
-	--ink-2: #4b5a6a;
-	--accent-1: #0b7285;
-	--accent-2: #1f9d8a;
-	--accent-3: #f97316;
-	--card-bg: #ffffff;
-	--card-border: rgba(15, 23, 42, 0.08);
-	--glow: rgba(11, 114, 133, 0.15);
-	--shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+	--bg-1: #0f172a;
+	--bg-2: #0b1220;
+	--ink-1: #e6eef8;
+	--ink-2: #9aa7bf;
+	--accent-1: #38bdf8;
+	--accent-2: #0f766e;
+	--accent-3: #1d4ed8;
+	--card-bg: #111827;
+	--card-border: rgba(255, 255, 255, 0.05);
+	--glow: rgba(56, 189, 248, 0.18);
+	--shadow: 0 16px 40px rgba(2, 6, 23, 0.35);
 	--px: 0.5;
 	--py: 0.5;
 }
@@ -20,8 +20,9 @@ body {
 	margin: 0;
 	font-family: 'DM Sans', system-ui, -apple-system, Segoe UI, sans-serif;
 	color: var(--ink-1);
-	background: radial-gradient(circle at top left, #fef9f3, transparent 40%),
-		linear-gradient(120deg, var(--bg-1), var(--bg-2));
+	background:
+		radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 34%),
+		linear-gradient(180deg, var(--bg-1), var(--bg-2));
 	min-height: 100vh;
 	position: relative;
 	overflow-x: hidden;
@@ -46,9 +47,9 @@ body::after {
 
 body::before {
 	background-image:
-		radial-gradient(circle at 12% 22%, rgba(11, 114, 133, 0.18), transparent 45%),
-		radial-gradient(circle at 84% 14%, rgba(249, 115, 22, 0.16), transparent 42%),
-		radial-gradient(circle at 20% 80%, rgba(31, 157, 138, 0.12), transparent 50%);
+		radial-gradient(circle at 12% 22%, rgba(56, 189, 248, 0.12), transparent 45%),
+		radial-gradient(circle at 84% 14%, rgba(15, 118, 110, 0.1), transparent 42%),
+		radial-gradient(circle at 20% 80%, rgba(37, 99, 235, 0.08), transparent 50%);
 	animation: floaty 18s ease-in-out infinite;
 }
 
@@ -56,15 +57,15 @@ body::after {
 	background-image:
 		repeating-linear-gradient(
 			45deg,
-			rgba(15, 23, 42, 0.035) 0,
-			rgba(15, 23, 42, 0.035) 1px,
+			rgba(56, 189, 248, 0.03) 0,
+			rgba(56, 189, 248, 0.03) 1px,
 			transparent 1px,
 			transparent 12px
 		),
 		repeating-linear-gradient(
 			-45deg,
-			rgba(15, 23, 42, 0.025) 0,
-			rgba(15, 23, 42, 0.025) 1px,
+			rgba(15, 118, 110, 0.022) 0,
+			rgba(15, 118, 110, 0.022) 1px,
 			transparent 1px,
 			transparent 14px
 		);
@@ -100,7 +101,7 @@ a:hover {
 .auth-card {
 	background: var(--card-bg);
 	border: 1px solid var(--card-border);
-	border-radius: 16px;
+	border-radius: 14px;
 	box-shadow: var(--shadow);
 	backdrop-filter: blur(6px);
 	animation: fadeUp 0.6s ease-out;
@@ -111,8 +112,8 @@ a:hover {
 	top: 0;
 	z-index: 10;
 	backdrop-filter: blur(10px);
-	background: rgba(255, 255, 255, 0.7);
-	border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+	background: rgba(15, 23, 42, 0.88);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .nav-inner {
@@ -136,8 +137,8 @@ a:hover {
 	width: 14px;
 	height: 14px;
 	border-radius: 50%;
-	background: linear-gradient(135deg, var(--accent-1), var(--accent-3));
-	box-shadow: 0 0 0 6px rgba(11, 114, 133, 0.12);
+	background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+	box-shadow: 0 0 0 6px rgba(42, 127, 255, 0.12);
 }
 
 .nav-links {
@@ -158,12 +159,12 @@ a:hover {
 .nav-links a.active,
 .nav-links a:hover {
 	color: var(--ink-1);
-	background: rgba(11, 114, 133, 0.12);
+	background: rgba(56, 189, 248, 0.12);
 }
 
 .pill-link {
-	background: rgba(249, 115, 22, 0.16);
-	color: var(--accent-3);
+	background: rgba(56, 189, 248, 0.12);
+	color: var(--accent-1);
 }
 
 .pill {
@@ -172,7 +173,7 @@ a:hover {
 	padding: 6px 12px;
 	border-radius: 999px;
 	font-size: 0.78rem;
-	background: rgba(11, 114, 133, 0.14);
+	background: rgba(56, 189, 248, 0.12);
 	color: var(--accent-1);
 	font-weight: 600;
 }
@@ -223,17 +224,49 @@ a:hover {
 .input {
 	width: 100%;
 	padding: 12px 14px;
-	border-radius: 12px;
-	border: 1px solid rgba(15, 23, 42, 0.12);
-	background: #fff;
+	border-radius: 10px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: #0b1220;
 	font-size: 0.95rem;
 	transition: border-color 0.2s ease, box-shadow 0.2s ease;
+	color: #ffffff; /* ensure input text is white on dark backgrounds */
 }
 
 .input:focus {
 	border-color: var(--accent-1);
 	box-shadow: 0 0 0 3px var(--glow);
 	outline: none;
+}
+
+/* Placeholder and select/textarea color rules for dark inputs */
+.input::placeholder {
+	color: rgba(255, 255, 255, 0.45);
+}
+.input:-webkit-autofill,
+.input:-internal-autofill-selected {
+	color: #ffffff !important;
+	-webkit-text-fill-color: #ffffff !important;
+}
+select.input,
+textarea.input {
+	color: #ffffff;
+}
+
+/* Calendar icon for date inputs (white) */
+input[type="date"].input {
+	background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="%23ffffff" d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v12c0 1.1 .9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM5 20V8h14v12H5z"/><path fill="%23ffffff" d="M7 10h10v2H7z"/></svg>');
+	background-position: right 12px center;
+	background-repeat: no-repeat;
+	background-size: 20px 20px;
+	padding-right: 44px;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+/* Fallback: color native webkit picker white where possible */
+input[type="date"].input::-webkit-calendar-picker-indicator {
+	opacity: 0.8;
+	filter: invert(1) saturate(300%);
 }
 
 .btn-primary,
@@ -272,7 +305,7 @@ a:hover {
 .btn-primary {
 	background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
 	color: #fff;
-	box-shadow: 0 10px 20px rgba(11, 114, 133, 0.2);
+	box-shadow: 0 10px 20px rgba(42, 127, 255, 0.18);
 }
 
 .btn-primary:hover {
@@ -297,30 +330,30 @@ a:hover {
 }
 
 .btn-outline {
-	background: #fff;
+	background: #111827;
 	color: var(--accent-1);
-	border: 1px solid rgba(11, 114, 133, 0.4);
+	border: 1px solid rgba(56, 189, 248, 0.22);
 }
 
 .btn-ghost {
-	background: rgba(15, 23, 42, 0.06);
+	background: rgba(56, 189, 248, 0.08);
 	color: var(--ink-1);
 }
 
 .btn-danger {
-	background: rgba(239, 68, 68, 0.12);
-	color: #ef4444;
+	background: rgba(239, 68, 68, 0.1);
+	color: #dc2626;
 }
 
 .alert {
-	background: rgba(239, 68, 68, 0.12);
+	background: rgba(239, 68, 68, 0.08);
 	border-radius: 12px;
 	padding: 10px 12px;
-	color: #991b1b;
+	color: #b91c1c;
 }
 
 .section {
-	padding: 40px 0;
+	padding: 32px 0;
 }
 
 .reveal {
@@ -367,7 +400,7 @@ a:hover {
 }
 
 .data-row.header {
-	background: rgba(11, 114, 133, 0.08);
+	background: rgba(42, 127, 255, 0.08);
 	font-weight: 600;
 }
 
@@ -386,13 +419,424 @@ a:hover {
 
 .editor-card {
 	margin-top: 24px;
-	background: rgba(255, 255, 255, 0.9);
+	background: rgba(255, 255, 255, 0.96);
 	border: 1px solid var(--card-border);
 	border-radius: 16px;
 	padding: 18px;
 	box-shadow: var(--shadow);
 	display: grid;
 	gap: 16px;
+}
+
+.patient-public-shell {
+	min-height: 100vh;
+	padding: 1rem;
+	color: var(--ink-1);
+	background: linear-gradient(180deg, var(--bg-1) 0, var(--bg-2) 100%);
+}
+
+.patient-public-shell .topbar,
+.patient-public-shell .glass-card,
+.patient-public-shell .feature-card,
+.patient-public-shell .benefit-item,
+.patient-public-shell .visual-card,
+.patient-public-shell .cta-banner {
+	background: #fff;
+	border: 1px solid rgba(148, 163, 184, 0.18);
+	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+	border-radius: 14px;
+}
+
+.patient-public-shell .topbar {
+	position: sticky;
+	top: 1rem;
+	z-index: 20;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 1rem;
+	max-width: 1200px;
+	margin: 0 auto 1.5rem;
+	padding: 0.95rem 1.1rem;
+}
+
+.patient-public-shell .brand {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.75rem;
+	text-decoration: none;
+	color: inherit;
+}
+
+.patient-public-shell .brand-mark {
+	display: grid;
+	place-items: center;
+	width: 42px;
+	height: 42px;
+	border-radius: 12px;
+	color: #fff;
+	font-weight: 900;
+	background: var(--accent-1);
+}
+
+.patient-public-shell .brand-text {
+	display: grid;
+	line-height: 1.1;
+}
+
+.patient-public-shell .brand-text strong {
+	font-size: 1rem;
+}
+
+.patient-public-shell .brand-text small,
+.patient-public-shell .hero-text,
+.patient-public-shell .section-heading p,
+.patient-public-shell .feature-card p,
+.patient-public-shell .benefit-item span {
+	color: var(--ink-2);
+}
+
+.patient-public-shell .brand-text small {
+	font-size: 0.78rem;
+}
+
+.patient-public-shell .topnav,
+.patient-public-shell .patient-actions,
+.patient-public-shell .hero-badges,
+.patient-public-shell .visual-stack,
+.patient-public-shell .feature-grid,
+.patient-public-shell .benefits-grid {
+	display: grid;
+	gap: 1rem;
+}
+
+.patient-public-shell .topnav {
+	display: flex;
+	align-items: center;
+	gap: 1.25rem;
+}
+
+.patient-public-shell .topnav a {
+	color: #334155;
+	text-decoration: none;
+	font-weight: 500;
+}
+
+.patient-public-shell .topnav a:hover,
+.patient-public-shell .login-link:hover,
+.patient-public-shell .primary-action:hover,
+.patient-public-shell .secondary-action:hover {
+	color: var(--accent-1);
+}
+
+.patient-public-shell .login-link,
+.patient-public-shell .primary-action,
+.patient-public-shell .secondary-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	padding: 0.75rem 1rem;
+	border-radius: 8px;
+	text-decoration: none;
+	font-weight: 600;
+	transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.patient-public-shell .login-link:hover,
+.patient-public-shell .primary-action:hover,
+.patient-public-shell .secondary-action:hover {
+	transform: translateY(-2px);
+}
+
+.patient-public-shell .login-link,
+.patient-public-shell .primary-action {
+	color: #fff;
+	background: var(--accent-1);
+	box-shadow: 0 8px 20px rgba(42, 127, 255, 0.18);
+}
+
+.patient-public-shell .secondary-action {
+	color: var(--accent-1);
+	background: #f0f5ff;
+	border: 1px solid #bfd7ff;
+}
+
+.patient-public-shell .hero-section,
+.patient-public-shell .content-section {
+	width: min(1200px, 100%);
+	margin: 0 auto;
+}
+
+.patient-public-shell .hero-section {
+	padding: 1.5rem 0 0;
+}
+
+.patient-public-shell .hero-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+	gap: 2rem;
+	align-items: center;
+}
+
+.patient-public-shell .hero-copy {
+	padding: 1rem 0;
+}
+
+.patient-public-shell .eyebrow,
+.patient-public-shell .section-kicker,
+.patient-public-shell .intro-line {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.4rem 0.8rem;
+	border-radius: 999px;
+	background: rgba(42, 127, 255, 0.12);
+	color: var(--accent-1);
+	font-weight: 800;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	font-size: 0.78rem;
+}
+
+.patient-public-shell .intro-line {
+	margin: 0.7rem 0 0.35rem;
+	letter-spacing: 0.08em;
+	font-size: 0.8rem;
+}
+
+.patient-public-shell h1 {
+	margin: 0 0 0.75rem;
+	font-size: clamp(2.1rem, 5vw, 3.7rem);
+	line-height: 1.05;
+}
+
+.patient-public-shell .hero-text {
+	max-width: 62ch;
+	font-size: 1.08rem;
+	line-height: 1.65;
+}
+
+.patient-public-shell .slogan {
+	margin: 0;
+	color: var(--ink-1);
+	font-weight: 700;
+}
+
+.patient-public-shell .patient-actions {
+	grid-auto-flow: column;
+	grid-auto-columns: max-content;
+	justify-content: start;
+	align-items: center;
+	margin: 1.25rem 0 1.5rem;
+}
+
+.patient-public-shell .hero-badges {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.patient-public-shell .hero-badges span {
+	padding: 0.55rem 0.85rem;
+	border-radius: 999px;
+	background: #f8fbff;
+	border: 1px solid #dbeafe;
+	color: #334155;
+	box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+	text-align: center;
+}
+
+.patient-public-shell .hero-visual {
+	display: grid;
+	gap: 1rem;
+	padding: 1rem;
+}
+
+.patient-public-shell .large,
+.patient-public-shell .stat-card,
+.patient-public-shell .feature-card,
+.patient-public-shell .benefit-item,
+.patient-public-shell .cta-banner {
+	padding: 1rem;
+}
+
+.patient-public-shell .visual-header,
+.patient-public-shell .schedule-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.patient-public-shell .visual-header {
+	margin-bottom: 1rem;
+	color: #475569;
+	font-weight: 700;
+}
+
+.patient-public-shell .status {
+	padding: 0.35rem 0.7rem;
+	border-radius: 999px;
+	color: #166534;
+	background: rgba(34, 197, 94, 0.12);
+}
+
+.patient-public-shell .calendar-grid {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+}
+
+.patient-public-shell .day {
+	padding: 0.65rem 0.45rem;
+	border-radius: 14px;
+	background: #f8fbff;
+	color: #64748b;
+	text-align: center;
+	font-weight: 700;
+}
+
+.patient-public-shell .day.active {
+	background: rgba(42, 127, 255, 0.12);
+	color: #1d4ed8;
+}
+
+.patient-public-shell .schedule-item {
+	padding: 0.9rem 1rem;
+	border-radius: 16px;
+	background: #f8fbff;
+	color: #334155;
+}
+
+.patient-public-shell .schedule-item + .schedule-item {
+	margin-top: 0.75rem;
+}
+
+.patient-public-shell .schedule-item strong,
+.patient-public-shell .stat-card strong,
+.patient-public-shell .feature-card h3,
+.patient-public-shell .benefit-item strong {
+	color: var(--ink-1);
+}
+
+.patient-public-shell .schedule-item.highlighted {
+	background: rgba(42, 127, 255, 0.08);
+	border: 1px solid rgba(42, 127, 255, 0.16);
+}
+
+.patient-public-shell .visual-stack {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.patient-public-shell .stat-card span {
+	display: block;
+	color: #64748b;
+	margin-bottom: 0.35rem;
+	font-weight: 600;
+}
+
+.patient-public-shell .stat-card strong {
+	font-size: 1.9rem;
+	color: #1d4ed8;
+}
+
+.patient-public-shell .stat-card.accent strong {
+	color: #7c5cff;
+}
+
+.patient-public-shell .content-section {
+	padding: 1.5rem 0 0;
+}
+
+.patient-public-shell .section-heading {
+	display: grid;
+	gap: 0.4rem;
+	margin-bottom: 1rem;
+}
+
+.patient-public-shell .section-heading h2,
+.patient-public-shell .section-heading h3,
+.patient-public-shell .feature-card h3 {
+	margin: 0;
+}
+
+.patient-public-shell .feature-grid,
+.patient-public-shell .benefits-grid {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.patient-public-shell .feature-card:hover {
+	transform: translateY(-4px);
+	border-color: rgba(42, 127, 255, 0.25);
+	box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+}
+
+.patient-public-shell .feature-icon {
+	width: 52px;
+	height: 52px;
+	display: grid;
+	place-items: center;
+	border-radius: 16px;
+	margin-bottom: 1rem;
+	font-size: 1.35rem;
+	background: #eff6ff;
+}
+
+.patient-public-shell .benefits-section {
+	padding-bottom: 2rem;
+}
+
+.patient-public-shell .cta-banner {
+	margin-top: 1.25rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.patient-public-shell .compact-actions {
+	margin: 0;
+}
+
+.patient-public-shell .compact-actions .primary-action,
+.patient-public-shell .compact-actions .secondary-action {
+	min-height: 46px;
+}
+
+@media (max-width: 768px) {
+	.patient-public-shell .topbar {
+		flex-wrap: wrap;
+		top: 0.5rem;
+	}
+
+	.patient-public-shell .topnav {
+		order: 3;
+		width: 100%;
+		justify-content: space-between;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+
+	.patient-public-shell .hero-grid,
+	.patient-public-shell .feature-grid,
+	.patient-public-shell .benefits-grid,
+	.patient-public-shell .visual-stack,
+	.patient-public-shell .hero-badges {
+		grid-template-columns: 1fr;
+	}
+
+	.patient-public-shell .patient-actions {
+		grid-auto-flow: row;
+		grid-auto-columns: 1fr;
+	}
+
+	.patient-public-shell .cta-banner {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.patient-public-shell .hero-badges span {
+		width: 100%;
+	}
 }
 
 @keyframes floaty {

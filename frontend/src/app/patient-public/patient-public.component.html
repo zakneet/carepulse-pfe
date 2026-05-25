@@ -1,30 +1,141 @@
-<section class="patient-public-shell">
-  <div class="patient-public-card">
-    <span class="eyebrow">Espace patient public</span>
-    <h1>Accedez a votre parcours patient sans login.</h1>
-    <p>
-      Prenez un rendez-vous, consultez les informations utiles et accedez a une interface simple
-      depuis l'accueil.
-    </p>
+<main class="patient-public-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/home" aria-label="OptiClinic accueil">
+      <span class="brand-mark">O</span>
+      <span class="brand-text">
+        <strong>OptiClinic</strong>
+        <small>Health-tech patient</small>
+      </span>
+    </a>
 
-    <div class="patient-actions">
-      <a routerLink="/patient/booking" class="primary-action">Prendre un rendez-vous</a>
-      <a routerLink="/home" class="secondary-action">Retour a l'accueil</a>
+    <nav class="topnav" aria-label="Navigation principale">
+      <a href="#accueil">Accueil</a>
+      <a href="#services">Services</a>
+      <a href="#about">A propos</a>
+    </nav>
+  </header>
+
+  <section id="accueil" class="hero-section">
+    <div class="hero-grid">
+      <div class="hero-copy glass-card">
+        <span class="eyebrow">Plateforme de rendez-vous medicaux intelligente</span>
+        <p class="intro-line">Gestion fluide, rapide et moderne pour les patients</p>
+        <h1>Optimisez vos rendez-vous medicaux intelligemment</h1>
+        <p class="hero-text">
+          OptiClinic simplifie la gestion des consultations grace a une plateforme rapide, fluide et
+          intuitive pensee pour les patients qui veulent aller a l'essentiel.
+        </p>
+
+        <div class="patient-actions">
+          <a routerLink="/patient/booking" class="primary-action">Prendre un rendez-vous</a>
+          <a href="#services" class="secondary-action">Decouvrir la plateforme</a>
+        </div>
+
+        <div class="hero-badges" aria-label="Points forts">
+          <span>Prise de RDV rapide</span>
+          <span>Rappels automatiques</span>
+          <span>Interface responsive</span>
+        </div>
+      </div>
+
+      <div class="hero-visual glass-card" aria-hidden="true">
+        <div class="visual-card large">
+          <div class="visual-header">
+            <span>Planning intelligent</span>
+            <span class="status">En ligne</span>
+          </div>
+          <div class="calendar-grid">
+            <span class="day active">Lun</span>
+            <span class="day">Mar</span>
+            <span class="day">Mer</span>
+            <span class="day">Jeu</span>
+            <span class="day">Ven</span>
+            <span class="day">Sam</span>
+          </div>
+          <div class="schedule-item highlighted">
+            <strong>09:30</strong>
+            <span>Consultation ophtalmo</span>
+          </div>
+          <div class="schedule-item">
+            <strong>11:15</strong>
+            <span>Controle de suivi</span>
+          </div>
+        </div>
+
+        <div class="visual-stack">
+          <div class="visual-card stat-card">
+            <span>Rendez-vous confirmes</span>
+            <strong>128</strong>
+          </div>
+          <div class="visual-card stat-card accent">
+            <span>Temps gagne</span>
+            <strong>-42%</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="services" class="content-section">
+    <div class="section-heading">
+      <span class="section-kicker">Fonctionnalites</span>
+      <h2>Une plateforme pensee pour les usages du quotidien</h2>
     </div>
 
-    <div class="patient-features">
-      <div class="feature">
-        <strong>Sans compte</strong>
-        <span>Acces direct au formulaire de rendez-vous.</span>
+    <div class="feature-grid">
+      <article class="feature-card">
+        <div class="feature-icon">📅</div>
+        <h3>Gestion intelligente des rendez-vous</h3>
+        <p>Visualisez, planifiez et suivez vos rendez-vous dans une interface claire et centralisee.</p>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Reservation rapide et simplifiee</h3>
+        <p>Reservez en quelques clics avec un parcours court, mobile-friendly et sans friction.</p>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">🔔</div>
+        <h3>Notifications et rappels automatiques</h3>
+        <p>Recevez des rappels utiles pour limiter les oublis et garder votre suivi sous controle.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="about" class="content-section benefits-section">
+    <div class="section-heading split-heading">
+      <span class="section-kicker">Avantages</span>
+      <h2>Une experience fluide pour les patients et les equipes medicales</h2>
+      <p>
+        OptiClinic ameliore l'organisation des consultations tout en reduisant les actions inutiles.
+      </p>
+    </div>
+
+    <div class="benefits-grid">
+      <div class="benefit-item">
+        <strong>Gain de temps</strong>
+        <span>Moins d'etapes pour prendre ou retrouver un rendez-vous.</span>
       </div>
-      <div class="feature">
-        <strong>Rapide</strong>
-        <span>Interface claire pour aller a l'essentiel.</span>
+      <div class="benefit-item">
+        <strong>Organisation optimisee</strong>
+        <span>Une vision claire des consultations a venir et des historiques utiles.</span>
       </div>
-      <div class="feature">
-        <strong>Mobile friendly</strong>
-        <span>Navigation fluide sur telephone et ordinateur.</span>
+      <div class="benefit-item">
+        <strong>Experience moderne</strong>
+        <span>Des ecrans lisibles, coherents et agreables sur mobile comme sur desktop.</span>
       </div>
     </div>
-  </div>
-</section>
+
+    <div class="cta-banner glass-card">
+      <div>
+        <span class="section-kicker">Commencer maintenant</span>
+        <h3>Pret a organiser votre prochain rendez-vous ?</h3>
+      </div>
+      <div class="patient-actions compact-actions">
+        <a routerLink="/patient/booking" class="primary-action">Prendre un rendez-vous</a>
+        <a routerLink="/patient/rdvs" class="secondary-action">Gerer mes rendez-vous</a>
+      </div>
+    </div>
+  </section>
+</main>

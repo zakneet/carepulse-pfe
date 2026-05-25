@@ -60,7 +60,12 @@ export class MedicalStaffPatientProfileComponent implements OnInit {
       this.successMessage = '';
     }
 
-    const idPersonnel = this.authService.getCurrentUser()?.id;
+    const currentUser = this.authService.getCurrentUser() as unknown as {
+      id?: number;
+      idPersonnel?: number;
+      id_personnel?: number;
+    } | null;
+    const idPersonnel = currentUser?.id ?? currentUser?.idPersonnel ?? currentUser?.id_personnel;
 
     if (!idPersonnel) {
       this.errorMessage = 'Utilisateur non identifié';
@@ -112,7 +117,12 @@ export class MedicalStaffPatientProfileComponent implements OnInit {
       return;
     }
 
-    const idPersonnel = this.authService.getCurrentUser()?.id;
+    const currentUser = this.authService.getCurrentUser() as unknown as {
+      id?: number;
+      idPersonnel?: number;
+      id_personnel?: number;
+    } | null;
+    const idPersonnel = currentUser?.id ?? currentUser?.idPersonnel ?? currentUser?.id_personnel;
     if (!idPersonnel) {
       this.errorMessage = 'Utilisateur medical non identifie.';
       return;

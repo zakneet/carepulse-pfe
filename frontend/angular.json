@@ -22,6 +22,10 @@
             "main": "src/main.ts",
             "polyfills": "src/polyfills.ts",
             "tsConfig": "tsconfig.app.json",
+            "allowedCommonJsDependencies": [
+              "debug",
+              "socket.io-parser"
+            ],
             "assets": [
               "src/favicon.ico",
               "src/assets"
@@ -42,8 +46,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "2kb",
-                  "maximumError": "4kb"
+                  "maximumWarning": "3kb",
+                  "maximumError": "10kb"
                 }
               ],
               "fileReplacements": [

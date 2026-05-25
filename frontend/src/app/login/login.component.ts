@@ -9,94 +9,41 @@ import { LoginRequest, UserType } from '../models/auth.model';
   styleUrls: ['./login.component.css']
 })
 export class LoginComponent implements OnInit {
-  // Types d'utilisateurs disponibles
-  userTypeOptions = [
-    { value: UserType.PATIENT, label: 'Patient', group: 'patient' },
-    { value: UserType.MEDICAL_STAFF, label: 'Personnel de santé', group: 'medical' }
-  ];
-
-  // Étape 1 = choix du profil, Étape 2 = saisie des identifiants
-  currentStep: 1 | 2 = 1;
-  selectedUserType: UserType | null = null;
   credentials = {
-    email: '',
+    telephone: '',
     password: '',
     accessCode: ''
   };
+  selectedUserType: UserType = UserType.PATIENT;
+  readonly UserType = UserType;
 
+  isLoading = false;
   message = '';
   messageType: 'error' | 'success' = 'error';
-  showPassword = false;
-  isLoading = false;
   returnUrl = '';
 
   constructor(
     private authService: AuthService,
     private router: Router,
     private route: ActivatedRoute
-  ) {
+  ) {}
+
+  ngOnInit(): void {
     this.returnUrl = this.route.snapshot.queryParams['returnUrl'] || '';
   }
 
-  ngOnInit(): void {
-    // On laisse la page de connexion accessible meme si un token existe,
-    // pour eviter une redirection automatique inattendue.
-  }
-
-  /**
-   * Vérifier si le type sélectionné est personnel médical
-   */
-  isMedicalStaffUserType(): boolean {
-    return this.selectedUserType === UserType.MEDICAL_STAFF;
-  }
-
-  /**
-   * Changer le type d'utilisateur
-   */
-  selectUserType(userType: UserType): void {
-    this.selectedUserType = userType;
-    this.currentStep = 2;
-    this.message = '';
-    this.credentials.accessCode = '';
-  }
-
-  backToStep1(): void {
-    this.currentStep = 1;
-    this.message = '';
-  }
-
-  /**
-   * Basculer la visibilité du mot de passe
-   */
-  togglePassword(): void {
-    this.showPassword = !this.showPassword;
-  }
-
-  /**
-   * Soumettre le formulaire de connexion
-   */
   login(): void {
     this.message = '';
 
-    if (!this.selectedUserType) {
-      this.message = 'Veuillez choisir un profil: Patient ou Personnel de sante.';
-      this.messageType = 'error';
-      this.currentStep = 1;
-      return;
-    }
-
-    const isMedical = this.isMedicalStaffUserType();
-
-    if (isMedical) {
+    if (this.selectedUserType === UserType.MEDICAL_STAFF) {
       if (!this.credentials.accessCode) {
-        this.message = 'Le code d\'acces est obligatoire pour le personnel medical.';
+        this.message = 'Code d\'acces obligatoire pour le personnel medical.';
         this.messageType = 'error';
         return;
       }
     } else {
-      // Validation patient
-      if (!this.credentials.email || !this.credentials.password) {
-        this.message = 'Email et mot de passe sont obligatoires.';
+      if (!this.credentials.telephone || !this.credentials.password) {
+        this.message = 'Numero de telephone et mot de passe sont obligatoires.';
         this.messageType = 'error';
         return;
       }
@@ -104,23 +51,23 @@ export class LoginComponent implements OnInit {
 
     this.isLoading = true;
 
-    const loginRequest: LoginRequest = {
-      email: isMedical ? undefined : this.credentials.email,
-      password: isMedical ? undefined : this.credentials.password,
-      userType: this.selectedUserType,
-      accessCode: this.credentials.accessCode || undefined
-    };
+    const loginRequest: LoginRequest = this.selectedUserType === UserType.MEDICAL_STAFF
+      ? {
+          userType: UserType.MEDICAL_STAFF,
+          accessCode: this.credentials.accessCode
+        }
+      : {
+          telephone: this.credentials.telephone,
+          password: this.credentials.password,
+          userType: UserType.PATIENT
+        };
 
     this.authService.login(loginRequest).subscribe({
-      next: (user) => {
+      next: () => {
         this.isLoading = false;
         this.messageType = 'success';
         this.message = 'Connexion réussie !';
-
-        // Redirection après succès
-        setTimeout(() => {
-          this.redirectToRoleDashboard();
-        }, 500);
+        this.redirectAfterLogin();
       },
       error: (error) => {
         this.isLoading = false;
@@ -135,28 +82,15 @@ export class LoginComponent implements OnInit {
     });
   }
 
-  /**
-   * Redirection selon le rôle de l'utilisateur
-   */
-  private redirectToRoleDashboard(): void {
-    const userRole = this.authService.getUserRole();
-
-    if (this.returnUrl) {
-      this.router.navigateByUrl(this.returnUrl);
-    } else {
-      switch (userRole) {
-        case 'patient':
-          this.router.navigate(['/patient/dashboard']);
-          break;
-        case 'medical_staff':
-          this.router.navigate([this.authService.getMedicalStaffBaseRoute(), 'planning']);
-          break;
-        case 'admin':
-          this.router.navigate(['/admin/dashboard']);
-          break;
-        default:
-          this.router.navigate(['/']);
-      }
-    }
+  setUserType(type: UserType): void {
+    this.selectedUserType = type;
+    this.message = '';
   }
-} 
+
+  private redirectAfterLogin(): void {
+    const targetUrl = this.returnUrl || (this.selectedUserType === UserType.MEDICAL_STAFF
+      ? this.authService.getMedicalStaffBaseRoute()
+      : '/patient/dashboard');
+    this.router.navigateByUrl(targetUrl);
+  }
+}

@@ -1,0 +1,59 @@
+<section class="optimized-calendar-page shell">
+  <div class="optimized-calendar-card">
+    <div class="optimized-calendar-toolbar">
+      <div>
+        <span class="pill">Planning Optimise OR-Tools</span>
+        <h2>Calendrier des rendez-vous</h2>
+        <p class="muted">Affichage journalier type Doctolib avec creneaux optimises (scenario test: 10 RDV).</p>
+      </div>
+      <button type="button" class="reload-btn" (click)="reloadSchedule()" [disabled]="isLoading">
+        {{ isLoading ? 'Chargement...' : 'Recharger' }}
+      </button>
+    </div>
+
+    <p class="status-message error" *ngIf="errorMessage">{{ errorMessage }}</p>
+    <p class="status-message info" *ngIf="!errorMessage && noSolutionMessage">{{ noSolutionMessage }}</p>
+
+    <full-calendar [options]="calendarOptions"></full-calendar>
+  </div>
+
+  <div class="profile-popup-backdrop" *ngIf="selectedProfile" (click)="closeProfilePopup()">
+    <article class="profile-popup-card" (click)="$event.stopPropagation()">
+      <header class="profile-popup-header">
+        <div>
+          <p class="muted">Profil patient</p>
+          <h3>{{ selectedProfile?.nomComplet }}</h3>
+        </div>
+        <button type="button" class="close-btn" (click)="closeProfilePopup()">Fermer</button>
+      </header>
+
+      <div class="profile-grid">
+        <p><strong>ID:</strong> #{{ selectedProfile?.patientId }}</p>
+        <p><strong>Telephone:</strong> {{ selectedProfile?.telephone }}</p>
+        <p><strong>CIN:</strong> {{ selectedProfile?.cin }}</p>
+        <p><strong>Motif:</strong> {{ selectedProfile?.motif }}</p>
+        <p><strong>Disponibilite:</strong> {{ selectedProfile?.availability }}</p>
+      </div>
+
+      <div class="rdv-box">
+        <p><strong>Rendez-vous assigne:</strong></p>
+        <p>{{ selectedProfile?.appointmentStart }} - {{ selectedProfile?.appointmentEnd }}</p>
+        <p>Duree: {{ selectedProfile?.durationMinutes }} min</p>
+      </div>
+
+      <div class="popup-actions">
+        <button
+          type="button"
+          class="status-btn"
+          [class.off]="!selectedProfile?.isActive"
+          (click)="togglePatientStatus()"
+        >
+          {{ selectedProfile?.isActive ? 'ON' : 'OFF' }}
+        </button>
+        <button type="button" class="profile-btn" (click)="goToPatientProfile()">
+          Profil patient
+        </button>
+      </div>
+    </article>
+  </div>
+</section>

@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="OptiClinic — Dashboard médical moderne, gestion des rendez-vous et notifications." />
+    <title>OptiClinic - Accueil</title>
+    <!-- PWA: manifest and theme -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- Apple / iOS PWA support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192.png') }}" />
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='icons/icon-512.png') }}" />
+    <style>
+      :root {
+        --bg: #0f172a;
+        --card: #111827;
+        --card-2: #0b1220;
+        --text: #e6eef8;
+        --muted: #9aa7bf;
+        --line: rgba(255, 255, 255, 0.05);
+        --accent: #0f766e;
+        --accent-2: #115e59;
+        --blue: #2563eb;
+        --blue-2: #1d4ed8;
+        --radius: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 28%),
+          radial-gradient(circle at top right, rgba(15, 118, 110, 0.20), transparent 30%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .page-install-strip {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        padding: 10px 12px;
+        background: rgba(2, 6, 23, 0.82);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .page-install-strip__inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .page-install-strip__inner strong {
+        display: block;
+        font-size: 0.96rem;
+        letter-spacing: -0.01em;
+      }
+
+      .page-install-strip__inner span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 28px 20px 48px;
+      }
+
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: flex-start;
+        padding: 28px;
+        border-radius: var(--radius);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+        border: 1px solid var(--line);
+        box-shadow: 0 16px 32px rgba(2, 6, 23, 0.35);
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.78rem;
+        color: #7dd3fc;
+        font-weight: 800;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        letter-spacing: -0.04em;
+      }
+
+      .subtitle {
+        margin: 12px 0 0;
+        max-width: 720px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: flex-end;
+      }
+
+      .btn,
+      .btn-outline {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 12px 18px;
+        font-weight: 800;
+        text-decoration: none;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      }
+
+      .btn {
+        background: linear-gradient(135deg, var(--blue) 0%, var(--blue-2) 100%);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
+      }
+
+      .btn-outline {
+        color: #d1fae5;
+        border: 1px solid rgba(45, 212, 191, 0.22);
+        background: rgba(15, 118, 110, 0.18);
+      }
+
+      .btn:hover,
+      .btn-outline:hover {
+        transform: translateY(-1px);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin: 22px 0;
+      }
+
+      .stat-card,
+      .section-card,
+      .weather-card {
+        border-radius: var(--radius);
+        background: var(--card);
+        border: 1px solid var(--line);
+        box-shadow: 0 16px 32px rgba(2, 6, 23, 0.35);
+      }
+
+      .stat-card {
+        padding: 18px;
+      }
+
+      .stat-card span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+      }
+
+      .stat-card strong {
+        font-size: 1.5rem;
+        letter-spacing: -0.03em;
+      }
+
+      .content-grid {
+        display: grid;
+        grid-template-columns: 1.7fr 1fr;
+        gap: 20px;
+      }
+
+      .section-card {
+        padding: 24px;
+      }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+
+      .section-head h2 {
+        margin: 0;
+        font-size: 1.35rem;
+        letter-spacing: -0.02em;
+      }
+
+      .section-head p,
+      .muted {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      .appointments-list {
+        display: grid;
+        gap: 14px;
+      }
+
+      .appointment-card {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 18px;
+        border-radius: 16px;
+        background: #111827;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+      }
+
+      .card-left {
+        flex: 1;
+      }
+
+      .card-title {
+        margin: 0 0 8px;
+        font-size: 1.08rem;
+        font-weight: 800;
+        color: #f8fafc;
+      }
+
+      .card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        color: var(--muted);
+      }
+
+      .badge-today {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #0f766e;
+        color: #ecfeff;
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+
+      .weather-card {
+        padding: 18px;
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      }
+
+      .weather-card h3 {
+        margin: 0 0 12px;
+        font-size: 1.08rem;
+      }
+
+      .weather-note {
+        display: grid;
+        gap: 10px;
+        color: #f8fafc;
+        line-height: 1.55;
+      }
+
+      .weather-pill {
+        display: inline-flex;
+        width: fit-content;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.10);
+        color: #f8fafc;
+        font-weight: 800;
+      }
+
+      .empty-state {
+        padding: 18px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--muted);
+        border: 1px dashed rgba(255, 255, 255, 0.08);
+      }
+
+      .footer-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+      }
+
+      @media (max-width: 900px) {
+        .hero,
+        .section-head,
+        .appointment-card,
+        .content-grid {
+          grid-template-columns: 1fr;
+          flex-direction: column;
+        }
+
+        .stats {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-actions {
+          justify-content: flex-start;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          padding: 16px 12px 36px;
+        }
+
+        .hero,
+        .section-card {
+          padding: 18px;
+        }
+
+        .card-meta {
+          flex-direction: column;
+          gap: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="page-install-strip" aria-label="Installation de l'application">
+      <div class="page-install-strip__inner">
+        <div>
+          <strong>Installer OptiClinic</strong>
+          <span>Accédez à l’application comme une vraie app sur mobile et desktop.</span>
+        </div>
+        <button id="pwa-install-btn" class="btn-outline" style="display:none;">Installer OptiClinic</button>
+      </div>
+    </section>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">OptiClinic · Accueil</p>
+          <h1>Dashboard médical moderne</h1>
+          <p class="subtitle">Une interface sombre, claire et stable pour accéder rapidement aux rendez-vous confirmés, à la météo intégrée et aux pages patient.</p>
+        </div>
+        <div class="hero-actions">
+          <a class="btn" href="/appointments">Voir les rendez-vous</a>
+          <a class="btn-outline" href="/weather?lat=36.8&lon=10.1">Tester la météo</a>
+        </div>
+      </section>
+
+      <section class="stats">
+        <article class="stat-card">
+          <span>Rendez-vous confirmés</span>
+          <strong>{{ appointments|length if appointments else 0 }}</strong>
+        </article>
+        <article class="stat-card">
+          <span>Interface</span>
+          <strong>SaaS médical</strong>
+        </article>
+        <article class="stat-card">
+          <span>Météo</span>
+          <strong>Intégrée</strong>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="section-card">
+          <div class="section-head">
+            <div>
+              <h2>Aperçu des rendez-vous</h2>
+              <p>Les prochaines cartes reprennent le même style que la page des rendez-vous confirmés.</p>
+            </div>
+            <a class="btn-outline" href="/appointments">Ouvrir la liste complète</a>
+          </div>
+
+          {% if appointments and appointments|length > 0 %}
+            <div class="appointments-list">
+              {% for appt in appointments[:3] %}
+                <article class="appointment-card">
+                  <div class="card-left">
+                    <h3 class="card-title">{{ appt.patient_name }} avec {{ appt.doctor_name }}</h3>
+                    <div class="card-meta">
+                      <span>Date: {{ appt.date }}</span>
+                      <span>Heure: {{ appt.time }}</span>
+                      <span>Lieu: {{ appt.location or 'Cabinet' }}</span>
+                      {% if appt.date == today %}
+                        <span class="badge-today">Aujourd'hui</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state">Aucun rendez-vous à afficher pour le moment.</div>
+          {% endif %}
+
+          <div class="footer-actions">
+            <a class="btn" href="/appointments">Rendez-vous confirmés</a>
+            <a class="btn-outline" href="/home">Retour au portail</a>
+          </div>
+        </article>
+
+        <aside class="weather-card">
+          <h3>Notice météo</h3>
+          <div class="weather-note">
+            <div class="weather-pill">☀️ Météo favorable</div>
+            <p>Déplacement normal possible. Les pages restent disponibles même si la météo échoue.</p>
+            <p class="muted" style="color: rgba(240,255,249,0.85);">Température et vent sont affichés dans la page rendez-vous confirmés. Ici, l’accueil conserve le même langage visuel et les mêmes couleurs.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <!-- Register service worker for PWA support. The script gracefully checks for support. -->
+    <script>
+      // Service worker registration: keep minimal and robust.
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          // Register the SW at the origin root to control all pages.
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(function(reg) {
+              console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
+              if (!navigator.serviceWorker.controller) {
+                console.log('[PWA] No active controller on first load; a refresh may be needed once the worker activates.');
+              }
+            }).catch(function(err) {
+              console.error('[PWA] ServiceWorker registration failed:', err);
+            });
+        });
+
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          console.log('[PWA] ServiceWorker now controls this page.');
+        });
+      }
+
+      // Surface manifest/network issues in the console for debugging.
+      window.addEventListener('error', function(event) {
+        if (event.target && event.target.tagName === 'LINK' && event.target.rel === 'manifest') {
+          console.error('[PWA] Manifest link error:', event.message || event.error || 'manifest failed to load');
+        }
+      }, true);
+    </script>
+    <script src="{{ url_for('static', filename='js/pwa-install.js') }}"></script>
+  </body>
+</html>

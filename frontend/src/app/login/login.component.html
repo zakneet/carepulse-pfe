@@ -1,94 +1,104 @@
-<section class="auth-hero">
-	<div class="shell">
-		<div class="auth-panel">
-			<div class="auth-card">
-				<div class="auth-content" *ngIf="currentStep === 1">
-					<span class="pill">Etape 1</span>
-					<h2>Choisissez votre profil</h2>
-					<p class="muted">Selectionnez Patient ou Personnel de sante pour continuer.</p>
+<main class="login-shell">
+  <section class="login-container">
+    <div class="login-header">
+      <a class="home-link" routerLink="/home">← Retour à l'accueil</a>
+      <h1>Connexion</h1>
+    </div>
 
-					<div class="tabs-container">
-						<button
-							*ngFor="let option of userTypeOptions"
-							class="tab-btn"
-							(click)="selectUserType(option.value)"
-							type="button"
-						>
-							{{ option.label }}
-						</button>
-					</div>
-				</div>
+    <div class="login-card">
+      <div class="card-header">
+        <span class="pill">Connexion securisee</span>
+        <h2>Se connecter</h2>
+        <p>Choisissez votre espace puis entrez vos identifiants.</p>
+      </div>
 
-				<div class="auth-content" *ngIf="currentStep === 2">
-					<span class="pill">Etape 2</span>
-					<h2>{{ selectedUserType === 'patient' ? 'Connexion Patient' : 'Connexion Personnel de sante' }}</h2>
-					<p class="muted">
-						{{ selectedUserType === 'patient' ? 'Saisissez vos identifiants pour acceder a votre espace patient.' : 'Saisissez uniquement votre code d\'acces professionnel.' }}
-					</p>
+      <div class="user-type-toggle" role="tablist" aria-label="Type d'utilisateur">
+        <button
+          type="button"
+          class="toggle-btn"
+          [class.active]="selectedUserType === UserType.PATIENT"
+          (click)="setUserType(UserType.PATIENT)"
+          [disabled]="isLoading"
+        >
+          Patient
+        </button>
+        <button
+          type="button"
+          class="toggle-btn"
+          [class.active]="selectedUserType === UserType.MEDICAL_STAFF"
+          (click)="setUserType(UserType.MEDICAL_STAFF)"
+          [disabled]="isLoading"
+        >
+          Personnel medical
+        </button>
+      </div>
 
-					<form (ngSubmit)="login()" class="form-grid">
-						<label class="field" *ngIf="!isMedicalStaffUserType()">
-							<span>Email</span>
-							<input
-								class="input"
-								type="email"
-								[(ngModel)]="credentials.email"
-								name="email"
-								required
-								[disabled]="isLoading"
-							>
-						</label>
+      <form (ngSubmit)="login()" class="login-form" novalidate>
+        <label class="field" *ngIf="selectedUserType === UserType.PATIENT">
+          <span>Telephone</span>
+          <input
+            class="input"
+            type="text"
+            [(ngModel)]="credentials.telephone"
+            name="telephone"
+            autocomplete="tel"
+            placeholder="0612345678"
+            required
+            [disabled]="isLoading"
+          >
+        </label>
 
-						<label class="field" *ngIf="!isMedicalStaffUserType()">
-							<span>Mot de passe</span>
-							<div class="input-row">
-								<input
-									class="input"
-									[type]="showPassword ? 'text' : 'password'"
-									[(ngModel)]="credentials.password"
-									name="password"
-									required
-									[disabled]="isLoading"
-								>
-								<button class="btn-outline password-toggle" type="button" (click)="togglePassword()" [disabled]="isLoading" [attr.aria-pressed]="showPassword" aria-label="Afficher ou masquer le mot de passe">
-									<span class="eye-icon" aria-hidden="true">{{ showPassword ? '🙈' : '👁️' }}</span>
-									<span>{{ showPassword ? 'Cacher' : 'Afficher' }}</span>
-								</button>
-							</div>
-						</label>
+        <label class="field" *ngIf="selectedUserType === UserType.PATIENT">
+          <span>Mot de passe</span>
+          <input
+            class="input"
+            type="password"
+            [(ngModel)]="credentials.password"
+            name="password"
+            autocomplete="current-password"
+            placeholder="Votre mot de passe"
+            required
+            [disabled]="isLoading"
+          >
+        </label>
 
-						<label class="field" *ngIf="isMedicalStaffUserType()">
-							<span>Code d'acces <em>*</em></span>
-							<input
-								class="input"
-								type="password"
-								[(ngModel)]="credentials.accessCode"
-								name="accessCode"
-								placeholder="Code fourni par l'administrateur"
-								required
-								[disabled]="isLoading"
-							>
-							<small class="muted">Code obligatoire pour le personnel de sante</small>
-						</label>
+        <label class="field" *ngIf="selectedUserType === UserType.MEDICAL_STAFF">
+          <span>Code d'acces</span>
+          <input
+            class="input"
+            type="text"
+            [(ngModel)]="credentials.accessCode"
+            name="accessCode"
+            autocomplete="off"
+            placeholder="AC-TEST-001"
+            required
+            [disabled]="isLoading"
+          >
+        </label>
 
-						<button class="btn-primary" type="submit" [disabled]="isLoading">
-							{{ isLoading ? 'Connexion en cours...' : 'Se connecter' }}
-						</button>
+        <button class="btn-primary" type="submit" [disabled]="isLoading">
+          {{ isLoading ? 'Connexion...' : 'Se connecter' }}
+        </button>
 
-						<button class="btn-outline" type="button" (click)="backToStep1()" [disabled]="isLoading">
-							Changer de profil
-						</button>
-					</form>
+        <div
+          class="alert"
+          [class.alert-error]="messageType === 'error'"
+          [class.alert-success]="messageType === 'success'"
+          *ngIf="message"
+          role="alert"
+        >
+          {{ message }}
+        </div>
+      </form>
 
-					<div class="alert" [class.alert-error]="messageType === 'error'" [class.alert-success]="messageType === 'success'" *ngIf="message">
-						{{ message }}
-					</div>
-
-					<p class="muted text-center">
-						Pas encore de compte ? <a routerLink="/register">Créer un compte</a>
-					</p>
-				</div>
-			</div>
-		</div>
-	</div>
-</section>
+      <a class="forgot-link" href="mailto:contact@opticlinic.local">Mot de passe oublié ?</a>
+      <a
+        class="forgot-link"
+        routerLink="/register"
+        [queryParams]="returnUrl ? { returnUrl: returnUrl } : null"
+      >
+        Pas de compte ? S'inscrire
+      </a>
+    </div>
+  </section>
+</main>

@@ -1,12 +1,16 @@
 <header class="site-nav">
 	<div class="nav-inner">
-		<div class="emergency-layout">
+		<a routerLink="/" class="brand-logo-link" aria-label="Retour a l accueil">
+			<img [src]="logoPath" alt="Logo de la plateforme de gestion des rendez-vous" class="brand-logo" />
+		</a>
+		<div class="emergency-layout" [class.emergency-layout-hidden]="isPatientView" [attr.aria-hidden]="isPatientView">
 			<div class="doctor-group">
 				<button
 					type="button"
 					class="emergency-btn"
 					[class.active]="selectedEmergencyType === 'doctor-left-short'"
-					(click)="activateEmergency('doctor-left-short')"
+					[disabled]="shortEmergencyLoading"
+					(click)="onDoctorShortEmergencyClick()"
 				>
 					Urgence Medecin (courte)
 				</button>
@@ -14,15 +18,139 @@
 					type="button"
 					class="emergency-btn"
 					[class.active]="selectedEmergencyType === 'doctor-left-long'"
+					[disabled]="shortEmergencyLoading"
 					(click)="activateEmergency('doctor-left-long')"
 				>
 					Urgence Medecin (longue)
 				</button>
 			</div>
+			<div
+				class="doctor-short-popup"
+				[class.doctor-short-popup-hidden]="!showDoctorShortPopup"
+				[attr.aria-hidden]="!showDoctorShortPopup"
+				role="dialog"
+				aria-modal="true"
+				aria-label="Choix de l intervalle d urgence medecin"
+			>
+				<div class="doctor-short-popup__backdrop" (click)="closeDoctorShortPopup()"></div>
+				<div class="doctor-short-popup__panel">
+					<h3>Urgence Medecin (courte)</h3>
+					<p>Selectionnez l intervalle pendant lequel le medecin sera absent.</p>
+
+					<div class="interval-options">
+						<label class="interval-option">
+							<input
+								type="radio"
+								name="doctorShortInterval"
+								[value]="'morning'"
+								[checked]="selectedShortInterval === 'morning'"
+								(change)="setDoctorShortInterval('morning')"
+							/>
+							<span>Matin</span>
+						</label>
+						<label class="interval-option">
+							<input
+								type="radio"
+								name="doctorShortInterval"
+								[value]="'afternoon'"
+								[checked]="selectedShortInterval === 'afternoon'"
+								(change)="setDoctorShortInterval('afternoon')"
+							/>
+							<span>Apres-midi</span>
+						</label>
+						<label class="interval-option">
+							<input
+								type="radio"
+								name="doctorShortInterval"
+								[value]="'full-day'"
+								[checked]="selectedShortInterval === 'full-day'"
+								(change)="setDoctorShortInterval('full-day')"
+							/>
+							<span>Toute la journee</span>
+						</label>
+					</div>
+
+					<div class="absence-hours-field">
+						<label for="absenceHours">Nombre d heures d absence</label>
+						<input
+							id="absenceHours"
+							type="number"
+							min="1"
+							max="12"
+							step="1"
+							[value]="absenceHours"
+							(input)="onAbsenceHoursChange(($any($event.target)).value)"
+						/>
+						<span class="absence-hours-hint">Par defaut: 1 heure. Maximum: 12 heures.</span>
+					</div>
+
+					<div class="doctor-short-popup__actions">
+						<button type="button" class="popup-btn popup-btn-secondary" [disabled]="shortEmergencyLoading" (click)="closeDoctorShortPopup()">Annuler</button>
+						<button type="button" class="popup-btn popup-btn-primary" [disabled]="shortEmergencyLoading" (click)="confirmDoctorShortEmergency()">{{ shortEmergencyLoading ? 'Traitement...' : 'Confirmer' }}</button>
+					</div>
+				</div>
+			</div>
+			<div
+				class="doctor-short-popup doctor-long-popup"
+				[class.doctor-short-popup-hidden]="!showDoctorLongPopup"
+				[attr.aria-hidden]="!showDoctorLongPopup"
+				role="dialog"
+				aria-modal="true"
+				aria-label="Duree d urgence medecin longue"
+			>
+				<div class="doctor-short-popup__backdrop" (click)="closeDoctorLongPopup()"></div>
+				<div class="doctor-short-popup__panel">
+					<h3>Urgence Medecin (longue)</h3>
+					<p>Indiquez la duree d absence du medecin (en jours ou semaines).</p>
+
+					<div class="absence-hours-field">
+						<label for="longAbsenceValue">Duree d absence</label>
+						<input
+							id="longAbsenceValue"
+							type="number"
+							min="1"
+							max="60"
+							step="1"
+							[value]="longAbsenceValue"
+							(input)="onLongAbsenceValueChange(($any($event.target)).value)"
+						/>
+						<span class="absence-hours-hint">Exemple: 2 jours ou 1 semaine.</span>
+					</div>
+
+					<div class="interval-options">
+						<label class="interval-option">
+							<input
+								type="radio"
+								name="doctorLongAbsenceUnit"
+								[value]="'day'"
+								[checked]="longAbsenceUnit === 'day'"
+								(change)="setDoctorLongAbsenceUnit('day')"
+							/>
+							<span>Jour(s)</span>
+						</label>
+						<label class="interval-option">
+							<input
+								type="radio"
+								name="doctorLongAbsenceUnit"
+								[value]="'week'"
+								[checked]="longAbsenceUnit === 'week'"
+								(change)="setDoctorLongAbsenceUnit('week')"
+							/>
+							<span>Semaine(s)</span>
+						</label>
+					</div>
+
+					<div class="doctor-short-popup__actions">
+						<button type="button" class="popup-btn popup-btn-secondary" [disabled]="shortEmergencyLoading" (click)="closeDoctorLongPopup()">Annuler</button>
+						<button type="button" class="popup-btn popup-btn-primary" [disabled]="shortEmergencyLoading" (click)="confirmDoctorLongEmergency()">{{ shortEmergencyLoading ? 'Traitement...' : 'Confirmer' }}</button>
+					</div>
+				</div>
+			</div>
 			<button
 				type="button"
 				class="emergency-btn emergency-btn-alt patient-btn"
 				[class.active]="selectedEmergencyType === 'patient-on-site'"
+				[disabled]="shortEmergencyLoading"
 				(click)="activateEmergency('patient-on-site')"
 			>
 				Urgence Patient present au cabinet

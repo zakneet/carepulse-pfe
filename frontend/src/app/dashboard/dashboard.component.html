@@ -1,59 +1,79 @@
-<section class="section">
+<section class="patient-dashboard section">
   <div class="dashboard-hero reveal">
-    <div>
-      <span class="pill">{{ statusLabel }}</span>
-      <h2>Bonjour {{ displayName }}, bienvenue.</h2>
+    <button type="button" class="btn-ghost dashboard-home-btn" (click)="goHome()">Accueil</button>
+    <div class="hero-copy">
+      <span class="pill">Espace patient</span>
+      <h2>Bonjour {{ displayName }}</h2>
       <p *ngIf="displayEmail">{{ displayEmail }}</p>
-      <p *ngIf="!displayEmail">Connectez-vous pour acceder a votre espace.</p>
+      <p *ngIf="!displayEmail">Vous pouvez suivre ici vos rendez-vous et votre dossier medical.</p>
+
+      <div class="dash-cta">
+        <button type="button" class="btn-primary" (click)="goToBooking()">Nouveau rendez-vous</button>
+        <button type="button" class="btn-ghost" (click)="goToAppointments()">Mes rendez-vous et mon dossier medical</button>
+      </div>
     </div>
-    <div class="dash-cta">
-      <a class="btn-primary" routerLink="/patient/rdv/new">Nouveau rendez-vous</a>
-      <a class="btn-ghost" routerLink="/patient/rdvs">Voir la liste</a>
+
+    <div class="hero-summary">
+      <div class="summary-chip">
+        <span>Dossier patient</span>
+        <strong>{{ historyCount }}</strong>
+        <small>Rendez-vous au total</small>
+      </div>
+      <div class="summary-chip accent" *ngIf="lastAppointment; else noLastAppointment">
+        <span>Dernier RDV</span>
+        <strong>{{ lastAppointment?.statut }}</strong>
+        <small>{{ lastAppointment?.dateLabel }} - {{ lastAppointment?.doctorLabel }}</small>
+      </div>
+      <ng-template #noLastAppointment>
+        <div class="summary-chip accent">
+          <span>Dernier RDV</span>
+          <strong>Aucun</strong>
+          <small>Votre historique sera affiche ici.</small>
+        </div>
+      </ng-template>
     </div>
   </div>
 
-  <div class="dashboard-grid">
-    <article class="tile reveal" style="--delay: 0.3s">
-      <h3>Indicateurs de sante</h3>
-      <div class="progress-block">
-        <div>
-          <span>Hydratation</span>
-          <strong>72%</strong>
-        </div>
-        <div class="progress-bar"><span style="width: 72%"></span></div>
-      </div>
-      <div class="progress-block">
-        <div>
-          <span>Sommeil</span>
-          <strong>6h40</strong>
-        </div>
-        <div class="progress-bar"><span style="width: 64%"></span></div>
-      </div>
-      <div class="progress-block">
-        <div>
-          <span>Activite</span>
-          <strong>4/7 jours</strong>
-        </div>
-        <div class="progress-bar"><span style="width: 57%"></span></div>
-      </div>
-    </article>
+  <p *ngIf="loading" class="state-card">Chargement de votre espace patient...</p>
+  <p *ngIf="!loading && errorMessage" class="state-card error">{{ errorMessage }}</p>
 
-    <article class="tile reveal" style="--delay: 0.4s">
-      <h3>Profil patient</h3>
-      <div class="profile-card">
-        <div class="avatar" *ngIf="!profile?.photoUrl">{{ initials }}</div>
-        <img
-          *ngIf="profile?.photoUrl"
-          class="avatar-img"
-          [src]="profile?.photoUrl"
-          alt="Photo de profil">
-        <div>
-          <strong>{{ displayName }}</strong>
-          <p>{{ statusLabel }}</p>
+  <ng-container *ngIf="!loading && !errorMessage">
+    <div class="dashboard-grid">
+      <article class="tile reveal history-tile" style="--delay: 0.3s">
+        <h3>Historique des rendez-vous</h3>
+        <p class="tile-sub">Tous vos RDV, qu'ils soient faits, annules ou reportes.</p>
+
+        <div class="table-wrapper" *ngIf="appointments.length > 0; else emptyHistory">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Heure</th>
+                <th>Medecin</th>
+                <th>Specialite</th>
+                <th>Motif</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let appointment of appointments">
+                <td>{{ appointment.dateLabel }}</td>
+                <td>{{ appointment.timeLabel }}</td>
+                <td>{{ appointment.doctorLabel }}</td>
+                <td>{{ appointment.specialite }}</td>
+                <td>{{ appointment.motif }}</td>
+                <td>
+                  <span class="badge" [ngClass]="appointment.statusClass">{{ appointment.statut }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
-      <p class="tile-sub">Consultez ou mettez a jour vos informations.</p>
-      <button class="btn-ghost" type="button" routerLink="/patient/profile">Mettre a jour</button>
-    </article>
-  </div>
+
+        <ng-template #emptyHistory>
+          <p class="state-card">Aucun rendez-vous trouve pour le moment.</p>
+        </ng-template>
+      </article>
+    </div>
+  </ng-container>
 </section>

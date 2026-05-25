@@ -1,10 +1,12 @@
 .site-nav {
 	position: sticky;
 	top: 0;
-	z-index: 20;
-	backdrop-filter: blur(10px);
-	background: rgba(255, 255, 255, 0.78);
-	border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+	z-index: 60;
+	backdrop-filter: blur(8px);
+	/* lighter header for better visibility */
+	background: rgba(255, 255, 255, 0.95);
+	border-bottom: 1px solid rgba(2, 6, 23, 0.06);
+	color: #0f172a;
 }
 
 .nav-inner {
@@ -12,9 +14,33 @@
 	min-height: 56px;
 	margin: 0 auto;
 	display: flex;
-	justify-content: flex-end;
+	justify-content: space-between;
 	align-items: center;
 	padding: 0.45rem 0;
+	gap: 0.9rem;
+}
+
+.brand-logo-link {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	text-decoration: none;
+	flex: 0 0 auto;
+	border-radius: 12px;
+	padding: 0.15rem 0.2rem;
+}
+
+.brand-logo-link:focus-visible {
+	outline: 3px solid rgba(56, 189, 248, 0.28);
+	outline-offset: 2px;
+}
+
+.brand-logo {
+	height: 56px; /* increased for better visibility */
+ 	width: auto;
+ 	max-width: min(40vw, 230px);
+ 	object-fit: contain;
+ 	display: block;
 }
 
 .emergency-layout {
@@ -25,23 +51,35 @@
 	justify-content: flex-end;
 }
 
+.emergency-layout.emergency-layout-hidden {
+	visibility: hidden;
+	opacity: 0;
+	pointer-events: none;
+	height: 0;
+	overflow: hidden;
+}
+
 .doctor-group {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 0.45rem;
 }
 
+
 .emergency-btn {
-	border: 1px solid #b91c1c;
-	background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
-	color: #ffffff;
+	position: relative;
+	z-index: 2;
+	pointer-events: auto;
+	border: 1px solid rgba(127, 29, 29, 0.24);
+	background: rgba(127, 29, 29, 0.12);
+	color: #7f1d1d;
 	border-radius: 999px;
 	padding: 0.45rem 0.75rem;
-	font-weight: 800;
+	font-weight: 700;
 	font-size: 0.76rem;
 	line-height: 1.2;
 	cursor: pointer;
-	box-shadow: 0 10px 22px rgba(220, 38, 38, 0.22);
+	box-shadow: 0 8px 18px rgba(2, 6, 23, 0.06);
 	transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
@@ -50,36 +88,192 @@
 }
 
 .emergency-btn-alt {
-	border-color: #c2410c;
-	background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
-	box-shadow: 0 10px 22px rgba(234, 88, 12, 0.22);
+	border-color: rgba(248, 113, 113, 0.24);
+	background: rgba(127, 29, 29, 0.5);
+	box-shadow: 0 8px 18px rgba(2, 6, 23, 0.22);
 }
 
 .emergency-btn:hover {
-	background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+	background: rgba(153, 27, 27, 0.5);
 	transform: translateY(-1px);
-	box-shadow: 0 12px 26px rgba(220, 38, 38, 0.28);
+	box-shadow: 0 10px 20px rgba(2, 6, 23, 0.3);
 }
 
 .emergency-btn-alt:hover {
-	background: linear-gradient(180deg, #ea580c 0%, #c2410c 100%);
-	box-shadow: 0 12px 26px rgba(194, 65, 12, 0.28);
+	background: rgba(153, 27, 27, 0.55);
+	box-shadow: 0 10px 20px rgba(2, 6, 23, 0.3);
 }
 
 .emergency-btn.active {
-	outline: 3px solid rgba(15, 23, 42, 0.15);
+	outline: 3px solid rgba(56, 189, 248, 0.16);
 	outline-offset: 2px;
 }
 
 .emergency-btn:focus-visible {
-	outline: 3px solid rgba(220, 38, 38, 0.25);
+	outline: 3px solid rgba(56, 189, 248, 0.22);
 	outline-offset: 2px;
 }
 
+.emergency-btn:disabled,
+.popup-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+	transform: none;
+	box-shadow: none;
+}
+
+.doctor-short-popup {
+	position: fixed;
+	inset: 0;
+	z-index: 40;
+	display: grid;
+	place-items: center;
+	padding: 1rem;
+}
+
+.doctor-short-popup.doctor-short-popup-hidden {
+	visibility: hidden;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.doctor-short-popup__backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(2, 6, 23, 0.62);
+	backdrop-filter: blur(6px);
+}
+
+.doctor-short-popup__panel {
+	position: relative;
+	z-index: 1;
+	width: min(520px, 100%);
+	border-radius: 20px;
+	background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
+	border: 1px solid rgba(248, 113, 113, 0.28);
+	box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45);
+	padding: 1.1rem 1.1rem 1rem;
+	color: #e2e8f0;
+}
+
+.doctor-short-popup__panel h3 {
+	margin: 0 0 0.45rem;
+	font-size: 1.05rem;
+	font-weight: 800;
+}
+
+.doctor-short-popup__panel p {
+	margin: 0 0 1rem;
+	color: #cbd5e1;
+	line-height: 1.45;
+}
+
+.interval-options {
+	display: grid;
+	gap: 0.7rem;
+	margin-bottom: 1rem;
+}
+
+.absence-hours-field {
+	display: grid;
+	gap: 0.4rem;
+	margin-bottom: 1rem;
+	padding: 0.85rem 0.9rem;
+	border-radius: 14px;
+	border: 1px solid rgba(148, 163, 184, 0.2);
+	background: rgba(15, 23, 42, 0.55);
+	color: #e2e8f0;
+}
+
+.absence-hours-field label {
+	font-size: 0.9rem;
+	font-weight: 700;
+}
+
+.absence-hours-field input {
+	width: 100%;
+	border-radius: 10px;
+	border: 1px solid rgba(148, 163, 184, 0.25);
+	background: rgba(15, 23, 42, 0.9);
+	color: #f8fafc;
+	padding: 0.65rem 0.8rem;
+	font-size: 0.98rem;
+	outline: none;
+}
+
+.absence-hours-field input:focus {
+	border-color: rgba(251, 113, 133, 0.8);
+	box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.18);
+}
+
+.absence-hours-hint {
+	font-size: 0.8rem;
+	color: #cbd5e1;
+}
+
+.interval-option {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	padding: 0.8rem 0.9rem;
+	border-radius: 14px;
+	border: 1px solid rgba(148, 163, 184, 0.2);
+	background: rgba(15, 23, 42, 0.7);
+	cursor: pointer;
+}
+
+.interval-option input {
+	accent-color: #fb7185;
+	flex: 0 0 auto;
+}
+
+.interval-option span {
+	font-weight: 700;
+	color: #f8fafc;
+}
+
+.doctor-short-popup__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.65rem;
+	flex-wrap: wrap;
+}
+
+.popup-btn {
+	border: 0;
+	border-radius: 999px;
+	padding: 0.65rem 1rem;
+	font-weight: 800;
+	cursor: pointer;
+	transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.popup-btn:hover {
+	transform: translateY(-1px);
+}
+
+.popup-btn-secondary {
+	background: rgba(148, 163, 184, 0.18);
+	color: #e2e8f0;
+}
+
+.popup-btn-primary {
+	background: linear-gradient(135deg, #ef4444, #fb7185);
+	color: #fff;
+	box-shadow: 0 10px 24px rgba(239, 68, 68, 0.32);
+}
+
 @media (max-width: 768px) {
-	.nav-inner {
-		justify-content: stretch;
-	}
+ 	.nav-inner {
+ 		justify-content: space-between;
+ 		align-items: center;
+ 		gap: 0.65rem;
+ 	}
+
+ 	.brand-logo {
+ 		height: 48px; /* larger on mobile for readability */
+ 		max-width: 56vw;
+ 	}
 
 	.emergency-layout {
 		width: 100%;
@@ -93,5 +287,9 @@
 
 	.emergency-btn {
 		width: 100%;
+	}
+
+	.doctor-short-popup__panel {
+		padding: 1rem;
 	}
 }

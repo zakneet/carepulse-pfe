@@ -20,6 +20,52 @@
     <p *ngIf="emergencyNotice" class="emergency-note">{{ emergencyNotice }}</p>
     <p *ngIf="loading" class="muted">Chargement du planning...</p>
     <p *ngIf="errorMessage" class="error">{{ errorMessage }}</p>
+    <p *ngIf="optimizerLoading" class="muted">Calcul du planning optimise...</p>
+    <p *ngIf="optimizerErrorMessage" class="error">{{ optimizerErrorMessage }}</p>
+
+    <section #urgentSummaryAnchor class="urgent-summary-panel" *ngIf="lastUrgentRecalculation as urgentSummary">
+      <div class="urgent-summary-head">
+        <div>
+          <p class="muted modal-kicker">Recalcul urgent</p>
+          <h3>{{ urgentSummary.urgentPatientName }}</h3>
+          <p class="muted">Créneau urgent: {{ urgentSummary.urgentStart }} - {{ urgentSummary.urgentEnd }}</p>
+        </div>
+        <span class="summary-pill">{{ urgentSummary.translatedAppointments.length }} rendez-vous déplacés</span>
+      </div>
+
+      <div class="urgent-summary-grid">
+        <article class="urgent-summary-card urgent-slot-card">
+          <p class="summary-label">RDV urgent intégré</p>
+          <strong>{{ urgentSummary.urgentStart }} - {{ urgentSummary.urgentEnd }}</strong>
+          <span>Ajouté après recalcul OR-Tools</span>
+        </article>
+
+        <article class="urgent-summary-card urgent-translation-card">
+          <p class="summary-label">Rendez-vous translatés</p>
+          <div class="translation-empty" *ngIf="urgentSummary.translatedAppointments.length === 0">
+            Aucun rendez-vous n’a changé de créneau.
+          </div>
+          <div class="translation-list" *ngIf="urgentSummary.translatedAppointments.length > 0">
+            <div class="translation-item" *ngFor="let item of urgentSummary.translatedAppointments">
+              <div>
+                <strong>{{ item.patientName }}</strong>
+                <p>{{ item.previousStart }} - {{ item.previousEnd }} → {{ item.newStart }} - {{ item.newEnd }}</p>
+              </div>
+              <span class="delta-chip" [class.late]="item.deltaMinutes > 0" [class.early]="item.deltaMinutes < 0">
+                {{ item.deltaMinutes > 0 ? '+' : '' }}{{ item.deltaMinutes }} min
+              </span>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <p class="muted summary-footer">Mis à jour à {{ urgentSummary.recalculatedAt }}</p>
+    </section>
+
+    <div class="fusion-legend" *ngIf="!loading && !errorMessage">
+      <span class="legend-chip normal">Planning normal</span>
+      <span class="legend-chip optimized">Planning optimise</span>
+    </div>
 
     <div class="planning-grid-wrap" *ngIf="!loading && !errorMessage">
       <table class="planning-grid">
@@ -35,17 +81,34 @@
             <td *ngFor="let slot of timeSlots">
               <ng-container *ngIf="getAppointmentForSlot(day.date, slot) as appointment">
                 <div
-                  class="slot-card"
+                  class="slot-card normal-card"
                   role="button"
                   tabindex="0"
                   (click)="openAppointmentDetails(appointment)"
                   (keydown.enter)="openAppointmentDetails(appointment)"
-                  [ngClass]="{'delayed': appointment.statut?.includes('Décalé'), 'cancelled': appointment.statut?.includes('Annule')}"
+                  [ngClass]="{'delayed': isDelayedStatus(appointment.statut), 'cancelled': isCancelledStatus(appointment.statut)}"
                 >
                   <div class="time">{{ appointment.heureDebut?.slice(0, 5) }}</div>
                   <strong>{{ patientLabel(appointment) }}</strong>
+                  <span class="doctor-line">Dr {{ appointment.medecin || buildDoctorName(appointment) }}</span>
+                  <span class="specialty-line">{{ appointment.specialite || 'Generaliste' }}</span>
                   <span>{{ appointment.motifConsultation || 'consultation' }}</span>
                   <span class="status" *ngIf="appointment.statut">{{ appointment.statut }}</span>
+                </div>
+              </ng-container>
+
+              <ng-container *ngIf="getOptimizedSlotForCell(day.date, slot) as optimizedSlot">
+                <div
+                  class="slot-card optimized-card"
+                  role="button"
+                  tabindex="0"
+                  (click)="openOptimizedSlotDetails(optimizedSlot)"
+                  (keydown.enter)="openOptimizedSlotDetails(optimizedSlot)"
+                >
+                  <div class="time">{{ optimizedSlot.startTime }}</div>
+                  <strong>{{ optimizedSlot.patientName }}</strong>
+                  <span>{{ optimizedSlot.motif }}</span>
+                  <span class="status">{{ optimizedSlot.isUrgent ? 'urgence' : 'optimise' }}</span>
                 </div>
               </ng-container>
             </td>
@@ -54,6 +117,106 @@
       </table>
     </div>
   </section>
+
+  <div class="urgent-form-modal" *ngIf="showUrgentForm">
+    <div class="urgent-form-backdrop" (click)="closeUrgentForm()"></div>
+    <section class="urgent-form-dialog" role="dialog" aria-modal="true" aria-label="Formulaire d'urgence patient">
+      <header class="urgent-form-header">
+        <div>
+          <p class="muted modal-kicker">Urgence patient</p>
+          <h3>Ajouter un patient urgent</h3>
+          <p class="muted">Le patient sera ajouté au recalcul OR-Tools du planning affiché.</p>
+        </div>
+        <button type="button" class="close-modal-btn" (click)="closeUrgentForm()">Fermer</button>
+      </header>
+
+      <p class="form-note">Date du recalcul: {{ selectedDate }}</p>
+      <p *ngIf="urgentFormError" class="error">{{ urgentFormError }}</p>
+      <p *ngIf="urgentFormLoading" class="muted">Recalcul du planning en cours...</p>
+
+      <form class="urgent-form" #urgentFormRef="ngForm" (ngSubmit)="submitUrgentPatientForm()" novalidate>
+        <div class="urgent-form-grid">
+          <div class="form-field">
+            <label for="urgent-prenom">Prénom</label>
+            <input
+              id="urgent-prenom"
+              name="prenom"
+              type="text"
+              [(ngModel)]="urgentPatientForm.prenom"
+              required
+              autocomplete="off"
+            >
+          </div>
+
+          <div class="form-field">
+            <label for="urgent-nom">Nom</label>
+            <input
+              id="urgent-nom"
+              name="nom"
+              type="text"
+              [(ngModel)]="urgentPatientForm.nom"
+              required
+              autocomplete="off"
+            >
+          </div>
+
+          <div class="form-field">
+            <label for="urgent-telephone">Téléphone</label>
+            <input
+              id="urgent-telephone"
+              name="telephone"
+              type="tel"
+              [(ngModel)]="urgentPatientForm.telephone"
+              required
+              autocomplete="off"
+            >
+          </div>
+
+          <div class="form-field">
+            <label for="urgent-cin">CIN</label>
+            <input
+              id="urgent-cin"
+              name="cin"
+              type="text"
+              [(ngModel)]="urgentPatientForm.cin"
+              required
+              autocomplete="off"
+            >
+          </div>
+
+          <div class="form-field form-span-2">
+            <label for="urgent-motif">Motif</label>
+            <textarea
+              id="urgent-motif"
+              name="motif"
+              [(ngModel)]="urgentPatientForm.motif"
+              rows="3"
+            ></textarea>
+          </div>
+
+          <div class="form-field">
+            <label for="urgent-duration">Durée (minutes)</label>
+            <input
+              id="urgent-duration"
+              name="duration"
+              type="number"
+              min="15"
+              step="5"
+              [(ngModel)]="urgentPatientForm.duration"
+              required
+            >
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="close-modal-btn" (click)="closeUrgentForm()">Annuler</button>
+          <button type="submit" class="primary-action-btn" [disabled]="urgentFormLoading || urgentFormRef.invalid">
+            {{ urgentFormLoading ? 'Recalcul...' : 'Intégrer au planning' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
 
   <div class="patient-record-modal" *ngIf="selectedAppointment">
     <div class="patient-record-backdrop" (click)="closePatientRecord()"></div>
@@ -125,6 +288,8 @@
                 <p>{{ formatShortTime(item.heureDebut) }} - {{ formatShortTime(item.heureFin) }}</p>
               </div>
               <div>
+                <p>Dr {{ item.medecin || buildDoctorName(item) }}</p>
+                <p class="muted">{{ item.specialite || 'Generaliste' }}</p>
                 <p>{{ item.motifConsultation || 'consultation' }}</p>
                 <span class="status-pill" *ngIf="item.statut">{{ item.statut }}</span>
               </div>

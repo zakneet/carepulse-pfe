@@ -1,0 +1,16 @@
+<div class="toast-host" aria-live="polite" aria-atomic="true">
+  <div class="toast-list" *ngIf="notifications$ | async as notifications">
+    <article
+      *ngFor="let item of notifications"
+      class="toast-item"
+      [ngClass]="'toast-' + item.type"
+      role="status"
+    >
+      <span class="toast-icon" *ngIf="item.type === 'success'">OK</span>
+      <span class="toast-icon" *ngIf="item.type === 'error'">ERR</span>
+      <span class="toast-icon" *ngIf="item.type === 'info'">i</span>
+      <p class="toast-message">{{ item.message }}</p>
+      <button type="button" class="toast-close" (click)="dismiss(item.id)" aria-label="Fermer">x</button>
+    </article>
+  </div>
+</div>

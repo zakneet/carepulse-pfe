@@ -1,17 +1,70 @@
 import { Component, ChangeDetectorRef, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
-import { Subscription, forkJoin, of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Observable, Subscription, forkJoin, of } from 'rxjs';
+import { catchError, finalize, switchMap, map } from 'rxjs/operators';
 import { AuthService } from 'src/app/services/auth.service';
 import { AuthUser } from 'src/app/models/auth.model';
 import {
+  OptimizePatient,
+  OptimizeRequest,
+  OptimizedAppointment,
   MedicalStaffPatientRecordResponse,
   MedicalPlanningAppointment,
   MedicalPlanningDay,
   RdvService
 } from 'src/app/services/rdv.service';
-import { EmergencyEventsService } from 'src/app/services/emergency-events.service';
+import { EmergencyEventPayload, EmergencyEventsService } from 'src/app/services/emergency-events.service';
+import { NotificationService } from 'src/app/services/notification.service';
+
+interface OptimizedPlanningSlot {
+  patientId: number;
+  patientDbId: number | null;
+  patientName: string;
+  motif: string;
+  date: string;
+  startMinutes: number;
+  endMinutes: number;
+  startTime: string;
+  endTime: string;
+  isUrgent: boolean;
+}
+
+interface UrgentPatientForm {
+  nom: string;
+  prenom: string;
+  telephone: string;
+  cin: string;
+  motif: string;
+  duration: number;
+}
+
+interface UrgentOptimizePatient extends OptimizePatient {
+  nom: string;
+  prenom: string;
+  telephone: string;
+  cin: string;
+  motif: string;
+}
+
+interface UrgentTranslationItem {
+  id: number;
+  patientName: string;
+  previousStart: string;
+  previousEnd: string;
+  newStart: string;
+  newEnd: string;
+  deltaMinutes: number;
+}
+
+interface UrgentPlanningSummary {
+  urgentPatientName: string;
+  urgentStart: string;
+  urgentEnd: string;
+  translatedAppointments: UrgentTranslationItem[];
+  recalculatedAt: string;
+}
 
 @Component({
   selector: 'app-medical-staff-dashboard',
@@ -19,6 +72,7 @@ import { EmergencyEventsService } from 'src/app/services/emergency-events.servic
   styleUrls: ['./medical-staff-dashboard.component.css']
 })
 export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
+
   currentUser: AuthUser | null = null;
   staffView: 'doctor' | 'nurse' = 'doctor';
   baseRoute = '/medical-staff/doctor';
@@ -36,12 +90,21 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
   timeSlots: string[] = this.buildTimeSlots('08:00', '18:00', 30);
   todayPlanning: MedicalPlanningAppointment[] = [];
   weekPlanning: MedicalPlanningDay[] = [];
+  optimizerLoading = false;
+  optimizerErrorMessage = '';
+  optimizedPlanningSlots: OptimizedPlanningSlot[] = [];
   upcomingAppointments: Array<{ id: number; patientName: string; date: string; time: string; status: string }> = [];
   selectedAppointment: MedicalPlanningAppointment | null = null;
   patientRecord: MedicalStaffPatientRecordResponse | null = null;
   patientRecordLoading = false;
   patientRecordError = '';
   patientInConsultation = false;
+  showUrgentForm = false;
+  urgentFormError = '';
+  urgentFormLoading = false;
+  urgentPatientForm: UrgentPatientForm = this.createUrgentPatientForm();
+  private pendingUrgentPatients: UrgentOptimizePatient[] = [];
+  lastUrgentRecalculation: UrgentPlanningSummary | null = null;
 
   statistics = {
     todayAppointments: 0,
@@ -51,6 +114,7 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
   };
 
   emergencyNotice = '';
+  private activePersonnelId?: number;
   private emergencySub?: Subscription;
   private weekAutoRefreshTimer?: ReturnType<typeof setInterval>;
   private trackedWeekKey = '';
@@ -64,6 +128,7 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private rdvService: RdvService,
     private emergencyEvents: EmergencyEventsService,
+    private notifications: NotificationService,
     private changeDetector: ChangeDetectorRef,
     private route: ActivatedRoute,
     private router: Router
@@ -77,19 +142,22 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     this.loadDashboardData();
     this.startWeekAutoRefresh();
     window.addEventListener('storage', this.refreshSignalHandler);
-    this.emergencySub = this.emergencyEvents.emergency$.subscribe((type) => {
-      if (type === 'patient-on-site') {
-        this.delayCurrentAppointments(30);
+    this.emergencySub = this.emergencyEvents.emergency$.subscribe((event: EmergencyEventPayload) => {
+      if (event.type === 'patient-on-site') {
+        this.integrateUrgentPatient();
         return;
       }
 
-      if (type === 'doctor-left-short') {
-        this.delayCurrentAppointments(60);
+      if (event.type === 'doctor-left-short') {
+        this.delayCurrentAppointments(Math.max(1, Math.round(event.absenceHours || 1)), event.interval || 'morning');
         return;
       }
 
-      if (type === 'doctor-left-long') {
-        this.cancelAllAppointments();
+      if (event.type === 'doctor-left-long') {
+        this.cancelAllAppointments(
+          Math.max(1, Math.round(event.longAbsenceValue || 1)),
+          event.longAbsenceUnit || 'day'
+        );
       }
     });
   }
@@ -110,73 +178,138 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     this.loadDashboardData();
   }
 
-  private loadDashboardData(): void {
-    const idPersonnel = this.currentUser?.id;
-    if (!idPersonnel) {
-      this.errorMessage = 'Utilisateur medical non identifie.';
-      this.loading = false;
-      return;
-    }
+  private getCurrentPersonnelId(): number | undefined {
+    const currentUser = this.currentUser as unknown as {
+      id?: number;
+      idPersonnel?: number;
+      id_personnel?: number;
+    } | null;
 
+    return currentUser?.idPersonnel ?? currentUser?.id_personnel ?? this.activePersonnelId ?? currentUser?.id;
+  }
+
+  private loadDashboardData(): void {
     this.loading = true;
     this.errorMessage = '';
 
-    this.rdvService.getMedicalStaffPlanning(idPersonnel, this.selectedDate).subscribe({
+    const requestedPersonnelId = this.getCurrentPersonnelId();
+
+    this.rdvService.getMedicalStaff().pipe(
+      map((staff) => {
+        if (requestedPersonnelId && staff.some((member) => member.id === requestedPersonnelId)) {
+          return requestedPersonnelId;
+        }
+
+        if (staff.length > 0) {
+          return staff[0].id;
+        }
+
+        return requestedPersonnelId ?? 0;
+      }),
+      switchMap((idPersonnel) => {
+        if (!idPersonnel) {
+          throw new Error('Utilisateur medical non identifie.');
+        }
+
+        this.activePersonnelId = idPersonnel;
+
+        return this.rdvService.getMedicalStaffPlanning(idPersonnel, this.selectedDate);
+      })
+    ).subscribe({
       next: (planning) => {
         this.loading = false;
+        this.activePersonnelId = Number(planning.idPersonnel || this.activePersonnelId || 0) || this.activePersonnelId;
         this.weekStart = planning.weekStart || '';
         this.trackedWeekKey = this.weekStart || this.getWeekKey(this.selectedDate);
         this.todayPlanning = planning.todayPlanning || [];
         this.weekPlanning = planning.weekPlanning || [];
         this.applyMetrics();
+        this.loadOptimizedPlanning();
       },
       error: (error) => {
         this.loading = false;
-        console.error('Erreur chargement planning:', error);
-        const errorMsg = error?.error?.error || 'Impossible de charger le planning du personnel de sante.';
+        const errorMsg = this.getReadableHttpError(error, 'Impossible de charger le planning du personnel de sante.');
+        console.error('Erreur chargement planning:', errorMsg);
         this.errorMessage = errorMsg;
+        this.notifications.error(errorMsg);
       }
     });
+  }
+
+  getOptimizedSlotForCell(dayDate: string, slot: string): OptimizedPlanningSlot | null {
+    if (dayDate !== this.selectedDate) {
+      return null;
+    }
+
+    const slotStart = this.toMinutes(slot);
+    const slotEnd = slotStart + 30;
+
+    for (const item of this.optimizedPlanningSlots) {
+      if (item.date !== dayDate) {
+        continue;
+      }
+
+      if (slotStart >= item.startMinutes && slotEnd <= item.endMinutes) {
+        return item;
+      }
+    }
+
+    return null;
+  }
+
+  openOptimizedSlotDetails(slot: OptimizedPlanningSlot): void {
+    const resolvedPatientId = typeof slot.patientDbId === 'number' ? slot.patientDbId : slot.patientId;
+    const idPersonnel = this.getCurrentPersonnelId();
+    this.selectedAppointment = {
+      id: slot.patientId,
+      idPatient: resolvedPatientId,
+      idPersonnel,
+      dateRDV: slot.date,
+      heureDebut: `${slot.startTime}:00`,
+      heureFin: `${slot.endTime}:00`,
+      motifConsultation: `${slot.motif} (optimise)`,
+      statut: 'Planning optimise',
+      patientNom: slot.patientName,
+      patientPrenom: '',
+    };
+    this.patientRecord = null;
+    this.patientRecordLoading = false;
+    if (typeof slot.patientDbId === 'number') {
+      this.patientRecordError = '';
+      const idPersonnel = this.getCurrentPersonnelId();
+      if (!idPersonnel) {
+        this.patientRecordError = 'Utilisateur medical non identifie.';
+        this.patientInConsultation = true;
+        return;
+      }
+
+      this.patientRecordLoading = true;
+      this.patientInConsultation = true;
+      // Do not pass currentRdvId for optimized slots because the slot can move in time.
+      this.loadPatientRecord(idPersonnel, slot.patientDbId);
+      return;
+    }
+
+    this.patientRecordError = 'Profil indisponible pour ce patient de test (non present en base).';
+    this.patientInConsultation = true;
   }
 
   private applyMetrics(): void {
-    const today = this.selectedDate;
-    const allWeekAppointments = this.weekPlanning.flatMap((day) => day.appointments || []);
+    // Compute simple dashboard metrics
+    this.statistics.todayAppointments = (this.todayPlanning || []).length;
+
+    const allWeekAppointments = this.weekPlanning.flatMap((d) => d.appointments || []);
     const uniquePatients = new Set<number>();
-
-    allWeekAppointments.forEach((rdv) => {
-      if (typeof rdv.idPatient === 'number') {
-        uniquePatients.add(rdv.idPatient);
+    for (const rdv of allWeekAppointments) {
+      const pid = Number((rdv as any).idPatient);
+      if (!Number.isNaN(pid)) {
+        uniquePatients.add(pid);
       }
-    });
+    }
 
-    const sorted = [...allWeekAppointments].sort((a, b) => {
-      const aKey = `${a.dateRDV || ''} ${a.heureDebut || ''}`;
-      const bKey = `${b.dateRDV || ''} ${b.heureDebut || ''}`;
-      return aKey.localeCompare(bKey);
-    });
-
-    this.upcomingAppointments = sorted.slice(0, 6).map((rdv) => ({
-      id: rdv.id,
-      patientName: this.buildPatientName(rdv),
-      date: rdv.dateRDV,
-      time: (rdv.heureDebut || '').slice(0, 5),
-      status: rdv.statut || 'En attente'
-    }));
-
-    this.statistics.todayAppointments = this.todayPlanning.length;
     this.statistics.patientsManaged = uniquePatients.size;
-    this.statistics.pendingRequests = allWeekAppointments.filter((r) => (r.statut || '').toLowerCase().includes('attente')).length;
-    this.statistics.completedToday = this.todayPlanning.filter((r) => {
-      const isToday = (r.dateRDV || '').slice(0, 10) === today;
-      const status = (r.statut || '').toLowerCase();
-      const isDone = status.includes('confirm') || status.includes('termine');
-      return isToday && isDone;
-    }).length;
-  }
-
-  patientLabel(appointment: MedicalPlanningAppointment): string {
-    return this.buildPatientName(appointment);
+    this.statistics.pendingRequests = allWeekAppointments.filter((a) => (a.statut || '').toLowerCase().includes('attente') || (a.statut || '').toLowerCase().includes('pending')).length;
+    this.statistics.completedToday = allWeekAppointments.filter((a) => (a.statut || '').toLowerCase().includes('termine') || (a.statut || '').toLowerCase().includes('completed')).length;
   }
 
   appointmentCin(appointment: MedicalPlanningAppointment): string {
@@ -189,7 +322,7 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
 
   openAppointmentDetails(appointment: MedicalPlanningAppointment): void {
     const idPatient = appointment.idPatient;
-    const idPersonnel = this.currentUser?.id;
+    const idPersonnel = this.getCurrentPersonnelId();
 
     if (typeof idPatient !== 'number' || !idPersonnel) {
       this.selectedAppointment = appointment;
@@ -206,16 +339,22 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     this.patientRecordLoading = true;
     this.patientInConsultation = true;
 
+    this.loadPatientRecord(idPersonnel, idPatient, appointment.id);
+  }
+
+  private loadPatientRecord(idPersonnel: number, idPatient: number, currentRdvId?: number): void {
     this.rdvService
-      .getMedicalStaffPatientRecord(idPersonnel, idPatient, appointment.id)
+      .getMedicalStaffPatientRecord(idPersonnel, idPatient, currentRdvId)
       .pipe(finalize(() => {
         this.patientRecordLoading = false;
       }))
       .subscribe({
         next: (record) => {
           this.patientRecord = record;
+          this.patientRecordError = '';
         },
         error: () => {
+          this.patientRecord = null;
           this.patientRecordError = 'Impossible de charger le profil et le dossier medical du patient.';
         }
       });
@@ -256,12 +395,60 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
         return fullName;
       }
     }
-
     if (this.selectedAppointment) {
       return this.buildPatientName(this.selectedAppointment);
     }
 
     return 'Patient';
+  }
+
+  patientLabel(appointment: MedicalPlanningAppointment | null | undefined): string {
+    if (!appointment) {
+      return 'Patient';
+    }
+    const prenom = (appointment.patientPrenom || '').trim();
+    const nom = (appointment.patientNom || '').trim();
+    const full = `${prenom} ${nom}`.trim();
+    return full || 'Patient';
+  }
+
+  buildDoctorName(item: { medecinPrenom?: string; medecinNom?: string; medecin?: string } | null | undefined): string {
+    if (!item) return 'Medecin non renseigne';
+    const prenom = (item.medecinPrenom || '').trim();
+    const nom = (item.medecinNom || '').trim();
+    const fullName = `${prenom} ${nom}`.trim();
+    if (fullName) return fullName;
+    if (item.medecin && String(item.medecin).trim()) return String(item.medecin).trim();
+    return 'Medecin non renseigne';
+  }
+
+  openUrgentForm(): void {
+    this.urgentPatientForm = this.createUrgentPatientForm();
+    this.urgentFormError = '';
+    this.showUrgentForm = true;
+  }
+
+  closeUrgentForm(): void {
+    if (this.urgentFormLoading) {
+      return;
+    }
+
+    this.showUrgentForm = false;
+    this.urgentFormError = '';
+  }
+
+  submitUrgentPatientForm(): void {
+    const urgentPatient = this.buildUrgentPatientPayload();
+    if (!urgentPatient) {
+      return;
+    }
+
+    this.pendingUrgentPatients = [urgentPatient];
+    this.showUrgentForm = false;
+    this.urgentFormError = '';
+    this.urgentFormLoading = true;
+    this.emergencyNotice = 'Urgence patient saisie: recalcul OR-Tools en cours...';
+    this.loadOptimizedPlanning(true);
   }
 
   formatShortDate(value: string | undefined): string {
@@ -475,148 +662,561 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     return `Patient #${appointment.idPatient ?? 'N/A'}`;
   }
 
-  private delayCurrentAppointments(delayMinutes: number): void {
-    const target = this.resolveEmergencyTargetAppointment();
-    if (!target) {
-      this.emergencyNotice = 'Aucun rendez-vous à décaler pour cette journée.';
+  private loadOptimizedPlanning(integrateIntoPlanning = false): void {
+    const sourceAppointments = [...this.todayPlanning];
+    const payload = this.buildOptimizePayload(this.pendingUrgentPatients, sourceAppointments);
+    if (!payload || payload.patients.length === 0) {
+      this.optimizedPlanningSlots = [];
+      this.optimizerErrorMessage = '';
       return;
     }
 
-    const { dayIndex, day, appointment } = target;
-    const targetHour = (appointment.heureDebut || '').slice(0, 2);
-    const updatedAppointments = [...(day.appointments || [])];
-    const shiftedAppointments: MedicalPlanningAppointment[] = [];
+    this.optimizerLoading = true;
+    this.optimizerErrorMessage = '';
 
-    for (let index = 0; index < updatedAppointments.length; index += 1) {
-      const current = updatedAppointments[index];
-      const currentHour = (current.heureDebut || '').slice(0, 2);
-      const isCancelled = (current.statut || '').toLowerCase().includes('annule');
-      if (isCancelled || currentHour !== targetHour) {
-        continue;
-      }
-
-      const start = this.toMinutes((current.heureDebut || '').slice(0, 5));
-      const rawEnd = (current.heureFin || '').slice(0, 5);
-      const end = rawEnd ? this.toMinutes(rawEnd) : start + 30;
-
-      const shiftedAppointment: MedicalPlanningAppointment = {
-        ...current,
-        heureDebut: this.minutesToHour(start + delayMinutes),
-        heureFin: this.minutesToHour(end + delayMinutes),
-        motifConsultation: current.motifConsultation || 'consultation',
-        statut: 'Décalé (urgence patient)'
-      };
-
-      updatedAppointments[index] = shiftedAppointment;
-      shiftedAppointments.push(shiftedAppointment);
-    }
-
-    if (shiftedAppointments.length === 0) {
-      this.emergencyNotice = 'Aucun rendez-vous actif a decaler pour cette heure.';
-      return;
-    }
-
-    this.weekPlanning = this.weekPlanning.map((day, idx) => {
-      if (idx === dayIndex) {
-        return {
-          ...day,
-          appointments: updatedAppointments,
-          count: updatedAppointments.length
-        };
-      }
-      return day;
+    const patientsById = new Map<number, OptimizePatient>();
+    payload.patients.forEach((patient) => {
+      patientsById.set(patient.id, patient);
     });
 
-    this.todayPlanning = [...updatedAppointments];
-    if (this.selectedAppointment) {
-      const updatedSelected = updatedAppointments.find((item) => item.id === this.selectedAppointment?.id);
-      if (updatedSelected) {
-        this.selectedAppointment = updatedSelected;
-      }
-    }
-    this.applyMetrics();
-    this.changeDetector.markForCheck();
-    this.emergencyNotice = `Urgence patient: ${shiftedAppointments.length} rendez-vous de ${targetHour}h ont ete decales de ${delayMinutes} minutes.`;
+    this.rdvService.optimizeSchedule(payload).pipe(
+      finalize(() => {
+        this.optimizerLoading = false;
+        this.urgentFormLoading = false;
+      })
+    ).subscribe({
+      next: (response) => {
+        if (response.status !== 'success') {
+          this.optimizedPlanningSlots = [];
+          this.optimizerErrorMessage = response.message || 'Aucune optimisation disponible.';
+          this.urgentFormLoading = false;
+          return;
+        }
 
-    // Persist all shifted appointments to database.
-    const persistRequests = shiftedAppointments.map((item) => {
-      const updatePayload = {
-        id: item.id,
-        idPatient: item.idPatient,
-        idPersonnel: item.idPersonnel,
-        dateRDV: item.dateRDV,
-        heureDebut: item.heureDebut,
-        heureFin: item.heureFin,
-        motifConsultation: item.motifConsultation || 'consultation',
-        statut: item.statut
-      };
+        const optimizedData = Array.isArray(response.data) ? response.data : [];
+        this.optimizedPlanningSlots = (optimizedData).map((item: OptimizedAppointment) => {
+          const patient = patientsById.get(item.patient_id);
+          const patientName = `${patient?.prenom || ''} ${patient?.nom || ''}`.trim() || `Patient #${item.patient_id}`;
+          return {
+            patientId: item.patient_id,
+            patientDbId: typeof patient?.patientDbId === 'number' ? patient.patientDbId : null,
+            patientName,
+            motif: patient?.motif || 'Consultation',
+            date: this.selectedDate,
+            startMinutes: item.start,
+            endMinutes: item.end,
+            startTime: this.minutesToHour(item.start),
+            endTime: this.minutesToHour(item.end),
+            isUrgent: Boolean(patient?.isUrgent),
+          };
+        });
 
-      return this.rdvService.updateRdv(updatePayload).pipe(catchError(() => of(null)));
-    });
-
-    forkJoin(persistRequests).subscribe({
-      next: (results) => {
-        const failed = results.filter((result) => result === null).length;
-        if (failed > 0) {
-          this.emergencyNotice = `Urgence patient appliquee partiellement: ${shiftedAppointments.length - failed}/${shiftedAppointments.length} rendez-vous sauvegardes.`;
+        if (integrateIntoPlanning && this.pendingUrgentPatients.length > 0) {
+          this.persistOptimizedUrgentPlanning(optimizedData, patientsById, sourceAppointments);
+        } else {
+          this.urgentFormLoading = false;
         }
       },
-      error: () => {
-        this.emergencyNotice = `Erreur: Les changements n'ont pas pu etre sauvegardes.`;
+      error: (error) => {
+        this.optimizedPlanningSlots = [];
+        this.optimizerErrorMessage = this.getReadableHttpError(error, 'Impossible de charger le planning optimise.');
+        this.urgentFormLoading = false;
       }
     });
   }
 
-  private cancelAllAppointments(): void {
-    const target = this.resolveEmergencyTargetAppointment();
-    if (!target) {
-      this.emergencyNotice = 'Urgence medecin: aucun rendez-vous a annuler.';
+  private getReadableHttpError(error: unknown, fallbackMessage: string): string {
+    if (error instanceof HttpErrorResponse) {
+      const responseError = error.error;
+      if (typeof responseError === 'string' && responseError.trim()) {
+        return responseError;
+      }
+
+      if (responseError && typeof responseError === 'object') {
+        const candidate = (responseError as Record<string, unknown>)['message']
+          ?? (responseError as Record<string, unknown>)['error'];
+        if (typeof candidate === 'string' && candidate.trim()) {
+          return candidate;
+        }
+      }
+
+      if (typeof error.message === 'string' && error.message.trim()) {
+        return error.message;
+      }
+    }
+
+    if (error && typeof error === 'object') {
+      const candidate = (error as { error?: unknown; message?: unknown }).error
+        ?? (error as { error?: unknown; message?: unknown }).message;
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate;
+      }
+    }
+
+    return fallbackMessage;
+  }
+
+  private buildOptimizePayload(extraPatients: OptimizePatient[] = [], sourceAppointments: MedicalPlanningAppointment[] = this.todayPlanning): OptimizeRequest | null {
+    const doctorStart = 8 * 60;
+    const doctorEnd = 18 * 60;
+
+    const urgentPatients = extraPatients.filter((patient) => typeof patient.id === 'number');
+
+    if (sourceAppointments.length === 0 && urgentPatients.length === 0) {
+      const fallbackPatients: OptimizePatient[] = [
+        { id: 9001, nom: 'Test', prenom: 'Patient 1', motif: 'Consultation', start: 540, end: 720, duration: 30 },
+        { id: 9002, nom: 'Test', prenom: 'Patient 2', motif: 'Controle', start: 570, end: 780, duration: 30 },
+        { id: 9003, nom: 'Test', prenom: 'Patient 3', motif: 'Suivi', start: 600, end: 840, duration: 30 },
+      ];
+      return {
+        patients: fallbackPatients,
+        doctor_schedule: { start: doctorStart, end: doctorEnd }
+      };
+    }
+
+    const patients: OptimizePatient[] = [...urgentPatients];
+    for (const appointment of sourceAppointments) {
+      const startRaw = (appointment.heureDebut || '').slice(0, 5);
+      if (!startRaw) {
+        continue;
+      }
+
+      const startMinute = this.toMinutes(startRaw);
+      const endRaw = (appointment.heureFin || '').slice(0, 5);
+      const endMinute = endRaw ? this.toMinutes(endRaw) : startMinute + 30;
+      const duration = Math.max(15, endMinute - startMinute);
+
+      const windowStart = Math.max(doctorStart, startMinute - 60);
+      const windowEnd = Math.min(doctorEnd, startMinute + 180);
+      if (windowEnd - windowStart < duration) {
+        continue;
+      }
+
+      patients.push({
+        id: Number(appointment.id),
+        patientDbId: typeof appointment.idPatient === 'number' ? appointment.idPatient : undefined,
+        nom: (appointment.patientNom || '').trim(),
+        prenom: (appointment.patientPrenom || '').trim(),
+        motif: appointment.motifConsultation || 'Consultation',
+        start: windowStart,
+        end: windowEnd,
+        duration,
+      });
+    }
+
+    if (patients.length === 0) {
+      return null;
+    }
+
+    return {
+      patients,
+      doctor_schedule: { start: doctorStart, end: doctorEnd }
+    };
+  }
+
+  private persistOptimizedUrgentPlanning(
+    optimizedData: OptimizedAppointment[],
+    patientsById: Map<number, OptimizePatient>,
+    sourceAppointments: MedicalPlanningAppointment[]
+  ): void {
+    const idPersonnel = this.getCurrentPersonnelId();
+    const urgentPatient = this.pendingUrgentPatients.find((patient) => Boolean(patient.isUrgent)) || null;
+    const responseById = new Map<number, OptimizedAppointment>();
+    optimizedData.forEach((item) => {
+      responseById.set(Number(item.patient_id), item);
+    });
+
+    const updatedAppointments = sourceAppointments
+      .map((appointment) => {
+        const optimized = responseById.get(Number(appointment.id));
+        if (!optimized) {
+          return appointment;
+        }
+
+        return {
+          ...appointment,
+          heureDebut: this.minutesToHour(optimized.start),
+          heureFin: this.minutesToHour(optimized.end)
+        };
+      })
+      .sort((a, b) => this.toMinutes((a.heureDebut || '').slice(0, 5)) - this.toMinutes((b.heureDebut || '').slice(0, 5)));
+
+    const urgentOptimized = urgentPatient ? responseById.get(urgentPatient.id) || null : null;
+    const urgentAppointment = urgentPatient && urgentOptimized ? {
+      id: urgentPatient.id,
+      idPatient: undefined,
+      idPersonnel,
+      dateRDV: this.selectedDate,
+      heureDebut: this.minutesToHour(urgentOptimized.start),
+      heureFin: this.minutesToHour(urgentOptimized.end),
+      motifConsultation: urgentPatient.motif || 'Urgence patient',
+      statut: 'urgence',
+      patientNom: urgentPatient.nom,
+      patientPrenom: urgentPatient.prenom,
+    } as MedicalPlanningAppointment : null;
+
+    const combinedAppointments = urgentAppointment
+      ? [...updatedAppointments, urgentAppointment].sort((a, b) => this.toMinutes((a.heureDebut || '').slice(0, 5)) - this.toMinutes((b.heureDebut || '').slice(0, 5)))
+      : updatedAppointments;
+
+    this.lastUrgentRecalculation = this.buildUrgentPlanningSummary(
+      urgentPatient,
+      urgentAppointment,
+      sourceAppointments,
+      optimizedData,
+      responseById
+    );
+
+    this.todayPlanning = [...combinedAppointments];
+    this.weekPlanning = this.weekPlanning.map((day) => {
+      if ((day.date || '').slice(0, 10) !== this.selectedDate) {
+        return day;
+      }
+
+      return {
+        ...day,
+        appointments: [...combinedAppointments],
+        count: combinedAppointments.length
+      };
+    });
+
+    this.selectedAppointment = urgentAppointment;
+    this.applyMetrics();
+    this.changeDetector.markForCheck();
+
+    const updateRequests = sourceAppointments.map((appointment) => {
+      const optimized = responseById.get(Number(appointment.id));
+      if (!optimized) {
+        return of(null);
+      }
+
+      return this.rdvService.updateRdv({
+        id: appointment.id,
+        idPatient: appointment.idPatient,
+        idPersonnel: appointment.idPersonnel,
+        dateRDV: appointment.dateRDV,
+        heureDebut: this.minutesToHour(optimized.start),
+        heureFin: this.minutesToHour(optimized.end),
+        motifConsultation: appointment.motifConsultation || 'consultation'
+      }).pipe(catchError(() => of(null)));
+    });
+
+    let urgentRequest: Observable<unknown> = of(null);
+    if (urgentPatient && urgentAppointment && idPersonnel) {
+      urgentRequest = this.rdvService.saveMedicalStaffPatient({
+        idPersonnel,
+        patient: {
+          nom: urgentPatient.nom,
+          prenom: urgentPatient.prenom,
+          cin: urgentPatient.cin,
+          telephone: urgentPatient.telephone,
+          email: null,
+        }
+      }).pipe(
+        switchMap((saveResponse) => {
+          const savedPatientId = Number(saveResponse?.patient?.id || 0);
+          return this.rdvService.addRdv({
+            idPatient: savedPatientId,
+            idPersonnel,
+            dateRDV: urgentAppointment.dateRDV,
+            heureDebut: urgentAppointment.heureDebut,
+            heureFin: urgentAppointment.heureFin,
+            motifConsultation: urgentAppointment.motifConsultation || urgentPatient.motif || 'Urgence patient',
+            statut: 'consultation',
+            nom: urgentPatient.nom,
+            prenom: urgentPatient.prenom,
+            telephone: urgentPatient.telephone,
+            isUrgent: true,
+          }).pipe(
+            switchMap((creationResponse) => {
+              const createdId = this.extractCreatedRdvId(creationResponse);
+              if (!createdId) {
+                return of(null);
+              }
+
+              return this.rdvService.updateRdv({
+                id: createdId,
+                idPatient: savedPatientId,
+                idPersonnel,
+                dateRDV: urgentAppointment.dateRDV,
+                heureDebut: urgentAppointment.heureDebut,
+                heureFin: urgentAppointment.heureFin,
+                motifConsultation: urgentAppointment.motifConsultation || urgentPatient.motif || 'Urgence patient',
+                statut: 'urgence'
+              }).pipe(catchError(() => of(null)));
+            }),
+            catchError(() => of(null))
+          );
+        }),
+        catchError(() => of(null))
+      );
+    }
+
+    forkJoin([...updateRequests, urgentRequest]).subscribe({
+      next: (results) => {
+        const failed = results.filter((result) => result === null).length;
+        if (failed > 0) {
+          this.emergencyNotice = 'Urgence patient integree localement, mais une partie de la sauvegarde a echoue.';
+        } else {
+          this.emergencyNotice = 'Urgence patient integree au planning et recalcul OR-Tools enregistre.';
+        }
+
+        this.pendingUrgentPatients = [];
+        this.urgentFormLoading = false;
+        this.loadDashboardData();
+      },
+      error: () => {
+        this.emergencyNotice = 'Urgence patient integree localement, mais la sauvegarde a echoue.';
+        this.urgentFormLoading = false;
+      }
+    });
+  }
+
+  private extractCreatedRdvId(response: unknown): number | null {
+    if (!response || typeof response !== 'object') {
+      return null;
+    }
+
+    const rdv = (response as { rdv?: Record<string, unknown> }).rdv;
+    if (!rdv) {
+      return null;
+    }
+
+    const candidate = rdv['id'] ?? rdv['idRDV'] ?? rdv['idRdv'];
+    const id = Number(candidate);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  private buildUrgentPlanningSummary(
+    urgentPatient: UrgentOptimizePatient | null,
+    urgentAppointment: MedicalPlanningAppointment | null,
+    sourceAppointments: MedicalPlanningAppointment[],
+    optimizedData: OptimizedAppointment[],
+    responseById: Map<number, OptimizedAppointment>
+  ): UrgentPlanningSummary | null {
+    if (!urgentPatient || !urgentAppointment) {
+      return null;
+    }
+
+    const translatedAppointments = sourceAppointments
+      .map((appointment) => {
+        const optimized = responseById.get(Number(appointment.id));
+        if (!optimized) {
+          return null;
+        }
+
+        const previousStart = (appointment.heureDebut || '').slice(0, 5);
+        const previousEnd = (appointment.heureFin || '').slice(0, 5);
+        const newStart = this.minutesToHour(optimized.start);
+        const newEnd = this.minutesToHour(optimized.end);
+        const deltaMinutes = this.toMinutes(newStart) - this.toMinutes(previousStart);
+
+        if (previousStart === newStart && previousEnd === newEnd) {
+          return null;
+        }
+
+        return {
+          id: Number(appointment.id),
+          patientName: this.buildPatientName(appointment),
+          previousStart,
+          previousEnd,
+          newStart,
+          newEnd,
+          deltaMinutes,
+        };
+      })
+      .filter((item): item is UrgentTranslationItem => item !== null)
+      .sort((a, b) => a.newStart.localeCompare(b.newStart));
+
+    return {
+      urgentPatientName: `${urgentPatient.prenom} ${urgentPatient.nom}`.trim() || 'Patient urgent',
+      urgentStart: (urgentAppointment.heureDebut || '').slice(0, 5),
+      urgentEnd: (urgentAppointment.heureFin || '').slice(0, 5),
+      translatedAppointments,
+      recalculatedAt: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+    };
+  }
+
+  private integrateUrgentPatient(): void {
+    this.openUrgentForm();
+  }
+
+  private createUrgentPatientForm(): UrgentPatientForm {
+    return {
+      nom: '',
+      prenom: '',
+      telephone: '',
+      cin: '',
+      motif: 'Urgence patient',
+      duration: 30,
+    };
+  }
+
+  private buildUrgentPatientPayload(): UrgentOptimizePatient | null {
+    const nom = this.urgentPatientForm.nom.trim();
+    const prenom = this.urgentPatientForm.prenom.trim();
+    const telephone = this.urgentPatientForm.telephone.trim();
+    const cin = this.urgentPatientForm.cin.trim();
+    const motif = this.urgentPatientForm.motif.trim() || 'Urgence patient';
+    const duration = Math.max(15, Math.floor(Number(this.urgentPatientForm.duration)) || 0);
+
+    if (!nom || !prenom || !telephone || !cin) {
+      this.urgentFormError = 'Veuillez remplir le nom, le prénom, le téléphone et le CIN.';
+      return null;
+    }
+
+    if (duration < 15) {
+      this.urgentFormError = 'La durée doit être au moins de 15 minutes.';
+      return null;
+    }
+
+    const urgentPatientId = Date.now();
+
+    return {
+      id: urgentPatientId,
+      nom,
+      prenom,
+      telephone,
+      cin,
+      motif,
+      start: 8 * 60,
+      end: 18 * 60,
+      duration,
+      priority: 1000,
+      isUrgent: true,
+    };
+  }
+
+  private normalizeStatus(value: string | undefined): string {
+    return (value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  isDelayedStatus(value: string | undefined): boolean {
+    return this.normalizeStatus(value).includes('decale');
+  }
+
+  isCancelledStatus(value: string | undefined): boolean {
+    return this.normalizeStatus(value).includes('annule');
+  }
+
+  private delayCurrentAppointments(absenceHours: number, interval: 'morning' | 'afternoon' | 'full-day'): void {
+    const idPersonnel = this.getCurrentPersonnelId();
+    const date = this.selectedDate || this.getTodayLocalISO();
+
+    if (!idPersonnel) {
+      this.emergencyNotice = 'Utilisateur medical non identifie.';
       return;
     }
 
-    const { dayIndex, appointmentIndex, day, appointment } = target;
-    const motif = (appointment.motifConsultation || '').trim();
-    const hasCancelledPrefix = motif.toLowerCase().startsWith('annule');
-    const updatedAppointment = {
-      ...appointment,
-      statut: 'Annule (urgence medecin)',
-      motifConsultation: hasCancelledPrefix ? motif : `Annule - ${motif || 'consultation'}`
-    };
+    this.optimizerLoading = true;
+    this.rdvService.recalculateShortDoctorAbsence(idPersonnel, date, interval, absenceHours).pipe(
+      finalize(() => {
+        this.optimizerLoading = false;
+      })
+    ).subscribe({
+      next: (response) => {
+        const intervalLabel = interval === 'morning' ? 'matin' : interval === 'afternoon' ? 'apres-midi' : 'toute la journee';
+        this.emergencyNotice = response.message || `Urgence patient: planning recalcule sur ${intervalLabel} pendant ${absenceHours} heure(s).`;
+        this.notifications.success(this.emergencyNotice);
 
-    const updatedAppointments = [...(day.appointments || [])];
-    updatedAppointments[appointmentIndex] = updatedAppointment;
+        // If backend returned an updated schedule, apply it locally immediately
+        if (response && Array.isArray(response.updatedSchedule) && response.updatedSchedule.length > 0) {
+          const updated = response.updatedSchedule as MedicalPlanningAppointment[];
+          this.todayPlanning = [...updated];
+          this.weekPlanning = this.weekPlanning.map((day) => {
+            if ((day.date || '').slice(0, 10) !== this.selectedDate) {
+              return day;
+            }
 
-    this.weekPlanning = this.weekPlanning.map((day) => {
-      if ((day.date || '').slice(0, 10) === (this.selectedDate || this.getTodayLocalISO())) {
-        return {
-          ...day,
-          appointments: updatedAppointments,
-          count: updatedAppointments.length
-        };
-      }
+            return {
+              ...day,
+              appointments: [...updated],
+              count: updated.length,
+            };
+          });
 
-      return day;
-    });
+          this.applyMetrics();
+          this.changeDetector.markForCheck();
+          // allow visual update, then refresh full data from server
+          window.setTimeout(() => this.loadDashboardData(), 200);
+          return;
+        }
 
-    this.todayPlanning = [...updatedAppointments];
-    if (this.selectedAppointment?.id === updatedAppointment.id) {
-      this.selectedAppointment = updatedAppointment;
-    }
-    this.applyMetrics();
-
-    // Force Angular to detect changes
-    this.changeDetector.markForCheck();
-    this.emergencyNotice = 'Urgence medecin: le rendez-vous a ete annule.';
-
-    // Persist to database
-    this.rdvService.updateRdv(updatedAppointment).subscribe({
-      next: () => {
-        // Success message is already set above
+        this.loadDashboardData();
       },
-      error: () => {
-        this.emergencyNotice = `Erreur: Les changements n'ont pas pu être sauvegardés.`;
+      error: (err) => {
+        this.emergencyNotice = this.getReadableHttpError(err, 'Erreur: Impossible de recalculer le planning.');
+        this.notifications.error(this.emergencyNotice);
       }
     });
+  }
+
+  private getDoctorShortEmergencyWindow(interval: 'morning' | 'afternoon' | 'full-day'): { start: number; end: number } {
+    if (interval === 'afternoon') {
+      return { start: this.toMinutes('12:00'), end: this.toMinutes('18:00') };
+    }
+
+    if (interval === 'full-day') {
+      return { start: this.toMinutes('08:00'), end: this.toMinutes('18:00') };
+    }
+
+    return { start: this.toMinutes('08:00'), end: this.toMinutes('12:00') };
+  }
+
+  private cancelAllAppointments(absenceValue = 1, absenceUnit: 'day' | 'week' = 'day'): void {
+    const idPersonnel = this.getCurrentPersonnelId();
+    const date = this.selectedDate || this.getTodayLocalISO();
+
+    if (!idPersonnel) {
+      this.emergencyNotice = 'Utilisateur medical non identifie.';
+      return;
+    }
+
+    const totalDays = absenceUnit === 'week'
+      ? Math.max(1, absenceValue) * 7
+      : Math.max(1, absenceValue);
+
+    const dayDates = this.buildConsecutiveDates(date, totalDays);
+    const requests = dayDates.map((dayDate) => this.rdvService.cancelAllMedicalStaffDay(idPersonnel, dayDate));
+
+    this.loading = true;
+    forkJoin(requests).pipe(finalize(() => { this.loading = false; })).subscribe({
+      next: (responses) => {
+        const totalCancelled = (responses || []).reduce((sum, resp) => {
+          const count = Number(resp?.count || 0);
+          return sum + (Number.isFinite(count) ? count : 0);
+        }, 0);
+
+        const label = absenceUnit === 'week' ? 'semaine(s)' : 'jour(s)';
+        this.emergencyNotice = `Urgence medecin longue: absence de ${absenceValue} ${label}, ${totalCancelled} rendez-vous annules.`;
+        this.notifications.info(this.emergencyNotice);
+        this.loadDashboardData();
+      },
+      error: (err) => {
+        this.emergencyNotice = this.getReadableHttpError(err, 'Erreur: Impossible d annuler les rendez-vous sur la periode.');
+        this.notifications.error(this.emergencyNotice);
+      }
+    });
+  }
+
+  private buildConsecutiveDates(startDateIso: string, days: number): string[] {
+    const safeDays = Math.max(1, Math.floor(days));
+    const startDate = new Date(`${startDateIso}T00:00:00`);
+    if (Number.isNaN(startDate.getTime())) {
+      return [this.getTodayLocalISO()];
+    }
+
+    const result: string[] = [];
+    for (let i = 0; i < safeDays; i += 1) {
+      const current = new Date(startDate);
+      current.setDate(startDate.getDate() + i);
+      result.push(this.formatDateLocal(current));
+    }
+
+    return result;
   }
 
   private resolveEmergencyTargetAppointment(): {
@@ -626,17 +1226,38 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     appointment: MedicalPlanningAppointment;
   } | null {
     const selectedDay = this.selectedDate || this.getTodayLocalISO();
-    const dayIndex = this.weekPlanning.findIndex((day) => (day.date || '').slice(0, 10) === selectedDay);
+    const daysToInspect = this.weekPlanning.length > 0
+      ? this.weekPlanning
+      : [{ date: selectedDay, count: 0, appointments: this.todayPlanning || [] } as MedicalPlanningDay];
 
-    if (dayIndex === -1) {
+    const locateCandidateDay = (dayDate: string): { dayIndex: number; day: MedicalPlanningDay } | null => {
+      const dayIndex = daysToInspect.findIndex((day) => (day.date || '').slice(0, 10) === dayDate);
+      if (dayIndex === -1) {
+        return null;
+      }
+
+      const day = daysToInspect[dayIndex];
+      if ((day.appointments || []).length > 0) {
+        return { dayIndex, day };
+      }
+
+      return null;
+    };
+
+    const preferredDay = locateCandidateDay(selectedDay);
+    const fallbackDay = preferredDay
+      || daysToInspect
+        .map((day, dayIndex) => ({ dayIndex, day }))
+        .find((entry) => (entry.day.appointments || []).length > 0)
+      || null;
+
+    if (!fallbackDay) {
       return null;
     }
 
-    const day = this.weekPlanning[dayIndex];
+    const dayIndex = fallbackDay.dayIndex;
+    const day = fallbackDay.day;
     const appointments = day.appointments || [];
-    if (appointments.length === 0) {
-      return null;
-    }
 
     const indexed = appointments
       .map((appointment, appointmentIndex) => ({ appointment, appointmentIndex }))
@@ -646,8 +1267,7 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
         return aStart - bStart;
       });
 
-    const isCancelled = (value: MedicalPlanningAppointment): boolean =>
-      (value.statut || '').toLowerCase().includes('annule');
+    const isCancelled = (value: MedicalPlanningAppointment): boolean => this.isCancelledStatus(value.statut);
 
     const candidates = indexed.filter((item) => !isCancelled(item.appointment));
     const usable = candidates.length > 0 ? candidates : indexed;
@@ -656,7 +1276,8 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     }
 
     const currentDay = this.formatDateLocal(new Date());
-    if (selectedDay !== currentDay) {
+    const effectiveDay = (day.date || '').slice(0, 10);
+    if (effectiveDay !== currentDay) {
       const first = usable[0];
       return {
         dayIndex,

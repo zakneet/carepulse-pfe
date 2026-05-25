@@ -11,6 +11,77 @@
   box-shadow: var(--shadow);
 }
 
+.state-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.state-card.error {
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.2);
+  background: rgba(254, 242, 242, 0.95);
+}
+
+.medical-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 14px;
+}
+
+.medical-card h3 {
+  margin: 0;
+}
+
+.medical-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.medical-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(248, 251, 255, 0.95);
+}
+
+.medical-item span {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.medical-item strong {
+  color: var(--ink-1);
+}
+
+.medical-item.wide {
+  grid-column: 1 / -1;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(42, 127, 255, 0.1);
+  color: var(--accent-3);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -60,5 +131,9 @@
   .profile-hero {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .medical-grid {
+    grid-template-columns: 1fr;
   }
 }

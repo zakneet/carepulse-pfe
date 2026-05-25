@@ -1,4 +1,6 @@
 import { Component } from '@angular/core';
+import { forkJoin } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import {
   MedicalStaff,
@@ -13,6 +15,8 @@ import {
   styleUrls: ['./rdv-form.component.css']
 })
 export class RdvFormComponent {
+  private readonly draftStorageKey = 'rdvBookingDraft';
+
   form: NewRdv = {
     idPatient: 0,
     idPersonnel: 0,
@@ -20,26 +24,41 @@ export class RdvFormComponent {
     heureDebut: '',
     heureFin: '',
     motifConsultation: 'consultation',
-    agePatient: undefined
+    nom: '',
+    prenom: '',
+    telephone: ''
   };
 
   medicalStaff: MedicalStaff[] = [];
   availableSpecialites: string[] = [];
+  availableRegions: string[] = [];
   filteredMedicalStaff: MedicalStaff[] = [];
+  selectedRegion = '';
+  step = 1; // 1 = choose spec/region/date, 2 = show doctors & schedules
+  doctorsWithSlots: Array<{ staff: MedicalStaff; slots: SuggestedSlot[] }> = [];
   selectedSpecialite = '';
   suggestedSlots: SuggestedSlot[] = [];
   selectedSlot: SuggestedSlot | null = null;
+  proposalIndex = 0;
+  optionalDoctorId: number | null = null;
   planningContext: { todayAppointments: number; weekAppointments: number } | null = null;
   isLoadingSlots = false;
   errorMessage = '';
   successMessage = '';
   isSubmitting = false;
   hasConflictError = false;
+  isOptimizingPlanning = false;
+  optimizationMessage = '';
 
-  constructor(private rdvService: RdvService, private router: Router) {
+  constructor(
+    private rdvService: RdvService,
+    private router: Router
+  ) {
     const authUser = this.readStoredUser('authUser');
     const patientProfile = this.readStoredUser('patientProfile');
     this.form.idPatient = this.extractPatientId(authUser) || this.extractPatientId(patientProfile) || 0;
+
+    this.restoreDraft();
 
     this.loadMedicalStaff();
   }
@@ -49,6 +68,7 @@ export class RdvFormComponent {
       next: (staff) => {
         this.medicalStaff = staff;
         this.availableSpecialites = this.extractSpecialites(staff);
+        this.availableRegions = this.extractRegions(staff);
         this.applySpecialiteFilter();
         if (staff.length === 0) {
           this.errorMessage = 'Aucun medecin disponible pour le moment.';
@@ -62,11 +82,33 @@ export class RdvFormComponent {
     });
   }
 
+  private extractRegions(staff: MedicalStaff[]): string[] {
+    // Try to build a region list from staff properties if present (flexible)
+    const set = new Set<string>();
+    staff.forEach((person) => {
+      // prefer common keys if backend provides them
+      const maybe = (person as any).region || (person as any).ville || (person as any).location || (person as any).city || '';
+      const value = String(maybe || '').trim();
+      if (value) set.add(value);
+    });
+    if (set.size === 0) {
+      // fallback: generic list
+      return ['Toutes'];
+    }
+    return ['Toutes', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'))];
+  }
+
   onSpecialiteChange(): void {
     this.form.idPersonnel = 0;
     this.suggestedSlots = [];
     this.selectedSlot = null;
+    this.proposalIndex = 0;
     this.planningContext = null;
+    this.applySpecialiteFilter();
+  }
+
+  onRegionChange(): void {
+    // Re-apply filter if region influences list
     this.applySpecialiteFilter();
   }
 
@@ -79,6 +121,15 @@ export class RdvFormComponent {
       }
       return (staff.specialite || '').trim().toLowerCase() === specialite;
     });
+
+    // apply region filter if available and not 'Toutes'
+    const region = (this.selectedRegion || '').trim();
+    if (region && region !== 'Toutes') {
+      this.filteredMedicalStaff = this.filteredMedicalStaff.filter((s) => {
+        const maybe = (s as any).region || (s as any).ville || (s as any).location || (s as any).city || '';
+        return String(maybe || '').trim() === region;
+      });
+    }
 
     if (this.filteredMedicalStaff.length > 0) {
       const selectedStillExists = this.filteredMedicalStaff.some((staff) => staff.id === this.form.idPersonnel);
@@ -114,29 +165,36 @@ export class RdvFormComponent {
       return;
     }
 
-    if (this.form.agePatient !== undefined && this.form.agePatient !== null) {
-      if (this.form.agePatient <= 0 || this.form.agePatient > 130) {
-        this.errorMessage = 'Age patient invalide.';
-        return;
-      }
-    }
-
     this.isLoadingSlots = true;
-    this.rdvService.suggestAvailableSlots({
+    const requestPayload = {
       idPersonnel: this.form.idPersonnel,
       dateRDV: this.form.dateRDV,
       isUrgent: false,
-      slotDuration: 30
-    }).subscribe({
+      slotDuration: 30,
+      proposalIndex: this.proposalIndex
+    };
+
+    this.rdvService.suggestAvailableSlots(requestPayload as any).subscribe({
       next: (response) => {
         this.isLoadingSlots = false;
-        this.suggestedSlots = response.suggestedSlots || [];
+        this.suggestedSlots = (response.optimizedSuggestedSlots && response.optimizedSuggestedSlots.length > 0)
+          ? response.optimizedSuggestedSlots
+          : (response.suggestedSlots || []);
         this.planningContext = response.planningContext
           ? {
               todayAppointments: response.planningContext.todayAppointments,
               weekAppointments: response.planningContext.weekAppointments
             }
           : null;
+        if (this.suggestedSlots.length > 0) {
+          this.chooseSlot(this.suggestedSlots[0]);
+          return;
+        }
+
+        this.selectedSlot = null;
+        this.form.heureDebut = '';
+        this.form.heureFin = '';
+
         if (this.suggestedSlots.length === 0) {
           this.errorMessage = 'Aucun creneau disponible pour cette date. Essayez une autre date.';
         }
@@ -146,6 +204,111 @@ export class RdvFormComponent {
         this.errorMessage = 'Impossible de proposer des creneaux pour ce medecin.';
       }
     });
+  }
+
+  refreshSuggestedSlot(): void {
+    this.proposalIndex += 1;
+    this.suggestSlots();
+  }
+
+  // New: validate specialty/region/date and load doctors' available slots
+  searchDoctorsAndSlots(): void {
+    this.errorMessage = '';
+    this.successMessage = '';
+    if (!this.selectedSpecialite) {
+      this.errorMessage = 'Veuillez choisir une spécialité.';
+      return;
+    }
+    if (!this.form.dateRDV) {
+      this.errorMessage = 'Veuillez choisir une date pour consulter les disponibilités.';
+      return;
+    }
+
+    // Filter staff and for each fetch suggested slots for the selected date
+    this.applySpecialiteFilter();
+    let doctors = this.filteredMedicalStaff.slice();
+    this.proposalIndex = 0;
+
+    // if user selected an optional specific doctor, narrow to that doctor
+    if (this.optionalDoctorId && Number.isFinite(this.optionalDoctorId)) {
+      doctors = doctors.filter((d) => d.id === this.optionalDoctorId);
+      // ensure form.idPersonnel reflects the optional doctor for later submission
+      if (doctors.length > 0) {
+        this.form.idPersonnel = doctors[0].id;
+      }
+    }
+    if (doctors.length === 0) {
+      this.errorMessage = 'Aucun medecin correspondant a ces criteres.';
+      return;
+    }
+
+    this.doctorsWithSlots = [];
+    this.isLoadingSlots = true;
+
+    // For each doctor, call suggestAvailableSlots and collect results
+    const observables = doctors.map((d) =>
+      this.rdvService.suggestAvailableSlots({ idPersonnel: d.id, dateRDV: this.form.dateRDV, isUrgent: false, slotDuration: 30 }).pipe(
+        // map response to object
+        map((res) => ({
+          staff: d,
+          slots: (res.optimizedSuggestedSlots && res.optimizedSuggestedSlots.length > 0)
+            ? res.optimizedSuggestedSlots
+            : (res.suggestedSlots || [])
+        }))
+      )
+    );
+
+    forkJoin(observables).subscribe({
+      next: (results: any[]) => {
+        this.isLoadingSlots = false;
+        // Order doctors by available slots count desc (proxy for rate)
+        this.doctorsWithSlots = results
+          .map((r) => ({ staff: r.staff as MedicalStaff, slots: r.slots as SuggestedSlot[] }))
+          .sort((a, b) => (b.slots.length - a.slots.length));
+
+        this.step = 2;
+      },
+      error: () => {
+        this.isLoadingSlots = false;
+        this.errorMessage = 'Impossible de charger les disponibilites des medecins.';
+      }
+    });
+  }
+
+  optimizeAndPersistPlanning(): void {
+    this.errorMessage = '';
+    this.optimizationMessage = '';
+
+    if (!this.form.idPersonnel || !this.form.dateRDV) {
+      this.errorMessage = 'Veuillez choisir un medecin et une date avant d’optimiser le planning.';
+      return;
+    }
+
+    this.isOptimizingPlanning = true;
+    this.rdvService.optimizeAndPersistDoctorPlanning(this.form.idPersonnel, this.form.dateRDV).subscribe({
+      next: (response) => {
+        this.isOptimizingPlanning = false;
+        const updatedCount = response.updatedRows?.length || 0;
+        this.optimizationMessage = updatedCount > 0
+          ? `Planning optimise et enregistre: ${updatedCount} rendez-vous ajustes.`
+          : 'Planning optimise et enregistre.';
+
+        // Refresh available slots after persistence so the UI reflects the new planning.
+        this.searchDoctorsAndSlots();
+      },
+      error: () => {
+        this.isOptimizingPlanning = false;
+        this.errorMessage = 'Impossible d’optimiser et d’enregistrer le planning pour ce medecin.';
+      }
+    });
+  }
+
+  // Choose a slot coming from a doctor's card
+  chooseDoctorSlot(staffId: number, slot: SuggestedSlot): void {
+    this.form.idPersonnel = staffId;
+    this.form.dateRDV = this.form.dateRDV;
+    this.chooseSlot(slot);
+    // keep the UI at step 2 so user can submit
   }
 
   chooseSlot(slot: SuggestedSlot): void {
@@ -172,12 +335,56 @@ export class RdvFormComponent {
       return;
     }
 
-    if (!this.selectedSlot) {
-      this.errorMessage = 'Veuillez choisir un creneau propose.';
+    if (!this.form.nom?.trim() || !this.form.prenom?.trim()) {
+      this.errorMessage = 'Veuillez renseigner le nom et le prenom du patient.';
       return;
     }
 
+    this.hasConflictError = false;
     this.isSubmitting = true;
+
+    if (this.selectedSlot) {
+      this.createRdv();
+      return;
+    }
+
+    this.rdvService.suggestAvailableSlots({
+      idPersonnel: this.form.idPersonnel,
+      dateRDV: this.form.dateRDV,
+      isUrgent: false,
+      slotDuration: 30
+    }).subscribe({
+      next: (response) => {
+        this.suggestedSlots = response.suggestedSlots || [];
+        this.planningContext = response.planningContext
+          ? {
+              todayAppointments: response.planningContext.todayAppointments,
+              weekAppointments: response.planningContext.weekAppointments
+            }
+          : null;
+
+        if (this.suggestedSlots.length === 0) {
+          this.isSubmitting = false;
+          this.errorMessage = 'Aucun creneau disponible pour cette date. Essayez une autre date.';
+          return;
+        }
+
+        this.isSubmitting = false;
+        this.errorMessage = 'Veuillez choisir un creneau propose par OR-Tools avant de valider.';
+      },
+      error: () => {
+        this.isSubmitting = false;
+        this.errorMessage = 'Impossible de proposer des creneaux pour ce medecin.';
+      }
+    });
+  }
+
+  private createRdv(): void {
+    if (!this.selectedSlot) {
+      this.isSubmitting = false;
+      this.errorMessage = 'Veuillez choisir un creneau propose.';
+      return;
+    }
 
     const payload: NewRdv = {
       ...this.form,
@@ -208,13 +415,13 @@ export class RdvFormComponent {
           localStorage.setItem('planningRefreshSignal', `${payload.idPersonnel}:${payload.dateRDV}:${Date.now()}`);
           this.successMessage = 'Rendez-vous enregistre avec succes! Le medecin verra votre demande dans son planning.';
           this.errorMessage = '';
+          this.clearDraft();
           console.log('RDV Form - Success message displayed');
           
           // Clear the form for a new booking
           setTimeout(() => {
             this.form.nom = '';
             this.form.prenom = '';
-            this.form.agePatient = undefined;
             this.form.dateRDV = '';
             this.form.idPersonnel = 0;
             this.form.motifConsultation = 'consultation';
@@ -261,6 +468,56 @@ export class RdvFormComponent {
     } catch {
       return null;
     }
+  }
+
+  private persistDraft(): void {
+    const draft = {
+      form: this.form,
+      selectedSpecialite: this.selectedSpecialite,
+      selectedSlot: this.selectedSlot,
+      suggestedSlots: this.suggestedSlots,
+      planningContext: this.planningContext,
+      optionalDoctorId: this.optionalDoctorId,
+    };
+    sessionStorage.setItem(this.draftStorageKey, JSON.stringify(draft));
+  }
+
+  private restoreDraft(): void {
+    const raw = sessionStorage.getItem(this.draftStorageKey);
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const draft = JSON.parse(raw) as {
+        form?: Partial<NewRdv>;
+        selectedSpecialite?: string;
+        selectedSlot?: SuggestedSlot | null;
+        suggestedSlots?: SuggestedSlot[];
+        planningContext?: { todayAppointments: number; weekAppointments: number } | null;
+        optionalDoctorId?: number | null;
+      };
+
+      this.form = {
+        ...this.form,
+        ...(draft.form || {}),
+      };
+      this.selectedSpecialite = draft.selectedSpecialite || '';
+      this.selectedSlot = draft.selectedSlot || null;
+      this.suggestedSlots = Array.isArray(draft.suggestedSlots) ? draft.suggestedSlots : [];
+      this.planningContext = draft.planningContext || null;
+      this.optionalDoctorId = typeof draft.optionalDoctorId === 'number' ? draft.optionalDoctorId : null;
+
+      if (this.form.idPersonnel) {
+        this.applySpecialiteFilter();
+      }
+    } catch {
+      this.clearDraft();
+    }
+  }
+
+  private clearDraft(): void {
+    sessionStorage.removeItem(this.draftStorageKey);
   }
 
   private extractPatientId(user: Record<string, unknown> | null): number | null {

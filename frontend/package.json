@@ -18,8 +18,13 @@
     "@angular/platform-browser": "~13.3.0",
     "@angular/platform-browser-dynamic": "~13.3.0",
     "@angular/router": "~13.3.0",
+    "@fullcalendar/angular": "5.11.5",
+    "@fullcalendar/core": "5.11.5",
+    "@fullcalendar/interaction": "5.11.5",
+    "@fullcalendar/timegrid": "5.11.5",
     "bootstrap": "^5.3.8",
     "rxjs": "~7.5.0",
+    "socket.io-client": "^4.8.3",
     "tslib": "^2.3.0",
     "zone.js": "~0.11.4"
   },

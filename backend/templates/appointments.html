@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rendez-vous confirmés</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body class="bg-root">
+    <main class="container">
+      <header class="hero">
+        <h1>Rendez-vous confirmés</h1>
+        <p class="subtitle">Chaque rendez-vous affiche une notice météo et une notice circulation en français. L’affichage reste disponible même si les API échouent.</p>
+      </header>
+
+      <section class="list">
+        {% if appointments and appointments|length > 0 %}
+          {% for appt in appointments %}
+            <article class="card">
+              <div class="card-left">
+                <div class="card-title">{{ appt.patient_name }} avec {{ appt.doctor_name }}</div>
+                <div class="card-meta">
+                  <span>Date: {{ appt.date }}</span>
+                  <span>Heure: {{ appt.time }}</span>
+                  <span>Lieu: {{ appt.location or 'Lieu inconnu' }}</span>
+                  {% if appt.date == today %}
+                    <span class="badge-today">Aujourd'hui</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="card-right">
+                <div class="assistant-badge {{ appt.optimal_departure.tone if appt.optimal_departure else 'normal' }}">
+                  <div class="assistant-title">Assistant de départ optimal</div>
+                  {% if appt.optimal_departure and appt.optimal_departure.status == 'ok' %}
+                    <div class="assistant-row">
+                      <div class="assistant-icon">{% if appt.optimal_departure.tone == 'danger' %}⏰{% elif appt.optimal_departure.tone == 'warning' %}🚦{% else %}☀️{% endif %}</div>
+                      <div class="assistant-rec">{{ appt.optimal_departure.recommendation }}</div>
+                    </div>
+                    <div class="assistant-stats">Temps de base: {{ appt.optimal_departure.base_duration }} min · Trajet actuel: {{ appt.optimal_departure.traffic_duration }} min · Temps final estimé: {{ appt.optimal_departure.final_duration }} min</div>
+                    <div class="assistant-meta">Pénalité météo: +{{ appt.optimal_departure.weather_penalty }}% · Pénalité trafic: +{{ appt.optimal_departure.traffic_penalty }}%</div>
+                  {% else %}
+                    <div class="assistant-row">
+                      <div class="assistant-icon">ℹ️</div>
+                      <div class="assistant-rec">Information de départ indisponible</div>
+                    </div>
+                  {% endif %}
+                </div>
+
+                <div class="traffic-badge">
+                  <strong>Notice circulation</strong>
+                  {% if appt.traffic_notice and appt.traffic_notice.status == 'ok' %}
+                    <div class="weather-line">{{ appt.traffic_notice.recommendation }}</div>
+                    <div class="weather-line">Normal: {{ appt.traffic_notice.duration_normal }} min · Actuel: {{ appt.traffic_notice.duration_current }} min · +{{ appt.traffic_notice.traffic_delay_percent }}%</div>
+                  {% else %}
+                    <div class="weather-line">Information trafic indisponible</div>
+                  {% endif %}
+                </div>
+
+                <div class="weather-block">
+                  <div class="weather-title">Notice météo</div>
+                  {% if appt.weather and appt.weather.status == 'success' and appt.weather.current_weather %}
+                    {% set cw = appt.weather.current_weather %}
+                    <div class="weather-row">
+                      <div class="weather-icon">{% if appt.weather.weather_recommendation and 'défavorable' in appt.weather.weather_recommendation %}⚠️{% else %}☀️{% endif %}</div>
+                      <div class="weather-rec">{{ appt.weather.weather_recommendation }}</div>
+                    </div>
+                    <div class="weather-stats">Température: {{ cw.temperature }} °C · Vent: {{ cw.windspeed }} km/h</div>
+                  {% else %}
+                    <div class="weather-na">Météo indisponible</div>
+                  {% endif %}
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        {% else %}
+          <div class="empty">Aucun rendez-vous confirmé.</div>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

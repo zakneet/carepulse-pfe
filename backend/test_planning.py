@@ -3,6 +3,8 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timedelta
 
+from app import app, db
+
 BASE_URL = "http://127.0.0.1:5000"
 tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
@@ -11,8 +13,22 @@ print("TEST: Getting medical staff planning")
 print("=" * 60)
 print(f"Date: {tomorrow}")
 
+with app.app_context():
+    with db.engine.connect() as conn:
+        personnel_row = conn.exec_driver_sql(
+            """
+            SELECT id_personnel
+            FROM personnel_de_sante
+            WHERE type_personnel IN ('medecin', 'secretaire')
+            ORDER BY id_personnel ASC
+            LIMIT 1
+            """
+        ).mappings().first()
+
+personnel_id = personnel_row["id_personnel"] if personnel_row else 0
+
 try:
-    url = f"{BASE_URL}/medical-staff/planning?idPersonnel=13&date={tomorrow}"
+    url = f"{BASE_URL}/medical-staff/planning?idPersonnel={personnel_id}&date={tomorrow}"
     print(f"URL: {url}")
     request = urllib.request.Request(url, method='GET')
     with urllib.request.urlopen(request) as response:

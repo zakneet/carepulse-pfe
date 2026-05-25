@@ -4,6 +4,43 @@ import { Observable } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
 
+export interface OptimizePatient {
+  id: number;
+  patientDbId?: number;
+  start: number;
+  end: number;
+  duration: number;
+  priority?: number;
+  isUrgent?: boolean;
+  nom?: string;
+  prenom?: string;
+  telephone?: string;
+  cin?: string;
+  motif?: string;
+}
+
+export interface OptimizeDoctorSchedule {
+  start: number;
+  end: number;
+}
+
+export interface OptimizeRequest {
+  patients: OptimizePatient[];
+  doctor_schedule: OptimizeDoctorSchedule;
+}
+
+export interface OptimizedAppointment {
+  patient_id: number;
+  start: number;
+  end: number;
+}
+
+export interface OptimizeResponse {
+  status: 'success' | 'error';
+  data: OptimizedAppointment[];
+  message?: string;
+}
+
 export interface Rdv {
   id: number;
   idRdv?: number;
@@ -27,10 +64,10 @@ export interface NewRdv {
   heureFin?: string;
   motifConsultation: string;
   statut?: string;
-  agePatient?: number;
   isUrgent?: boolean;
   nom?: string;
   prenom?: string;
+  telephone?: string;
 }
 
 export interface MedicalStaff {
@@ -50,6 +87,7 @@ export interface SlotSuggestionRequest {
   dateRDV: string;
   isUrgent: boolean;
   slotDuration?: number;
+  proposalIndex?: number;
 }
 
 export interface SlotSuggestionResponse {
@@ -57,6 +95,17 @@ export interface SlotSuggestionResponse {
   idPersonnel: number;
   isUrgent: boolean;
   slotDuration: number;
+  type?: 'urgent_optimized';
+  urgentSlot?: {
+    heureDebut: string;
+    heureFin: string;
+  };
+  rescheduledAppointments?: Array<{
+    id: number;
+    old_start: number;
+    new_start: number;
+    new_end: number;
+  }>;
   planningContext?: {
     weekStart: string;
     weekEnd: string;
@@ -67,6 +116,17 @@ export interface SlotSuggestionResponse {
     planningSource?: 'planning' | 'default';
   };
   suggestedSlots: SuggestedSlot[];
+  optimizedSuggestedSlots?: SuggestedSlot[];
+}
+
+export interface PatientTodayAccessResponse {
+  access: boolean;
+  doctor_status?: string;
+  your_appointment_time?: string;
+  message?: string;
+  totalPatients?: number;
+  patientsWaiting?: number;
+  waitTime?: number;
 }
 
 export interface MedicalPlanningAppointment {
@@ -82,6 +142,10 @@ export interface MedicalPlanningAppointment {
   patientPrenom?: string;
   patientEmail?: string;
   patientCin?: string;
+  medecinNom?: string;
+  medecinPrenom?: string;
+  medecin?: string;
+  specialite?: string;
 }
 
 export interface PatientHistoryAppointment {
@@ -91,6 +155,42 @@ export interface PatientHistoryAppointment {
   heureFin?: string;
   motifConsultation?: string;
   statut?: string;
+  medecin?: string;
+  medecinNom?: string;
+  medecinPrenom?: string;
+  specialite?: string;
+}
+
+export interface PatientDashboardAppointment extends PatientHistoryAppointment {
+  medecin?: string;
+  medecinNom?: string;
+  medecinPrenom?: string;
+  specialite?: string;
+}
+
+export interface PatientDashboardMedicalRecord {
+  sexe?: string | null;
+  dateNaissance?: string | null;
+  historique?: string | null;
+  allergies: string[];
+  maladies: string[];
+}
+
+export interface PatientDashboardResponse {
+  patient: {
+    id: number;
+    nom: string;
+    prenom: string;
+    nomComplet: string;
+    email?: string | null;
+    telephone?: string | null;
+    cin?: string | null;
+    adresse?: string | null;
+  };
+  dossierMedical: PatientDashboardMedicalRecord;
+  historyCount: number;
+  appointments: PatientDashboardAppointment[];
+  lastAppointment?: PatientDashboardAppointment | null;
 }
 
 export interface MedicalStaffPatientProfile {
@@ -196,6 +296,60 @@ export interface MedicalStaffPlanningResponse {
   };
 }
 
+export interface OptimizePlanningResponse {
+  message: string;
+  updatedRows: Array<{
+    id: number;
+    heureDebut: string;
+    heureFin: string;
+    idPatient: number;
+    idPersonnel: number;
+    statut?: string;
+  }>;
+  optimizedPlan: Array<{
+    patientId: number;
+    heureDebut: string;
+    heureFin: string;
+  }>;
+  planningContext?: {
+    hasPlanning: boolean;
+    planningSource: 'planning' | 'default';
+    planningWindows: number;
+  };
+  updatedSchedule: MedicalPlanningAppointment[];
+}
+
+export interface ShortAbsenceRecalculationResponse {
+  message: string;
+  updatedRows: Array<{
+    id: number;
+    heureDebut: string;
+    heureFin: string;
+    idPatient: number;
+    idPersonnel: number;
+    statut?: string;
+  }>;
+  optimizedPlan: Array<{
+    id: number;
+    heureDebut: string;
+    heureFin: string;
+    old_start?: number;
+    new_start?: number;
+    new_end?: number;
+  }>;
+  absenceWindow?: {
+    start: string;
+    end: string;
+    interval: 'morning' | 'afternoon' | 'full-day';
+  };
+  planningContext?: {
+    hasPlanning: boolean;
+    planningSource: 'planning' | 'default';
+    planningWindows: number;
+  };
+  updatedSchedule: MedicalPlanningAppointment[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -207,6 +361,21 @@ export class RdvService {
 
   getRdvs(): Observable<Rdv[]> {
     return this.http.get<Rdv[]>(`${this.apiUrl}/rdvs`).pipe(
+      map((rdvs) =>
+        rdvs.map((rdv) => ({
+          ...rdv,
+          id: Number(
+            (rdv as unknown as Record<string, unknown>)['id']
+            ?? (rdv as unknown as Record<string, unknown>)['idRdv']
+            ?? (rdv as unknown as Record<string, unknown>)['idRDV']
+          )
+        }))
+      )
+    );
+  }
+
+  getPatientRdvs(): Observable<Rdv[]> {
+    return this.http.get<Rdv[]>(`${this.apiUrl}/patient/rdvs`).pipe(
       map((rdvs) =>
         rdvs.map((rdv) => ({
           ...rdv,
@@ -259,6 +428,31 @@ export class RdvService {
     return this.http.post<SlotSuggestionResponse>(`${this.apiUrl}/suggest-available-slots`, payload);
   }
 
+  optimizeAndPersistDoctorPlanning(idPersonnel: number, dateRDV: string): Observable<OptimizePlanningResponse> {
+    return this.http.post<OptimizePlanningResponse>(`${this.apiUrl}/medical-staff/optimize-planning`, {
+      idPersonnel,
+      dateRDV
+    });
+  }
+
+  cancelAllMedicalStaffDay(idPersonnel: number, dateRDV: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/medical-staff/cancel-all`, { idPersonnel, date: dateRDV });
+  }
+
+  recalculateShortDoctorAbsence(
+    idPersonnel: number,
+    dateRDV: string,
+    interval: 'morning' | 'afternoon' | 'full-day',
+    absenceHours: number
+  ): Observable<ShortAbsenceRecalculationResponse> {
+    return this.http.post<ShortAbsenceRecalculationResponse>(`${this.apiUrl}/medical-staff/recalculate-short-absence`, {
+      idPersonnel,
+      dateRDV,
+      interval,
+      absenceHours
+    });
+  }
+
   getMedicalStaffPlanning(idPersonnel: number, date?: string): Observable<MedicalStaffPlanningResponse> {
     const dateParam = date ? `&date=${encodeURIComponent(date)}` : '';
     return this.http.get<MedicalStaffPlanningResponse>(
@@ -306,5 +500,22 @@ export class RdvService {
 
   updateMedicalStaffPatientFullProfile(payload: MedicalStaffPatientProfileUpdatePayload): Observable<{ message: string }> {
     return this.http.put<{ message: string }>(`${this.apiUrl}/medical-staff/patient-full-profile/update`, payload);
+  }
+
+  getPatientDashboard(): Observable<PatientDashboardResponse> {
+    return this.http.get<PatientDashboardResponse>(`${this.apiUrl}/patient/dashboard`);
+  }
+
+  getPatientTodayAccess(patientId?: number): Observable<PatientTodayAccessResponse> {
+    let url = `${this.apiUrl}/patient/today-access`;
+    if (typeof patientId === 'number') {
+      const sep = url.includes('?') ? '&' : '?';
+      url = `${url}${sep}patientId=${encodeURIComponent(String(patientId))}`;
+    }
+    return this.http.get<PatientTodayAccessResponse>(url);
+  }
+
+  optimizeSchedule(payload: OptimizeRequest): Observable<OptimizeResponse> {
+    return this.http.post<OptimizeResponse>(`${this.apiUrl}/optimize`, payload);
   }
 }

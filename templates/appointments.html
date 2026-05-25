@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rendez-vous confirmés</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body class="bg-root">
+    <main class="container">
+      <header class="hero">
+        <h1>Rendez-vous confirmés</h1>
+        <p class="subtitle">Chaque rendez-vous affiche une notice météo et une notice circulation en français. L’affichage reste disponible même si les API échouent.</p>
+      </header>
+
+      <section class="list">
+        {% if appointments and appointments|length > 0 %}
+          {% for appt in appointments %}
+            <article class="card">
+              <div class="card-left">
+                <div class="card-title">{{ appt.patient_name }} avec {{ appt.doctor_name }}</div>
+                <div class="card-meta">
+                  <span>Date: {{ appt.date }}</span>
+                  <span>Heure: {{ appt.time }}</span>
+                  <span>Lieu: {{ appt.location or 'Lieu inconnu' }}</span>
+                  {% if appt.date == today %}
+                    <span class="badge-today">Aujourd'hui</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="card-right">
+                <div class="assistant-block {{ appt.optimal_departure.tone if appt.optimal_departure else 'normal' }}">
+                  <div class="assistant-title">Assistant de départ optimal</div>
+                  {% if appt.optimal_departure and appt.optimal_departure.status == 'ok' %}
+                    <div class="assistant-row">
+                      <div class="assistant-icon">{% if appt.optimal_departure.tone == 'danger' %}⏰{% elif appt.optimal_departure.tone == 'warning' %}🚦{% else %}☀️{% endif %}</div>
+                      <div class="assistant-rec">{{ appt.optimal_departure.recommendation }}</div>
+                    </div>
+                    <div class="assistant-stats">Temps de base: {{ appt.optimal_departure.base_duration }} min · Trajet actuel: {{ appt.optimal_departure.traffic_duration }} min · Temps final estimé: {{ appt.optimal_departure.final_duration }} min</div>
+                    <div class="assistant-meta">Pénalité météo: +{{ appt.optimal_departure.weather_penalty }}% · Pénalité trafic: +{{ appt.optimal_departure.traffic_penalty }}%</div>
+                  {% else %}
+                    <div class="assistant-row">
+                      <div class="assistant-icon">ℹ️</div>
+                      <div class="assistant-rec">Information de départ indisponible</div>
+                    </div>
+                  {% endif %}
+                </div>
+
+                <div class="traffic-block">
+                  <div class="traffic-title">Notice circulation</div>
+                  {% if appt.traffic_notice and appt.traffic_notice.status == 'ok' %}
+                    <div class="traffic-row">
+                      <div class="traffic-icon">🚗</div>
+                      <div class="traffic-rec">{{ appt.traffic_notice.recommendation }}</div>
+                    </div>
+                    <div class="traffic-stats">
+                      Normal: {{ appt.traffic_notice.duration_normal }} min ·
+                      Actuel: {{ appt.traffic_notice.duration_current }} min ·
+                      +{{ appt.traffic_notice.traffic_delay_percent }}%
+                    </div>
+                  {% else %}
+                    <div class="traffic-na">Information trafic indisponible</div>
+                  {% endif %}
+                </div>
+
+                <div class="weather-block">
+                  <div class="weather-title">Notice météo</div>
+                  {% if appt.weather and appt.weather.status == 'success' and appt.weather.current_weather %}
+                    {% set cw = appt.weather.current_weather %}
+                    <div class="weather-row">
+                      <div class="weather-icon">{% if appt.weather.weather_recommendation and 'défavorable' in appt.weather.weather_recommendation %}⚠️{% else %}☀️{% endif %}</div>
+                      <div class="weather-rec">{{ appt.weather.weather_recommendation }}</div>
+                    </div>
+                    <div class="weather-stats">Température: {{ cw.temperature }} °C · Vent: {{ cw.windspeed }} km/h</div>
+                  {% else %}
+                    <div class="weather-na">Météo indisponible</div>
+                  {% endif %}
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        {% else %}
+          <div class="empty">Aucun rendez-vous confirmé.</div>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rendez-vous confirmés</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: rgba(15, 23, 42, 0.88);
+      --panel-border: rgba(148, 163, 184, 0.2);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --good-bg: rgba(34, 197, 94, 0.12);
+      --good-text: #dcfce7;
+      --bad-bg: rgba(245, 158, 11, 0.14);
+      --bad-text: #fef3c7;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1e3a8a 0%, var(--bg) 58%);
+      color: var(--text);
+      font-family: Arial, sans-serif;
+    }
+
+    .page {
+      width: min(1080px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 40px;
+    }
+
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+      margin-bottom: 20px;
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .appointment {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 18px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .appointment h2 {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+    }
+
+    .header-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .today-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: rgba(59, 130, 246, 0.16);
+      color: #dbeafe;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .meta span {
+      white-space: nowrap;
+    }
+
+    .weather-badge {
+      min-width: 270px;
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 0.95rem;
+      line-height: 1.45;
+      background: var(--good-bg);
+      color: var(--good-text);
+      border: 1px solid rgba(34, 197, 94, 0.22);
+    }
+
+    .weather-badge.bad {
+      background: var(--bad-bg);
+      color: var(--bad-text);
+      border-color: rgba(245, 158, 11, 0.22);
+    }
+
+    .weather-badge.loading {
+      color: #cbd5e1;
+      background: rgba(148, 163, 184, 0.12);
+    }
+
+    .weather-line {
+      margin-top: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+    }
+
+    .empty {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px dashed var(--panel-border);
+      border-radius: 18px;
+      padding: 20px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 760px) {
+      .appointment {
+        grid-template-columns: 1fr;
+      }
+
+      .weather-badge {
+        min-width: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>Rendez-vous confirmés</h1>
+      <p>Chaque rendez-vous affiche une notice météo en français. L’affichage reste disponible même si la météo échoue.</p>
+    </section>
+
+    {% if appointments %}
+      <section class="list" id="appointmentsList">
+        {% for appointment in appointments %}
+          <article class="appointment" data-lat="{{ appointment.lat }}" data-lon="{{ appointment.lon }}">
+            <div>
+              <div class="header-row">
+                <h2>{{ appointment.patient_name }} avec {{ appointment.doctor_name }}</h2>
+                {% if appointment.date == today %}
+                  <span class="today-badge">Aujourd'hui</span>
+                {% endif %}
+              </div>
+              <div class="meta">
+                <span>Date: {{ appointment.date }}</span>
+                <span>Heure: {{ appointment.time }}</span>
+                <span>Lieu: {{ appointment.location }}</span>
+              </div>
+            </div>
+
+            <div class="weather-badge loading">
+              <strong>Notice météo</strong>
+              <div class="weather-line">Chargement...</div>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
+    {% else %}
+      <div class="empty">Aucun rendez-vous confirmé pour le moment.</div>
+    {% endif %}
+  </main>
+
+  <script>
+    async function loadWeatherForCard(card) {
+      const badge = card.querySelector('.weather-badge');
+      const lat = card.dataset.lat;
+      const lon = card.dataset.lon;
+
+      try {
+        const response = await fetch(`/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+        const data = await response.json();
+        const recommendation = data.weather_recommendation || 'Météo indisponible';
+        const weather = data.current_weather || {};
+        const isBad = recommendation.startsWith('⚠️') || data.status === 'error';
+
+        badge.classList.remove('loading');
+        badge.classList.toggle('bad', isBad);
+        badge.innerHTML = `
+          <strong>Notice météo</strong>
+          <div class="weather-line">${recommendation}</div>
+          <div class="weather-line">Température: ${weather.temperature ?? '-'} °C · Vent: ${weather.windspeed ?? '-'} km/h</div>
+        `;
+      } catch (error) {
+        badge.classList.remove('loading');
+        badge.classList.add('bad');
+        badge.innerHTML = `
+          <strong>Notice météo</strong>
+          <div class="weather-line">Météo indisponible</div>
+        `;
+      }
+    }
+
+    document.querySelectorAll('.appointment').forEach((card) => {
+      loadWeatherForCard(card);
+    });
+  </script>
+</body>
+</html>

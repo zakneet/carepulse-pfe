@@ -1,0 +1,5 @@
+<!-- Simple medical cross SVG used as placeholder PWA icon (512x512) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+  <rect width="24" height="24" rx="4" fill="#0d6efd" />
+  <path d="M12 7v10M7 12h10" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

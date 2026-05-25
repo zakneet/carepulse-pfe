@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from 'src/environments/environment';
 
 @Component({
@@ -22,8 +22,11 @@ export class RegisterComponent {
 	showPassword = false;
 	showConfirmPassword = false;
 	confirmPassword = '';
+	returnUrl = '';
 
-	constructor(private http: HttpClient, private router: Router) {}
+	constructor(private http: HttpClient, private router: Router, private route: ActivatedRoute) {
+		this.returnUrl = this.route.snapshot.queryParams['returnUrl'] || '';
+	}
 
 	register(): void {
 		this.message = '';
@@ -36,7 +39,7 @@ export class RegisterComponent {
 		this.http.post(`${environment.apiUrl}/register`, this.user)
 			.subscribe({
 				next: () => {
-					this.router.navigate(['/login']);
+					this.router.navigate([this.returnUrl || '/home']);
 				},
 				error: (errorResponse) => {
 					this.message = errorResponse?.error?.error || 'Creation du compte impossible.';

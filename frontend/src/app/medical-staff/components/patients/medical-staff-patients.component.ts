@@ -14,6 +14,7 @@ export class MedicalStaffPatientsComponent {
   loading = false;
   errorMessage = '';
   patients: MedicalStaffPatientListItem[] = [];
+  searchTerm = '';
 
   constructor(
     private rdvService: RdvService,
@@ -27,7 +28,12 @@ export class MedicalStaffPatientsComponent {
   }
 
   private loadPatients(): void {
-    const idPersonnel = this.authService.getCurrentUser()?.id;
+    const currentUser = this.authService.getCurrentUser() as unknown as {
+      id?: number;
+      idPersonnel?: number;
+      id_personnel?: number;
+    } | null;
+    const idPersonnel = currentUser?.id ?? currentUser?.idPersonnel ?? currentUser?.id_personnel;
     if (!idPersonnel) {
       this.errorMessage = 'Utilisateur medical non identifie.';
       return;
@@ -46,6 +52,33 @@ export class MedicalStaffPatientsComponent {
         this.errorMessage = 'Impossible de charger la liste des patients.';
       }
     });
+  }
+
+  get filteredPatients(): MedicalStaffPatientListItem[] {
+    const query = this.searchTerm.trim().toLowerCase();
+    if (!query) {
+      return this.patients;
+    }
+
+    return this.patients.filter((patient) => {
+      const searchableText = [
+        patient.nom,
+        patient.prenom,
+        patient.email || '',
+        patient.telephone || '',
+        String(patient.id),
+        String(patient.rdvCount)
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return searchableText.includes(query);
+    });
+  }
+
+  onSearchTermChange(event: Event): void {
+    const target = event.target as HTMLInputElement | null;
+    this.searchTerm = target?.value ?? '';
   }
 
   openPatientProfile(patientId: number): void {

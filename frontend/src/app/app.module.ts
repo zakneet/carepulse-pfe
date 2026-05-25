@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { FullCalendarModule } from '@fullcalendar/angular';
 
 // Routing
 import { AppRoutingModule } from './app-routing.module';
@@ -30,6 +31,8 @@ import { MedicalStaffAppointmentsComponent } from './medical-staff/components/ap
 import { MedicalStaffPatientsComponent } from './medical-staff/components/patients/medical-staff-patients.component';
 import { MedicalStaffFormComponent } from './medical-staff/components/form/medical-staff-form.component';
 import { MedicalStaffPatientProfileComponent } from './medical-staff/components/patient-profile/medical-staff-patient-profile.component';
+import { OptimizedCalendarComponent } from './optimized-calendar/optimized-calendar.component';
+import { NotificationToastComponent } from './shared/notification-toast/notification-toast.component';
 
 @NgModule({
   declarations: [
@@ -50,7 +53,9 @@ import { MedicalStaffPatientProfileComponent } from './medical-staff/components/
     MedicalStaffFormComponent,
     MedicalStaffAppointmentsComponent,
     MedicalStaffPatientsComponent,
-    MedicalStaffPatientProfileComponent
+    MedicalStaffPatientProfileComponent,
+    OptimizedCalendarComponent,
+    NotificationToastComponent
   ],
   imports: [
     BrowserModule,
@@ -58,7 +63,8 @@ import { MedicalStaffPatientProfileComponent } from './medical-staff/components/
     AppRoutingModule,
     HttpClientModule,
     FormsModule,
-    ReactiveFormsModule
+    ReactiveFormsModule,
+    FullCalendarModule
   ],
   providers: [
     {
