@@ -31,7 +31,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private updateHeaderVisibility(url: string): void {
     const cleanUrl = (url || '').toLowerCase();
-    // show header for medical staff pages and for patient-facing home/dashboard pages
-    this.showMedicalHeader = cleanUrl.startsWith('/medical-staff') || cleanUrl.startsWith('/home') || cleanUrl.startsWith('/patient');
+    // show header only for medical staff pages. Patient-facing home/dashboard pages have their own navigation.
+    this.showMedicalHeader = cleanUrl.startsWith('/medical-staff');
   }
 }

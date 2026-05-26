@@ -1,4 +1,4 @@
-# ✅ CHECKLIST DE LIVRAISON - Système d'Authentification CarePulse
+# ✅ CHECKLIST DE LIVRAISON - Système d'Authentification OptiClinic
 
 ## 📋 CRITÈRES D'ACCEPTATION
 
@@ -222,7 +222,7 @@ ng serve --port 4200
 
 ```
 ┌─────────────────────────────────────┐
-│   CarePulse Authentication System   │
+│   OptiClinic Authentication System   │
 │          ✅ COMPLET ET ACTIF         │
 └─────────────────────────────────────┘
 

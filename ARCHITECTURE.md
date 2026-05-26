@@ -1,4 +1,4 @@
-# 🏗️ ARCHITECTURE SYSTÈME - CarePulse
+# 🏗️ ARCHITECTURE SYSTÈME - OptiClinic
 
 ## Vue d'ensemble
 

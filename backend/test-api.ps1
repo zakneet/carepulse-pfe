@@ -1,9 +1,9 @@
-# Script de tests d'intégration pour CarePulse (PowerShell)
+# Script de tests d'intégration pour OptiClinic (PowerShell)
 
 $baseUrl = "http://127.0.0.1:5000"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "TESTS D'INTÉGRATION - CarePulse" -ForegroundColor Cyan
+Write-Host "TESTS D'INTÉGRATION - OptiClinic" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 # ==========================================

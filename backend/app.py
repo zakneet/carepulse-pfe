@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 import functools
 import os
 import threading
@@ -437,9 +437,39 @@ class PersonnelDeSante(db.Model):
     telephone = db.Column(db.String(30), nullable=True)
     email = db.Column(db.String(120), nullable=True)
     specialite = db.Column(db.String(120), nullable=True)
+    region = db.Column(db.String(120), nullable=True)
+    ville = db.Column(db.String(120), nullable=True)
     type_personnel = db.Column(db.String(50), nullable=False, default='medecin')
     password = db.Column(db.String(255), nullable=False, default="")
     access_code = db.Column(db.String(120), nullable=True)
+
+
+def _ensure_personnel_table_columns():
+    with db.engine.begin() as conn:
+        existing_columns = {
+            row[0]
+            for row in conn.exec_driver_sql(
+                """
+                SELECT COLUMN_NAME
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'personnel_de_sante'
+                """
+            ).fetchall()
+        }
+        
+        if "region" not in existing_columns:
+            try:
+                conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `region` VARCHAR(120) NULL")
+            except Exception:
+                pass
+        
+        if "ville" not in existing_columns:
+            try:
+                conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `ville` VARCHAR(120) NULL")
+            except Exception:
+                pass
+
 
 
 class Planning(db.Model):
@@ -602,6 +632,7 @@ def _ensure_patient_table_columns():
         conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS password VARCHAR(255) NOT NULL DEFAULT ''")
         conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS adresse VARCHAR(255) NULL")
     _ensure_rdv_table_columns()
+    _ensure_personnel_table_columns()
 
 
 def _ensure_rdv_table_columns():
@@ -2256,14 +2287,31 @@ def get_users():
 @debug_route
 def get_medical_staff():
     try:
+        specialite = request.args.get('specialite', '')
+        region = request.args.get('region', '')
+        ville = request.args.get('ville', '')
+
+        query = """
+            SELECT id_personnel, nom, prenom, email, specialite, region, ville, type_personnel
+            FROM personnel_de_sante
+            WHERE 1=1
+        """
+        params = []
+        if specialite:
+            query += " AND LOWER(specialite) LIKE LOWER(%s)"
+            params.append(f"%{specialite}%")
+        if region:
+            query += " AND LOWER(region) LIKE LOWER(%s)"
+            params.append(f"%{region}%")
+        if ville:
+            query += " AND LOWER(ville) LIKE LOWER(%s)"
+            params.append(f"%{ville}%")
+            
+        query += " ORDER BY nom ASC, prenom ASC"
+
         with db.engine.connect() as conn:
-            personnel_rows = conn.exec_driver_sql(
-                """
-                SELECT id_personnel, nom, prenom, email, specialite, type_personnel
-                FROM personnel_de_sante
-                ORDER BY nom ASC, prenom ASC
-                """
-            ).mappings().all()
+            personnel_rows = conn.exec_driver_sql(query, tuple(params)).mappings().all()
+            
         payload = []
         for staff in personnel_rows:
             payload.append(
@@ -2274,6 +2322,8 @@ def get_medical_staff():
                     "prenom": staff["prenom"],
                     "email": staff["email"],
                     "specialite": (staff["specialite"] or "Generaliste") if staff["type_personnel"] == "medecin" else None,
+                    "region": staff["region"],
+                    "ville": staff["ville"],
                     "type_personnel": staff["type_personnel"],
                     "staffCategory": "doctor" if staff["type_personnel"] == "medecin" else "secretary",
                 }
@@ -4714,13 +4764,7 @@ def optimize_and_persist_planning():
 
 if __name__ == "__main__":
     start_travel_notice_worker()
-    socketio.run(app, host="127.0.0.1", port=5000, debug=True, use_reloader=False)
-
-
-
-
-
-
+    socketio.run(app, host="127.0.0.1", port=5000, debug=True, use_reloader=False, allow_unsafe_werkzeug=True)
 
 
 

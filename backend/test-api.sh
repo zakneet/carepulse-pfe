@@ -1,8 +1,8 @@
 #!/bin/bash
-# Script de tests d'intégration pour CarePulse
+# Script de tests d'intégration pour OptiClinic
 
 echo "========================================"
-echo "TESTS D'INTÉGRATION - CarePulse"
+echo "TESTS D'INTÉGRATION - OptiClinic"
 echo "========================================"
 
 BASE_URL="http://127.0.0.1:5000"

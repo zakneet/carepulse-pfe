@@ -1,3 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 
 :root {
@@ -883,3 +886,4 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
 		transition: none;
 	}
 }
+

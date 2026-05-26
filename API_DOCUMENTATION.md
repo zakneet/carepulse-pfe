@@ -1,4 +1,4 @@
-# 📡 API ENDPOINTS DOCUMENTATION - CarePulse
+# 📡 API ENDPOINTS DOCUMENTATION - OptiClinic
 
 ## Base URL
 ```

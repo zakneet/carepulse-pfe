@@ -1,4 +1,4 @@
-# 🚀 GUIDE DE DÉMARRAGE RAPIDE - CarePulse
+# 🚀 GUIDE DE DÉMARRAGE RAPIDE - OptiClinic
 
 ## ⚡ Démarrage en 5 minutes
 

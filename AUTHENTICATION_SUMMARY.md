@@ -1,4 +1,4 @@
-# 🎯 RÉSUMÉ COMPLET - Système d'Authentification CarePulse
+# 🎯 RÉSUMÉ COMPLET - Système d'Authentification OptiClinic
 
 ## ✅ TRAVAIL TERMINÉ
 
@@ -257,4 +257,4 @@ Types supportés :
 
 ---
 
-**Système d'authentification CarePulse - COMPLET ET FONCTIONNEL ✓**
+**Système d'authentification OptiClinic - COMPLET ET FONCTIONNEL ✓**
