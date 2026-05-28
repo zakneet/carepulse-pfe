@@ -1,0 +1,83 @@
+<main class="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans relative overflow-hidden">
+  <!-- Modern Tech Grid Background -->
+  <div class="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+
+  <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/20 blur-[120px] animate-blob"></div>
+    <div class="absolute top-[20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-cyan-400/20 blur-[120px] animate-blob animation-delay-2000"></div>
+  </div>
+
+  <header class="bg-white/80 backdrop-blur-xl sticky top-0 z-50 border-b border-white/50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-[72px]">
+        <a routerLink="/" class="flex items-center gap-3">
+          <img src="assets/logo_opticlinic.svg.jpeg" class="h-10" alt="OptiClinic">
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <section class="py-12 relative z-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-6">
+          Trouvez votre <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-500">Praticien</span>
+        </h1>
+        <p class="text-lg text-slate-500 font-medium">
+          Résultats pour <span class="text-primary font-bold">{{ specialite || 'toutes spécialités' }}</span> 
+          à <span class="text-primary font-bold">{{ region || 'toutes régions' }}</span>
+        </p>
+      </div>
+
+      <div *ngIf="isLoading" class="flex justify-center py-20">
+        <div class="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+      </div>
+
+      <div *ngIf="!isLoading && doctors.length === 0" class="text-center py-20 bg-white/40 backdrop-blur-xl rounded-3xl border border-white/60 shadow-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto text-slate-300 mb-4"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <h3 class="text-2xl font-bold text-slate-800 mb-2">Aucun médecin trouvé</h3>
+        <p class="text-slate-500">Essayez de modifier vos critères de recherche.</p>
+        <button routerLink="/" class="mt-6 px-8 py-3 bg-primary text-white font-bold rounded-2xl hover:bg-primary-dark transition-colors shadow-lg shadow-primary/30">
+          Retour à l'accueil
+        </button>
+      </div>
+
+      <div *ngIf="!isLoading && doctors.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div *ngFor="let doc of doctors" class="group bg-white/40 backdrop-blur-xl p-8 rounded-[2rem] border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_40px_rgba(2,132,199,0.1)] hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative overflow-hidden">
+          
+          <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r" [class]="getAvatarColor(doc.nom || doc.prenom)"></div>
+
+          <div class="flex items-start gap-4 mb-6">
+            <div class="w-[64px] h-[64px] rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-2xl shrink-0 group-hover:scale-105 transition-transform duration-300 shadow-md" [class]="getAvatarColor(doc.nom || doc.prenom)">
+              {{ getInitials(doc.nom || doc.prenom) }}
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-900 text-lg mb-1 group-hover:text-primary transition-colors">
+                Dr. {{ doc.nom }} {{ doc.prenom }}
+              </h3>
+              <p class="text-sm font-semibold text-slate-500 mb-2">{{ doc.specialite || 'Médecin' }}</p>
+              <div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 bg-slate-100/50 px-2.5 py-1 rounded-lg w-fit">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                {{ doc.region || 'Non spécifié' }}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between mt-auto mb-6">
+            <div class="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <span class="font-bold text-slate-700 text-sm">{{ getReviews(doc.nom).rating }}</span>
+              <span class="text-slate-400 text-sm">({{ getReviews(doc.nom).count }})</span>
+            </div>
+            <span class="text-xs font-bold text-slate-400">{{ getReviews(doc.nom).exp }} ans d'expérience</span>
+          </div>
+
+          <button (click)="bookDoctor(doc)" class="w-full py-3.5 bg-primary/10 hover:bg-primary text-primary hover:text-white font-bold rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 group/btn">
+            Prendre rendez-vous
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover/btn:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>

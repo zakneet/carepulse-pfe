@@ -12,6 +12,8 @@ import { MedicalStaffAppointmentsComponent } from './medical-staff/components/ap
 import { MedicalStaffPatientsComponent } from './medical-staff/components/patients/medical-staff-patients.component';
 import { MedicalStaffFormComponent } from './medical-staff/components/form/medical-staff-form.component';
 import { MedicalStaffPatientProfileComponent } from './medical-staff/components/patient-profile/medical-staff-patient-profile.component';
+import { DoctorsComponent } from './doctors/doctors.component';
+import { BookingComponent } from './booking/booking.component';
 
 const medicalStaffChildren: Routes = [
   { path: '', redirectTo: 'doctor/planning', pathMatch: 'full' },
@@ -44,11 +46,13 @@ const medicalStaffChildren: Routes = [
 const routes: Routes = [
   // Routes publiques
   { path: 'home', component: HomeComponent },
+  { path: 'doctors', component: DoctorsComponent },
+  { path: 'booking/:id', component: BookingComponent },
   { path: 'demo/rdvs', component: RdvListComponent },
-  { path: 'patient/booking', component: RdvFormComponent },
-  { path: 'patient/rdv/new', component: RdvFormComponent },
-  { path: 'rdv', component: RdvFormComponent },
-  { path: 'rdv/new', component: RdvFormComponent },
+  { path: 'patient/booking', component: BookingComponent },
+  { path: 'patient/rdv/new', component: BookingComponent },
+  { path: 'rdv', component: BookingComponent },
+  { path: 'rdv/new', component: BookingComponent },
   { path: 'patient/login', redirectTo: '/home', pathMatch: 'full' },
   { path: 'login', redirectTo: '/home', pathMatch: 'full' },
   { path: 'register', redirectTo: '/home', pathMatch: 'full' },

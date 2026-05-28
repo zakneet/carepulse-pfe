@@ -19,7 +19,7 @@
         <nav class="hidden md:flex items-center gap-8">
           <a href="#fonctionnalites" (click)="scrollTo('fonctionnalites', $event)" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Fonctionnalités</a>
           <a href="#specialites" (click)="scrollTo('specialites', $event)" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Spécialités</a>
-          <a href="#medecins" (click)="scrollTo('medecins', $event)" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Pour les médecins</a>
+          <a routerLink="/doctors" (click)="scrollTo('medecins', $event)" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Pour les médecins</a>
           <a href="#contact" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Contact</a>
         </nav>
 
@@ -148,35 +148,7 @@
         </div>
 
         <div class="relative lg:ml-auto animate-float">
-          <div class="bg-white/40 backdrop-blur-2xl p-8 rounded-[2rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-white/60 max-w-md w-full relative z-10 group hover:bg-white/60 transition-colors duration-500">
-            <div class="relative z-10">
-              <div class="flex items-center gap-4 mb-8">
-                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary/30 overflow-hidden">
-                  <img src="assets/telemedicine_doctor.png" alt="Doctor" class="w-full h-full object-cover">
-                </div>
-                <div>
-                  <h3 class="font-bold text-slate-900 text-xl">Dr. Youssef Haddad</h3>
-                  <p class="text-sm font-medium text-slate-500">Téléconsultation • Tunis</p>
-                </div>
-              </div>
-              
-              <div class="flex gap-2 mb-6 bg-white/50 p-1.5 rounded-2xl border border-white/50 backdrop-blur-sm">
-                <button class="flex-1 py-2.5 text-sm font-bold bg-white shadow-sm rounded-xl text-primary">Aujourd'hui</button>
-                <button class="flex-1 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors">Demain</button>
-              </div>
-
-              <div class="space-y-3">
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-white/60 border border-white/80 hover:border-primary/40 hover:bg-white transition-all cursor-pointer shadow-sm">
-                  <span class="font-bold text-slate-700">10:00 - 10:30</span>
-                  <span class="text-xs font-bold text-success bg-success/15 px-3 py-1.5 rounded-lg uppercase tracking-wide">Libre</span>
-                </div>
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-white/60 border border-white/80 hover:border-primary/40 hover:bg-white transition-all cursor-pointer shadow-sm">
-                  <span class="font-bold text-slate-700">11:30 - 12:00</span>
-                  <span class="text-xs font-bold text-success bg-success/15 px-3 py-1.5 rounded-lg uppercase tracking-wide">Libre</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <img src="assets/booking_illustration.jpeg" alt="OptiClinic" class="w-full max-w-md rounded-[2rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] relative z-10 object-cover border border-white/60 hover:scale-105 transition-transform duration-500">
           <div class="absolute -top-10 -right-10 w-40 h-40 bg-cyan-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
           <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-primary rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
         </div>
@@ -352,7 +324,9 @@
       <div *ngIf="!isLoading" class="grid md:grid-cols-3 gap-8">
         <div *ngFor="let doc of doctors" class="group bg-white p-6 rounded-3xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] hover:border-[#0284c7]/20 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer">
           <div class="flex items-center gap-5 mb-6">
-            <img src="assets/telemedicine_doctor.png" class="w-[56px] h-[56px] rounded-full object-cover shrink-0 group-hover:scale-105 transition-transform duration-300" alt="Dr. {{ doc.nom }} {{ doc.prenom }}">
+            <div [class]="'w-[56px] h-[56px] rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0 group-hover:scale-105 transition-transform duration-300 ' + getAvatarColor(doc.prenom + ' ' + doc.nom)">
+              {{ getInitials(doc.prenom + ' ' + doc.nom) }}
+            </div>
             <div>
               <h3 class="font-bold text-slate-900 text-[16px] group-hover:text-[#0284c7] transition-colors">Dr. {{ doc.nom }} {{ doc.prenom }}</h3>
               <p class="text-[13px] text-slate-500 font-medium mt-0.5">{{ doc.specialite }}</p>

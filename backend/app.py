@@ -518,7 +518,6 @@ class Rdv(db.Model):
     heureDebut = db.Column(db.Time, nullable=False)
     heureFin = db.Column(db.Time, nullable=False)
     motifConsultation = db.Column(db.Text, nullable=False, default="")
-    statut = db.Column(db.String(50), nullable=False)
 
     def to_dict(self):
         return {
@@ -531,7 +530,7 @@ class Rdv(db.Model):
             "heureDebut": _format_sql_time(self.heureDebut),
             "heureFin": _format_sql_time(self.heureFin),
             "motifConsultation": self.motifConsultation,
-            "statut": self.statut,
+            "statut": "Confirme",
         }
 
 
@@ -4953,6 +4952,121 @@ def optimize_and_persist_planning():
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
+
+
+
+# ==============================================================================
+# SMART SCHEDULING (OR-TOOLS) ENDPOINTS
+# ==============================================================================
+
+try:
+    from services.smart_scheduling import SmartSchedulingService
+except ImportError:
+    pass # Wait, let's just make sure it's imported at the top or here.
+    
+@app.route("/appointments/smart-booking", methods=["POST"])
+def smart_booking():
+    from services.smart_scheduling import SmartSchedulingService
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+        
+    doctor_id = data.get("idPersonnel")
+    date_str = data.get("date")
+    rejected_slots = data.get("rejectedSlots", [])
+    specialite = data.get("specialite")
+    
+    if not date_str:
+        return jsonify({"error": "date is required"}), 400
+
+    try:
+        result = None
+        if not doctor_id:
+            if not specialite:
+                return jsonify({"error": "idPersonnel ou specialite est requis"}), 400
+            doctors = PersonnelDeSante.query.filter(PersonnelDeSante.specialite.ilike(f"%{specialite}%")).all()
+            if not doctors:
+                return jsonify({"error": f"Aucun médecin trouvé pour la spécialité: {specialite}"}), 404
+            
+            for doc in doctors:
+                doctor_id = doc.id_personnel
+                result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots)
+                if result:
+                    break
+                    
+            if not result:
+                return jsonify({"error": "Aucun créneau disponible pour cette date dans cette spécialité"}), 404
+        else:
+            result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots)
+            if not result:
+                return jsonify({"error": "Aucun créneau disponible pour cette date"}), 404
+            
+        # Get doctor details for the frontend
+        doc = PersonnelDeSante.query.get(doctor_id)
+        if doc:
+            result['doctor'] = {
+                'nom': doc.nom,
+                'prenom': doc.prenom,
+                'specialite': doc.specialite
+            }
+        else:
+            result['doctor'] = {'nom': '', 'prenom': '', 'specialite': ''}
+            
+        return jsonify(result), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/appointments/alternative-slot", methods=["POST"])
+def alternative_slot():
+    # Same logic but expected to have rejectedSlots populated
+    from services.smart_scheduling import SmartSchedulingService
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+        
+    doctor_id = data.get("idPersonnel")
+    date_str = data.get("date")
+    rejected_slots = data.get("rejectedSlots", [])
+    specialite = data.get("specialite")
+    
+    if not date_str:
+        return jsonify({"error": "date is required"}), 400
+        
+    try:
+        result = None
+        if not doctor_id:
+            if not specialite:
+                return jsonify({"error": "idPersonnel ou specialite est requis"}), 400
+            doctors = PersonnelDeSante.query.filter(PersonnelDeSante.specialite.ilike(f"%{specialite}%")).all()
+            if not doctors:
+                return jsonify({"error": f"Aucun médecin trouvé pour la spécialité: {specialite}"}), 404
+            
+            for doc in doctors:
+                doctor_id = doc.id_personnel
+                result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots)
+                if result:
+                    break
+                    
+            if not result:
+                return jsonify({"error": "Aucune alternative disponible dans cette spécialité"}), 404
+        else:
+            result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots)
+            if not result:
+                return jsonify({"error": "Aucune alternative disponible"}), 404
+            
+        doc = PersonnelDeSante.query.get(doctor_id)
+        if doc:
+            result['doctor'] = {
+                'nom': doc.nom,
+                'prenom': doc.prenom,
+                'specialite': doc.specialite
+            }
+            
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

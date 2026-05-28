@@ -33,6 +33,8 @@ import { MedicalStaffFormComponent } from './medical-staff/components/form/medic
 import { MedicalStaffPatientProfileComponent } from './medical-staff/components/patient-profile/medical-staff-patient-profile.component';
 import { OptimizedCalendarComponent } from './optimized-calendar/optimized-calendar.component';
 import { NotificationToastComponent } from './shared/notification-toast/notification-toast.component';
+import { DoctorsComponent } from './doctors/doctors.component';
+import { BookingComponent } from './booking/booking.component';
 
 @NgModule({
   declarations: [
@@ -55,7 +57,9 @@ import { NotificationToastComponent } from './shared/notification-toast/notifica
     MedicalStaffPatientsComponent,
     MedicalStaffPatientProfileComponent,
     OptimizedCalendarComponent,
-    NotificationToastComponent
+    NotificationToastComponent,
+    DoctorsComponent,
+    BookingComponent
   ],
   imports: [
     BrowserModule,
