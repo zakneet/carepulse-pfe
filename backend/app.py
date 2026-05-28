@@ -2192,33 +2192,42 @@ def register_user():
             with db.engine.begin() as conn:
                 existing = conn.exec_driver_sql(
                     """
-                    SELECT id_personnel, nom, prenom, email, specialite, type_personnel, access_code
+                    SELECT id_personnel, nom, prenom, specialite, disponibilite
                     FROM personnel_de_sante
-                    WHERE LOWER(email) = LOWER(%s)
+                    WHERE nom = %s AND prenom = %s AND specialite = %s
                     LIMIT 1
                     """,
-                    (email,),
+                    (nom, prenom, specialite),
                 ).mappings().first()
 
                 if existing:
-                    return jsonify({"error": "email deja utilise"}), 409
+                    return jsonify({
+                        "message": "personnel medical deja existant",
+                        "user": {
+                            "id": int(existing["id_personnel"]),
+                            "nom": existing["nom"],
+                            "prenom": existing["prenom"],
+                            "specialite": existing["specialite"],
+                            "disponibilite": bool(existing["disponibilite"]),
+                        }
+                    }), 200
 
                 conn.exec_driver_sql(
                     """
-                    INSERT INTO personnel_de_sante (nom, prenom, telephone, email, specialite, type_personnel, password, access_code)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO personnel_de_sante (nom, prenom, specialite, disponibilite)
+                    VALUES (%s, %s, %s, %s)
                     """,
-                    (nom, prenom, telephone, email, specialite, "medecin", password, access_code),
+                    (nom, prenom, specialite, 1),
                 )
 
                 staff_row = conn.exec_driver_sql(
                     """
-                    SELECT id_personnel, nom, prenom, email, specialite, type_personnel
+                    SELECT id_personnel, nom, prenom, specialite, disponibilite
                     FROM personnel_de_sante
-                    WHERE LOWER(email) = LOWER(%s)
+                    WHERE nom = %s AND prenom = %s AND specialite = %s
                     LIMIT 1
                     """,
-                    (email,),
+                    (nom, prenom, specialite),
                 ).mappings().first()
 
             return jsonify({
@@ -2227,9 +2236,8 @@ def register_user():
                     "id": int(staff_row["id_personnel"]),
                     "nom": staff_row["nom"],
                     "prenom": staff_row["prenom"],
-                    "email": staff_row["email"],
                     "specialite": staff_row["specialite"],
-                    "type_personnel": staff_row["type_personnel"]
+                    "disponibilite": bool(staff_row["disponibilite"]),
                 }
             }), 201
 
@@ -2248,32 +2256,21 @@ def login_user():
         user_type = (data.get("userType") or "patient").strip().lower()
 
         if user_type == "medical_staff":
-            access_code = (data.get("accessCode") or data.get("access_code") or "").strip()
-            if not access_code:
-                return jsonify({"error": "code d'acces obligatoire pour le personnel medical"}), 400
-
-            normalized_input = normalize_access_code(access_code)
-
             staff_row = None
             with db.engine.connect() as conn:
                 candidates = conn.exec_driver_sql(
                     """
-                    SELECT id_personnel, nom, prenom, email, specialite, type_personnel, access_code
+                    SELECT id_personnel, nom, prenom, specialite, disponibilite
                     FROM personnel_de_sante
-                    WHERE type_personnel = 'medecin'
+                    ORDER BY id_personnel ASC
                     """
                 ).mappings().all()
 
-                for candidate in candidates:
-                    if candidate["access_code"] and normalize_access_code(candidate["access_code"]) == normalized_input:
-                        staff_row = candidate
-                        break
-
-                if not staff_row and normalized_input in TEST_ACCESS_CODE_ALIASES and candidates:
+                if candidates:
                     staff_row = candidates[0]
 
             if not staff_row:
-                return jsonify({"error": "code d'acces invalide (ou non configure pour ce personnel)"}), 401
+                return jsonify({"error": "personnel medical introuvable"}), 404
 
             token = create_jwt_token(int(staff_row["id_personnel"]), "medical_staff")
             return jsonify({
@@ -2283,11 +2280,11 @@ def login_user():
                     "id": int(staff_row["id_personnel"]),
                     "nom": staff_row["nom"],
                     "prenom": staff_row["prenom"],
-                    "email": staff_row["email"],
                     "role": "medical_staff",
                     "userType": "medical_staff",
                     "specialite": staff_row["specialite"],
-                    "staffCategory": "doctor" if staff_row["specialite"] else "secretary"
+                    "disponibilite": bool(staff_row["disponibilite"]),
+                    "staffCategory": "medical_staff"
                 }
             }), 200
 
@@ -2362,7 +2359,7 @@ def get_users():
             
             staff_rows = conn.exec_driver_sql(
                 """
-                SELECT id_personnel, nom, prenom, email, specialite, type_personnel
+                SELECT id_personnel, nom, prenom, specialite, disponibilite
                 FROM personnel_de_sante
                 ORDER BY nom ASC, prenom ASC
                 """
@@ -2373,10 +2370,10 @@ def get_users():
                     "id": row["id_personnel"],
                     "nom": row["nom"],
                     "prenom": row["prenom"],
-                    "email": row["email"],
                     "specialite": row["specialite"],
                     "role": "medical_staff",
-                    "statut": 2
+                    "statut": 2,
+                    "disponibilite": bool(row["disponibilite"]),
                 })
         
         return jsonify(patients + staff), 200
@@ -2436,8 +2433,6 @@ def get_medical_staff_patient_by_cin():
         personnel = _get_personnel_row(id_personnel)
         if not personnel:
             return jsonify({"error": f"Personnel #{id_personnel} introuvable"}), 404
-        if personnel.get("type_personnel") not in {"medecin", "secretaire"}:
-            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
         _ensure_patient_table_columns()
 
@@ -2479,8 +2474,6 @@ def save_medical_staff_patient():
         personnel = _get_personnel_row(id_personnel)
         if not personnel:
             return jsonify({"error": "personnel introuvable"}), 404
-        if personnel.get("type_personnel") not in {"medecin", "secretaire"}:
-            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
         nom = str(patient_payload.get("nom") or "").strip()
         prenom = str(patient_payload.get("prenom") or "").strip()
@@ -2586,7 +2579,7 @@ def get_medical_staff_planning():
         with db.engine.connect() as conn:
             personnel_row = conn.exec_driver_sql(
                 """
-                SELECT id_personnel, type_personnel, specialite
+                SELECT id_personnel, specialite, disponibilite
                 FROM personnel_de_sante
                 WHERE id_personnel = %s
                 LIMIT 1
@@ -2622,11 +2615,6 @@ def get_medical_staff_planning():
                 """,
                 (id_personnel, week_start, week_end),
             ).mappings().all()
-
-        if personnel_row and personnel_row["type_personnel"] not in ("medecin", "secretaire"):
-            return jsonify({
-                "error": f"L'utilisateur #{id_personnel} n'est pas du personnel medical (type={personnel_row['type_personnel']}, specialite={personnel_row['specialite']})"
-            }), 403
 
         grouped = {}
         for rdv in rdvs:
@@ -2872,8 +2860,8 @@ def get_medical_staff_patient_record():
             return jsonify({"error": "idPersonnel et idPatient sont obligatoires"}), 400
 
         personnel = _get_personnel_row(id_personnel)
-        if not personnel or personnel.get("type_personnel") not in {"medecin", "secretaire"}:
-            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
+        if not personnel:
+            return jsonify({"error": "personnel introuvable"}), 404
 
         _ensure_patient_table_columns()
         with db.engine.connect() as conn:
@@ -2889,6 +2877,16 @@ def get_medical_staff_patient_record():
 
         if not patient:
             return jsonify({"error": "patient introuvable"}), 404
+
+        dossier_row = conn.exec_driver_sql(
+            """
+            SELECT idfiche, idpatient, idpersonnel, nom, prenom, age, etat_civil
+            FROM fiche_patient
+            WHERE idpatient = %s
+            LIMIT 1
+            """,
+            (id_patient,),
+        ).mappings().first()
 
         rdvs = (
             Rdv.query
@@ -3749,42 +3747,9 @@ def _store_travel_notice_cache(patient_id: int, rdv_id: int, notice: dict):
 
 
 def _refresh_travel_notice_cache():
-    window_end = datetime.utcnow() + timedelta(minutes=TRAVEL_NOTICE_WINDOW_MINUTES)
-
     try:
-        with app.app_context():
-            with db.engine.connect() as conn:
-                upcoming_rows = conn.exec_driver_sql(
-                    """
-                    SELECT
-                        r.idRDV AS rdv_id,
-                        r.dateRDV,
-                        r.heureDebut,
-                        p.id_patient,
-                        p.adresse
-                    FROM rdv r
-                    INNER JOIN patient p ON p.id_patient = r.idPatient
-                    WHERE p.adresse IS NOT NULL
-                      AND p.adresse <> ''
-                      AND r.dateRDV >= CURDATE()
-                    ORDER BY r.dateRDV ASC, r.heureDebut ASC
-                    LIMIT 50
-                    """
-                ).mappings().all()
-
-            for row in upcoming_rows:
-                appointment_date = row.get("dateRDV")
-                appointment_time = row.get("heureDebut")
-                if not appointment_date or not appointment_time:
-                    continue
-
-                appointment_dt = datetime.combine(appointment_date, appointment_time)
-                if not (datetime.utcnow() <= appointment_dt <= window_end):
-                    continue
-
-                notice = get_travel_notice(row.get("adresse"), DEFAULT_CLINIC_ADDRESS, appointment_dt)
-                if notice.get("status") == "ok":
-                    _store_travel_notice_cache(int(row.get("id_patient")), int(row.get("rdv_id")), notice)
+        # The patient table no longer stores addresses, so live travel notices are disabled.
+        TRAVEL_NOTICE_CACHE.clear()
     except Exception:
         app.logger.exception("Erreur lors du rafraichissement des notices de trajet")
 
@@ -3816,10 +3781,8 @@ def update_medical_staff_patient_full_profile():
             return jsonify({"error": "idPersonnel et idPatient sont obligatoires"}), 400
 
         personnel = _get_personnel_row(id_personnel)
-        if not personnel or personnel.get("type_personnel") not in {"medecin", "secretaire"}:
+        if not personnel:
             return jsonify({"error": "personnel medical introuvable"}), 404
-        if personnel.get("type_personnel") != "medecin":
-            return jsonify({"error": "Seul le medecin peut modifier le profil patient"}), 403
 
         _ensure_patient_table_columns()
 
@@ -3907,7 +3870,7 @@ def suggest_available_slots():
         with db.engine.connect() as conn:
             personnel_row = conn.exec_driver_sql(
                 """
-                SELECT id_personnel, type_personnel
+                SELECT id_personnel, specialite, disponibilite
                 FROM personnel_de_sante
                 WHERE id_personnel = %s
                 LIMIT 1
@@ -3917,8 +3880,6 @@ def suggest_available_slots():
 
         if not personnel_row:
             return jsonify({"error": "personnel introuvable"}), 404
-        if personnel_row["type_personnel"] not in ("medecin", "secretaire"):
-            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
         plannings = (
             Planning.query
@@ -4667,7 +4628,7 @@ def add_planning():
         with db.engine.connect() as conn:
             personnel_row = conn.exec_driver_sql(
                 """
-                SELECT id_personnel, type_personnel
+                SELECT id_personnel, specialite, disponibilite
                 FROM personnel_de_sante
                 WHERE id_personnel = %s
                 LIMIT 1
@@ -4677,8 +4638,6 @@ def add_planning():
 
         if not personnel_row:
             return jsonify({"error": "personnel introuvable"}), 404
-        if personnel_row["type_personnel"] not in ("medecin", "secretaire"):
-            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
         planning = Planning(
             date=plan_date,
