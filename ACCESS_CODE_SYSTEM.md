@@ -318,7 +318,7 @@ python setup_access_codes.py
 
 **Vérifier:**
 1. Backend en cours d'exécution: `python app.py`
-2. MySQL accessible: `mysql -u root -p gestion_des_rendez-vous`
+2. MySQL accessible: `mysql -u root -p gestion_des_rendez-vous-3`
 3. Code dans la base de données:
    ```sql
    SELECT id_personnel, nom, prenom, access_code FROM personnel_de_sante;

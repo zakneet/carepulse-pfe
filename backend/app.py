@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
 import functools
 import os
 import threading
@@ -32,7 +32,7 @@ MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
 MYSQL_PORT = os.getenv("MYSQL_PORT", "3306")
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
-MYSQL_DB = os.getenv("MYSQL_DB", "gestion_des_rendez-vous")
+MYSQL_DB = os.getenv("MYSQL_DB", "gestion_des_rendez-vous-3")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}"
@@ -70,6 +70,12 @@ except Exception:
     def get_travel_notice(patient_address, clinic_address, appointment_time):
         return {"status": "error", "recommendation": "Information trafic indisponible", "duration_normal": None, "duration_current": None, "traffic_delay_percent": None}
 
+try:
+    from services.notification_service import send_booking_confirmation_sms_async
+except Exception:
+    def send_booking_confirmation_sms_async(*args, **kwargs):
+        print("[sms] notification service unavailable, SMS skipped", flush=True)
+
 DEFAULT_CLINIC_ADDRESS = os.getenv("CLINIC_ADDRESS", "Clinique OptiClinic, Tunis, Tunisie")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:4200")
 # SMTP notification configuration (optional). If not set, emails will be skipped and logged.
@@ -106,6 +112,30 @@ def _send_email(to_email: str, subject: str, body: str) -> bool:
     except Exception as exc:
         print(f"[notify] Failed to send email to {to_email}: {exc}", flush=True)
         return False
+
+
+def _get_booking_link(appointment_id):
+    return f"{os.getenv('PUBLIC_BOOKING_URL_BASE', FRONTEND_URL).rstrip('/')}/booking/{appointment_id}"
+
+
+def _trigger_booking_confirmation_sms(patient_row, rdv_id):
+    if not patient_row or not rdv_id:
+        return
+
+    patient_first_name = (patient_row.get("prenom") or "").strip()
+    patient_last_name = (patient_row.get("nom") or "").strip()
+    patient_name = f"{patient_first_name} {patient_last_name}".strip() or "Patient"
+    phone_number = (patient_row.get("telephone") or "").strip()
+
+    if not phone_number:
+        print(f"[sms] skipped for rdv={rdv_id}: patient phone missing", flush=True)
+        return
+
+    try:
+        send_booking_confirmation_sms_async(patient_name, phone_number, rdv_id)
+        print(f"[sms] queued booking confirmation SMS for rdv={rdv_id} to={phone_number} link={_get_booking_link(rdv_id)}", flush=True)
+    except Exception as exc:
+        print(f"[sms] failed to queue booking confirmation SMS for rdv={rdv_id}: {exc}", flush=True)
 
 
 def _notify_patients_of_reschedule(updated_rows: list, date_rdv):
@@ -518,8 +548,7 @@ class Rdv(db.Model):
     heureDebut = db.Column(db.Time, nullable=False)
     heureFin = db.Column(db.Time, nullable=False)
     motifConsultation = db.Column(db.Text, nullable=False, default="")
-<<<<<<< Updated upstream
-=======
+
 
     @property
     def statut(self):
@@ -528,7 +557,6 @@ class Rdv(db.Model):
     @statut.setter
     def statut(self, value):
         self._statut = value or "Confirme"
->>>>>>> Stashed changes
 
     def to_dict(self):
         return {
@@ -3387,6 +3415,7 @@ def get_patient_dashboard():
                 """
                 SELECT
                     r.idRDV AS id,
+                    r.idPersonnel,
                     r.dateRDV,
                     r.heureDebut,
                     r.heureFin,
@@ -3410,6 +3439,7 @@ def get_patient_dashboard():
             appointments.append(
                 {
                     "id": int(row["id"]),
+                    "idPersonnel": int(row["idPersonnel"]) if row.get("idPersonnel") is not None else None,
                     "dateRDV": row["dateRDV"].isoformat() if row["dateRDV"] else None,
                     "heureDebut": _format_sql_time(row["heureDebut"]),
                     "heureFin": _format_sql_time(row["heureFin"]),
@@ -4396,6 +4426,11 @@ def add_rdv():
             if not persisted_result:
                 return jsonify({"error": "Impossible d'inserer l'urgence ou de sauvegarder le reordonnancement"}), 500
 
+            try:
+                _trigger_booking_confirmation_sms(patient_row, persisted_result["urgent_rdv"].get("idRDV") or persisted_result["urgent_rdv"].get("id") or persisted_result["urgent_rdv"].get("id_rdv"))
+            except Exception as exc:
+                print(f"[sms] urgent confirmation SMS fallback failed: {exc}", flush=True)
+
             # Emit socket event after successful commit
             socketio.emit(
                 "doctor_planning_rearranged",
@@ -4450,6 +4485,11 @@ def add_rdv():
 
         db.session.add(rdv)
         db.session.commit()
+
+        try:
+            _trigger_booking_confirmation_sms(patient_row, rdv.idRdv or rdv.id)
+        except Exception as exc:
+            print(f"[sms] normal confirmation SMS fallback failed: {exc}", flush=True)
         
         print(f"    SUCCESS: RDV #{rdv.idRdv} created")
         print(f"<<< /add_rdv - Response: 201\n")
@@ -4989,12 +5029,14 @@ def smart_booking():
         doc = PersonnelDeSante.query.get(doctor_id)
         if doc:
             result['doctor'] = {
+                'id': doc.id_personnel,
+                'id_personnel': doc.id_personnel,
                 'nom': doc.nom,
                 'prenom': doc.prenom,
                 'specialite': doc.specialite
             }
         else:
-            result['doctor'] = {'nom': '', 'prenom': '', 'specialite': ''}
+            result['doctor'] = {'id': None, 'id_personnel': None, 'nom': '', 'prenom': '', 'specialite': ''}
             
         return jsonify(result), 200
     except Exception as e:
@@ -5043,6 +5085,8 @@ def alternative_slot():
         doc = PersonnelDeSante.query.get(doctor_id)
         if doc:
             result['doctor'] = {
+                'id': doc.id_personnel,
+                'id_personnel': doc.id_personnel,
                 'nom': doc.nom,
                 'prenom': doc.prenom,
                 'specialite': doc.specialite

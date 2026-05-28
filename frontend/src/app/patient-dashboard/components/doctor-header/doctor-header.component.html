@@ -1,0 +1,30 @@
+<section class="doctor-card">
+  <div class="doctor-card__avatar">{{ avatarLabel }}</div>
+
+  <div class="doctor-card__content">
+    <div class="doctor-card__eyebrow">Espace Patient sécurisé</div>
+    <h1>{{ patientName }}</h1>
+    <p>{{ doctorLabel }}</p>
+
+    <div class="doctor-card__meta">
+      <span>{{ specialtyLabel }}</span>
+      <span *ngIf="hasSecureLink" class="doctor-card__meta-badge">Lien SMS sécurisé</span>
+      <span *ngIf="!hasSecureLink" class="doctor-card__meta-muted">Accès doctoral non renseigné</span>
+    </div>
+  </div>
+
+  <div class="doctor-card__appointment" *ngIf="nextAppointment; else emptyState">
+    <span class="doctor-card__appointment-label">Prochain rendez-vous</span>
+    <strong>{{ nextAppointment.dateRDV | date:'fullDate':'':'fr-FR' }}</strong>
+    <span>{{ nextAppointment.heureDebut | slice:0:5 }} - {{ nextAppointment.heureFin | slice:0:5 }}</span>
+    <span>{{ nextAppointment.motifConsultation || 'Consultation' }}</span>
+  </div>
+
+  <ng-template #emptyState>
+    <div class="doctor-card__appointment doctor-card__appointment--empty">
+      <span class="doctor-card__appointment-label">Prochain rendez-vous</span>
+      <strong>À planifier</strong>
+      <span>Votre médecin vous propose un créneau unique ci-dessous.</span>
+    </div>
+  </ng-template>
+</section>

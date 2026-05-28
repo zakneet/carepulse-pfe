@@ -1,0 +1,21 @@
+<article class="mini-widget mini-widget--traffic">
+  <div class="mini-widget__header">
+    <span>{{ title }}</span>
+    <strong>{{ notice?.notice?.traffic_level || 'fluide' }}</strong>
+  </div>
+
+  <div class="mini-widget__body" *ngIf="notice; else trafficFallback">
+    <div class="mini-widget__detail" *ngIf="notice?.notice?.departure_time">Départ conseillé: {{ notice?.notice?.departure_time }}</div>
+    <div class="mini-widget__detail" *ngIf="notice?.notice?.duration_current !== undefined">
+      Temps estimé: {{ notice?.notice?.duration_current }} min
+    </div>
+    <div class="mini-widget__detail" *ngIf="notice?.notice?.recommendation">{{ notice?.notice?.recommendation }}</div>
+    <div class="mini-widget__detail mini-widget__detail--strong" *ngIf="notice?.notice?.should_notify">
+      {{ notice?.notice?.notification_title || 'Information trajet' }}
+    </div>
+  </div>
+
+  <ng-template #trafficFallback>
+    <div class="mini-widget__loading">Aucune alerte de déplacement pour le moment.</div>
+  </ng-template>
+</article>

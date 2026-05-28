@@ -1,0 +1,40 @@
+<article class="tracking-card">
+  <div class="tracking-card__header">
+    <div>
+      <span class="tracking-card__eyebrow">Suivi en direct</span>
+      <h2>Accès au cabinet</h2>
+    </div>
+    <div class="tracking-card__badge" [class.tracking-card__badge--locked]="locked || !access?.access">
+      {{ access?.doctor_status || (locked ? 'verrouillé' : 'en attente') }}
+    </div>
+  </div>
+
+  <div class="tracking-card__body" *ngIf="!loading; else loadingState">
+    <div class="tracking-card__locked" *ngIf="locked || !access?.access; else accessState">
+      {{ lockedMessage || access?.message || 'Le suivi en direct sera activé à partir de 2h avant votre rendez-vous.' }}
+    </div>
+
+    <ng-template #accessState>
+      <div class="tracking-card__stats">
+        <div>
+          <strong>{{ access?.patientsWaiting || 0 }}</strong>
+          <span>Patients en attente</span>
+        </div>
+        <div>
+          <strong>{{ access?.waitTime || 0 }} min</strong>
+          <span>Temps estimé</span>
+        </div>
+        <div>
+          <strong>{{ access?.your_appointment_time || nextAppointmentLabel || '--:--' }}</strong>
+          <span>Votre créneau</span>
+        </div>
+      </div>
+
+      <p class="tracking-card__message">{{ access?.message || 'Votre médecin vous reçoit bientôt.' }}</p>
+    </ng-template>
+  </div>
+
+  <ng-template #loadingState>
+    <div class="tracking-card__loading">Actualisation de l’accès en cours...</div>
+  </ng-template>
+</article>

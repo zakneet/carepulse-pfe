@@ -35,6 +35,12 @@ import { OptimizedCalendarComponent } from './optimized-calendar/optimized-calen
 import { NotificationToastComponent } from './shared/notification-toast/notification-toast.component';
 import { DoctorsComponent } from './doctors/doctors.component';
 import { BookingComponent } from './booking/booking.component';
+import { DoctorHeaderComponent } from './patient-dashboard/components/doctor-header/doctor-header.component';
+import { AppointmentSuggestionComponent } from './patient-dashboard/components/appointment-suggestion/appointment-suggestion.component';
+import { AppointmentHistoryComponent } from './patient-dashboard/components/appointment-history/appointment-history.component';
+import { LiveTrackingComponent } from './patient-dashboard/components/live-tracking/live-tracking.component';
+import { WeatherWidgetComponent } from './patient-dashboard/components/weather-widget/weather-widget.component';
+import { TrafficWidgetComponent } from './patient-dashboard/components/traffic-widget/traffic-widget.component';
 
 @NgModule({
   declarations: [
@@ -59,7 +65,13 @@ import { BookingComponent } from './booking/booking.component';
     OptimizedCalendarComponent,
     NotificationToastComponent,
     DoctorsComponent,
-    BookingComponent
+    BookingComponent,
+    DoctorHeaderComponent,
+    AppointmentSuggestionComponent,
+    AppointmentHistoryComponent,
+    LiveTrackingComponent,
+    WeatherWidgetComponent,
+    TrafficWidgetComponent
   ],
   imports: [
     BrowserModule,

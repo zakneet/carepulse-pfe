@@ -1,0 +1,53 @@
+<article class="slot-card">
+  <div class="slot-card__header">
+    <div>
+      <span class="slot-card__eyebrow">Créneau unique intelligent</span>
+      <h2>{{ doctorLabel || 'Médecin associé' }}</h2>
+      <p>Créneau recommandé pour le {{ selectedDateLabel || 'jour sélectionné' }}.</p>
+    </div>
+    <div class="slot-card__proposal" *ngIf="!loading && !locked && suggestion?.recommendedSlot; else statusBadge">
+      Proposition #{{ proposalIndex + 1 }}
+    </div>
+    <ng-template #statusBadge>
+      <div class="slot-card__proposal slot-card__proposal--muted">Préparation du créneau</div>
+    </ng-template>
+  </div>
+
+  <div class="slot-card__locked" *ngIf="locked">
+    {{ lockedMessage || 'Le lien sécurisé du médecin est requis pour générer ce créneau.' }}
+  </div>
+
+  <div class="slot-card__loading" *ngIf="loading">
+    Analyse du planning en cours...
+  </div>
+
+  <ng-container *ngIf="!loading && !locked">
+    <div class="slot-card__result" *ngIf="suggestion?.recommendedSlot; else emptyState">
+      <div class="slot-card__time">
+        <strong>{{ suggestion?.recommendedSlot?.heureDebut | slice:0:5 }}</strong>
+        <span>{{ suggestion?.recommendedSlot?.heureFin | slice:0:5 }}</span>
+      </div>
+
+      <div class="slot-card__details">
+        <span>Un seul créneau vous est proposé à la fois.</span>
+        <span>{{ suggestion?.planningContext?.planningSource || 'planning optimisé' }}</span>
+      </div>
+
+      <div class="slot-card__actions">
+        <button type="button" class="btn btn-primary btn-lg" (click)="confirm.emit()">Confirmer ce rendez-vous</button>
+        <button type="button" class="btn btn-outline-secondary btn-lg" (click)="another.emit()">Me proposer un autre créneau</button>
+      </div>
+    </div>
+
+    <ng-template #emptyState>
+      <div class="slot-card__empty">
+        Aucun créneau n’a encore été généré pour cette date.
+      </div>
+    </ng-template>
+  </ng-container>
+
+  <div class="slot-card__widgets">
+    <app-traffic-widget [notice]="travelNotice"></app-traffic-widget>
+    <app-weather-widget [weather]="weather"></app-weather-widget>
+  </div>
+</article>

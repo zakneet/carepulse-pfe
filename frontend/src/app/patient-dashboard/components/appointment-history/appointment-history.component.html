@@ -1,0 +1,40 @@
+<article class="history-card">
+  <div class="history-card__header">
+    <div>
+      <span class="history-card__eyebrow">Historique des rendez-vous</span>
+      <h2>Votre parcours de soins</h2>
+    </div>
+
+    <div class="history-card__search">
+      <input type="search" class="form-control" placeholder="Rechercher un médecin, un motif ou un statut" [(ngModel)]="searchTerm" />
+    </div>
+  </div>
+
+  <div class="history-card__filters">
+    <button
+      *ngFor="let filter of filters"
+      type="button"
+      class="history-card__filter"
+      [class.history-card__filter--active]="selectedFilter === filter.value"
+      (click)="setFilter(filter.value)">
+      {{ filter.label }}
+    </button>
+  </div>
+
+  <div class="history-card__grid" *ngIf="filteredRows.length; else emptyHistory">
+    <article class="history-item" *ngFor="let row of filteredRows; trackBy: trackById">
+      <div class="history-item__date">{{ row.dateLabel }}</div>
+      <div class="history-item__content">
+        <strong>{{ row.doctorLabel }}</strong>
+        <span>{{ row.timeLabel }} · {{ row.motifConsultation || 'Consultation' }}</span>
+      </div>
+      <div class="history-item__status" [attr.data-tone]="row.tone">{{ row.statut || 'Programmé' }}</div>
+    </article>
+  </div>
+
+  <ng-template #emptyHistory>
+    <div class="history-card__empty">
+      Aucun rendez-vous ne correspond à votre filtre actuel.
+    </div>
+  </ng-template>
+</article>

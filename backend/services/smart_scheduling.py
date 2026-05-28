@@ -1,5 +1,6 @@
 from .optimization_service import ORToolsSolver
 from .scoring_engine import SlotScoringEngine
+from datetime import datetime, date, time, timedelta
 
 class SmartSchedulingService:
     @staticmethod
@@ -8,8 +9,24 @@ class SmartSchedulingService:
         Fetches DB constraints, calls OR-Tools, scores the result.
         Returns dict with optimal slot, doctor info, score, explanation.
         """
+        try:
+            doctor_id = int(doctor_id)
+        except (TypeError, ValueError):
+            return None
+
+        if isinstance(date_str, date):
+            target_date = date_str
+        else:
+            try:
+                target_date = datetime.fromisoformat(str(date_str)).date()
+            except (TypeError, ValueError):
+                try:
+                    target_date = datetime.strptime(str(date_str), "%Y-%m-%d").date()
+                except (TypeError, ValueError):
+                    return None
+
         # Fetch planning windows
-        plannings = planning_model.query.filter_by(idPersonnel=doctor_id, date=date_str).all()
+        plannings = planning_model.query.filter_by(idPersonnel=doctor_id, date=target_date).all()
         
         # If no planning is found, default to 08:00 - 18:00
         windows = []
@@ -23,7 +40,7 @@ class SmartSchedulingService:
             windows = [{'start': 8 * 60, 'end': 18 * 60}]
             
         # Fetch existing appointments
-        appointments_db = rdv_model.query.filter_by(idPersonnel=doctor_id, dateRDV=date_str).all()
+        appointments_db = rdv_model.query.filter_by(idPersonnel=doctor_id, dateRDV=target_date).all()
         appointments = []
         for a in appointments_db:
             if a.heureDebut and a.heureFin:
@@ -51,10 +68,16 @@ class SmartSchedulingService:
     def _to_minutes(time_val):
         if not time_val:
             return 0
+        if isinstance(time_val, datetime):
+            time_val = time_val.time()
+        if isinstance(time_val, time):
+            return (time_val.hour * 60) + time_val.minute
+        if isinstance(time_val, timedelta):
+            return int(time_val.total_seconds() // 60)
         if hasattr(time_val, 'components'):  # pandas timedelta
             return time_val.components.hours * 60 + time_val.components.minutes
-        if hasattr(time_val, 'seconds'):  # datetime.timedelta
-            return time_val.seconds // 60
+        if hasattr(time_val, 'seconds'):  # datetime.timedelta-like
+            return int(time_val.seconds // 60)
         if isinstance(time_val, str):
             parts = time_val.split(':')
             if len(parts) >= 2:

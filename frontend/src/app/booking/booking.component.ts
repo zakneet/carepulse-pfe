@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 @Component({
   selector: 'app-booking',
@@ -10,10 +10,12 @@ import { ActivatedRoute } from '@angular/router';
 export class BookingComponent implements OnInit {
   doctorId: string | null = null;
   doctorDetails: any = null;
+  doctors: any[] = [];
   
   formData = {
     nom: '',
     prenom: '',
+    age: '',
     telephone: '',
     specialite: '',
     date: ''
@@ -22,40 +24,73 @@ export class BookingComponent implements OnInit {
   step: 'form' | 'loading' | 'result' = 'form';
   optimizationResult: any = null;
   errorMessage = '';
+  successMessage = '';
+  isConfirming = false;
 
   constructor(
     private route: ActivatedRoute,
-    private http: HttpClient
+    private http: HttpClient,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
       this.doctorId = params.get('id');
-      if (this.doctorId) {
-        this.fetchDoctorDetails();
-      }
+      this.loadDoctors();
     });
 
     this.route.queryParams.subscribe(q => {
-      if (q['specialite']) this.formData.specialite = q['specialite'];
+      if (q['doctorId']) {
+        this.doctorId = String(q['doctorId']);
+      }
+      if (q['specialite']) {
+        this.formData.specialite = q['specialite'];
+        this.loadDoctors(q['specialite']);
+      } else if (this.doctorId) {
+        this.loadDoctors();
+      }
     });
   }
 
-  fetchDoctorDetails() {
-    this.http.get<any>(`http://localhost:5000/medical-staff?id=${this.doctorId}`).subscribe({
+  loadDoctors(specialite?: string): void {
+    const query = specialite ? `?specialite=${encodeURIComponent(specialite)}` : '';
+    this.http.get<any[]>(`http://localhost:5000/medical-staff${query}`).subscribe({
       next: (res) => {
-        const dataArray = Array.isArray(res) ? res : (res.data || []);
-        if (dataArray.length > 0) {
-          this.doctorDetails = dataArray[0];
-          this.formData.specialite = this.doctorDetails.specialite || this.formData.specialite;
+        this.doctors = Array.isArray(res) ? res : [];
+        this.syncSelectedDoctor();
+
+        if (!this.doctorId && this.doctors.length === 1) {
+          this.doctorId = String(this.doctors[0].id ?? this.doctors[0].id_personnel ?? '');
+          this.syncSelectedDoctor();
         }
       },
       error: (err) => console.error(err)
     });
   }
 
+  fetchDoctorDetails() {
+    this.syncSelectedDoctor();
+  }
+
+  onDoctorChange(): void {
+    this.syncSelectedDoctor();
+  }
+
+  private syncSelectedDoctor(): void {
+    if (!this.doctorId) {
+      this.doctorDetails = null;
+      return;
+    }
+
+    const selectedDoctor = this.doctors.find((doc) => String(doc.id ?? doc.id_personnel) === String(this.doctorId));
+    this.doctorDetails = selectedDoctor || null;
+    if (this.doctorDetails) {
+      this.formData.specialite = this.doctorDetails.specialite || this.formData.specialite;
+    }
+  }
+
   submitSmartBooking() {
-    if (!this.formData.nom || !this.formData.prenom || !this.formData.telephone || !this.formData.date) {
+    if (!this.formData.nom || !this.formData.prenom || !this.formData.age || !this.formData.telephone || !this.formData.date) {
       this.errorMessage = 'Veuillez remplir tous les champs obligatoires.';
       return;
     }
@@ -70,6 +105,7 @@ export class BookingComponent implements OnInit {
 
     const payload = {
       ...this.formData,
+      age: Number(this.formData.age),
       idPersonnel: this.doctorId,
       rejectedSlots: [] // For alternative proposals
     };
@@ -107,6 +143,46 @@ export class BookingComponent implements OnInit {
       error: (err) => {
         this.errorMessage = err.error?.error || 'Aucune alternative trouvée.';
         this.step = 'result';
+      }
+    });
+  }
+
+  confirmAppointment(): void {
+    const selectedDoctorId = Number(this.doctorId || this.optimizationResult?.doctor?.id || this.optimizationResult?.doctor?.id_personnel || 0);
+
+    if (!this.optimizationResult?.slot || !selectedDoctorId) {
+      this.errorMessage = 'Aucun rendez-vous a confirmer.';
+      return;
+    }
+
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.isConfirming = true;
+
+    const payload = {
+      nom: this.formData.nom,
+      prenom: this.formData.prenom,
+      telephone: this.formData.telephone,
+      agePatient: Number(this.formData.age),
+      idPersonnel: selectedDoctorId,
+      dateRDV: this.formData.date,
+      heureDebut: this.formatTime(this.optimizationResult.slot.start),
+      heureFin: this.formatTime(this.optimizationResult.slot.end),
+      motifConsultation: 'consultation',
+      statut: 'consultation'
+    };
+
+    this.http.post<any>('http://localhost:5000/add_rdv', payload).subscribe({
+      next: () => {
+        this.successMessage = 'Rendez-vous confirmé.';
+        this.isConfirming = false;
+        setTimeout(() => {
+          this.router.navigate(['/home']);
+        }, 1200);
+      },
+      error: (err) => {
+        this.isConfirming = false;
+        this.errorMessage = err.error?.error || 'Impossible de confirmer le rendez-vous.';
       }
     });
   }

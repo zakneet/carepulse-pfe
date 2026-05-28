@@ -1,0 +1,104 @@
+.doctor-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 1.5rem;
+  border-radius: 28px;
+  background: linear-gradient(135deg, rgba(14, 44, 63, 0.94), rgba(18, 90, 117, 0.88));
+  color: #f4fbff;
+  box-shadow: 0 24px 60px rgba(4, 22, 33, 0.25);
+}
+
+.doctor-card__avatar {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(121, 230, 255, 0.26), rgba(255, 255, 255, 0.14));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.doctor-card__content h1 {
+  margin: 0.15rem 0 0.35rem;
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+  line-height: 1.05;
+}
+
+.doctor-card__content p {
+  margin: 0;
+  color: rgba(244, 251, 255, 0.86);
+  font-size: 1rem;
+}
+
+.doctor-card__eyebrow,
+.doctor-card__appointment-label {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: rgba(244, 251, 255, 0.7);
+}
+
+.doctor-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.doctor-card__meta span,
+.doctor-card__meta-badge,
+.doctor-card__meta-muted {
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.86rem;
+}
+
+.doctor-card__meta-badge {
+  background: rgba(95, 227, 195, 0.16);
+  color: #d8fff3;
+}
+
+.doctor-card__meta-muted {
+  color: rgba(244, 251, 255, 0.75);
+}
+
+.doctor-card__appointment {
+  min-width: 220px;
+  padding: 1rem 1.1rem;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: grid;
+  gap: 0.35rem;
+  text-align: right;
+}
+
+.doctor-card__appointment strong {
+  font-size: 1.15rem;
+}
+
+.doctor-card__appointment span {
+  color: rgba(244, 251, 255, 0.82);
+}
+
+.doctor-card__appointment--empty {
+  opacity: 0.92;
+}
+
+@media (max-width: 900px) {
+  .doctor-card {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+
+  .doctor-card__appointment {
+    text-align: left;
+  }
+}

@@ -150,6 +150,7 @@ export interface MedicalPlanningAppointment {
 
 export interface PatientHistoryAppointment {
   id: number;
+  idPersonnel?: number | null;
   dateRDV: string;
   heureDebut: string;
   heureFin?: string;

@@ -1,0 +1,86 @@
+.tracking-card {
+  padding: 1.4rem;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(12, 38, 58, 0.97), rgba(20, 79, 104, 0.93));
+  color: #f3fbff;
+  box-shadow: 0 24px 60px rgba(16, 29, 43, 0.14);
+}
+
+.tracking-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.tracking-card__eyebrow {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: rgba(243, 251, 255, 0.72);
+}
+
+.tracking-card h2 {
+  margin: 0;
+}
+
+.tracking-card__badge {
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  background: rgba(94, 227, 195, 0.16);
+  color: #d6fff2;
+  font-weight: 700;
+}
+
+.tracking-card__badge--locked {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(243, 251, 255, 0.76);
+}
+
+.tracking-card__locked,
+.tracking-card__loading {
+  padding: 1rem 1.05rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(243, 251, 255, 0.84);
+}
+
+.tracking-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.tracking-card__stats div {
+  padding: 0.95rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tracking-card__stats strong {
+  display: block;
+  font-size: 1.2rem;
+}
+
+.tracking-card__stats span,
+.tracking-card__message {
+  color: rgba(243, 251, 255, 0.82);
+}
+
+.tracking-card__message {
+  margin: 0.95rem 0 0;
+}
+
+@media (max-width: 900px) {
+  .tracking-card__header,
+  .tracking-card__stats {
+    grid-template-columns: 1fr;
+  }
+
+  .tracking-card__header {
+    display: grid;
+  }
+}

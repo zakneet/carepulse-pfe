@@ -1,79 +1,122 @@
-<section class="patient-dashboard section">
-  <div class="dashboard-hero reveal">
-    <button type="button" class="btn-ghost dashboard-home-btn" (click)="goHome()">Accueil</button>
-    <div class="hero-copy">
-      <span class="pill">Espace patient</span>
-      <h2>Bonjour {{ displayName }}</h2>
-      <p *ngIf="displayEmail">{{ displayEmail }}</p>
-      <p *ngIf="!displayEmail">Vous pouvez suivre ici vos rendez-vous et votre dossier medical.</p>
+<main class="patient-dashboard home-shell home-dark-shell">
+  <div class="dashboard-bg-grid"></div>
+  <div class="dashboard-glow dashboard-glow--one"></div>
+  <div class="dashboard-glow dashboard-glow--two"></div>
 
-      <div class="dash-cta">
-        <button type="button" class="btn-primary" (click)="goToBooking()">Nouveau rendez-vous</button>
-        <button type="button" class="btn-ghost" (click)="goToAppointments()">Mes rendez-vous et mon dossier medical</button>
-      </div>
-    </div>
-
-    <div class="hero-summary">
-      <div class="summary-chip">
-        <span>Dossier patient</span>
-        <strong>{{ historyCount }}</strong>
-        <small>Rendez-vous au total</small>
-      </div>
-      <div class="summary-chip accent" *ngIf="lastAppointment; else noLastAppointment">
-        <span>Dernier RDV</span>
-        <strong>{{ lastAppointment?.statut }}</strong>
-        <small>{{ lastAppointment?.dateLabel }} - {{ lastAppointment?.doctorLabel }}</small>
-      </div>
-      <ng-template #noLastAppointment>
-        <div class="summary-chip accent">
-          <span>Dernier RDV</span>
-          <strong>Aucun</strong>
-          <small>Votre historique sera affiche ici.</small>
+  <section class="hero-section hero-dark">
+    <div class="dashboard-topbar">
+      <a routerLink="/home" class="dashboard-brand">
+        <img src="assets/logo_opticlinic.svg.jpeg" alt="OptiClinic" class="dashboard-brand__logo">
+        <div>
+          <span class="eyebrow">Espace patient</span>
+          <strong>OptiClinic</strong>
         </div>
-      </ng-template>
+      </a>
+      <button type="button" class="dashboard-home-btn secondary-action" (click)="goHome()">Accueil</button>
     </div>
-  </div>
 
-  <p *ngIf="loading" class="state-card">Chargement de votre espace patient...</p>
-  <p *ngIf="!loading && errorMessage" class="state-card error">{{ errorMessage }}</p>
+    <div class="hero-grid dashboard-hero-grid">
+      <div class="hero-slogan hero-copy-dark">
+        <p class="eyebrow">Votre suivi médical personnalisé</p>
+        <h1>{{ doctorFullName }}</h1>
+        <p class="subtitle">{{ doctorSpecialite }}</p>
 
-  <ng-container *ngIf="!loading && !errorMessage">
+        <div class="doctor-intro">
+          <div class="doctor-photo-card">
+            <img [src]="doctorPhotoUrl" alt="Photo du médecin" class="doctor-photo">
+            <div class="doctor-photo-badge">{{ doctorAvatar }}</div>
+          </div>
+
+          <div class="doctor-meta">
+            <div class="panel-card panel-card-small">
+              <div class="avatar avatar--accent">{{ doctorAvatar }}</div>
+              <div>
+                <strong>{{ doctorFullName }}</strong>
+                <p>{{ doctorSpecialite }}</p>
+              </div>
+            </div>
+            <div class="panel-card panel-card-large">
+              <strong>Suivi du même médecin</strong>
+              <p>{{ doctorAppointments.length }} rendez-vous avec ce praticien</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-panel dashboard-next-card">
+        <div class="panel-top">
+          <div>
+            <p class="panel-status">Prochain rendez-vous</p>
+            <h2>{{ nextAppointment ? selectedDateLabel : 'À programmer' }}</h2>
+          </div>
+          <span class="panel-chip">{{ nextAppointment?.timeLabel || '--:--' }}</span>
+        </div>
+
+        <div class="panel-card panel-card-small accent">
+          <div class="avatar">{{ doctorAvatar }}</div>
+          <div>
+            <strong>{{ nextAppointment?.doctorLabel || doctorFullName }}</strong>
+            <p>{{ nextAppointment?.specialite || doctorSpecialite }}</p>
+          </div>
+        </div>
+
+        <div class="panel-card panel-card-large">
+          <strong>Cabinet</strong>
+          <p>{{ clinicLabel }}</p>
+        </div>
+
+        <div class="notice-stack">
+          <div class="notice-card notice-card--weather">
+            <strong>Météo</strong>
+            <p>{{ weatherLabel }}</p>
+          </div>
+          <div class="notice-card notice-card--traffic">
+            <strong>Trafic</strong>
+            <p>{{ travelNoticeSummary }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-section content-dark dashboard-content">
+    <div class="dashboard-state" *ngIf="loading">Chargement de votre espace patient...</div>
+    <div class="dashboard-state dashboard-state--error" *ngIf="!loading && errorMessage">{{ errorMessage }}</div>
+    <div class="dashboard-state dashboard-state--success" *ngIf="successMessage">{{ successMessage }}</div>
+
     <div class="dashboard-grid">
-      <article class="tile reveal history-tile" style="--delay: 0.3s">
-        <h3>Historique des rendez-vous</h3>
-        <p class="tile-sub">Tous vos RDV, qu'ils soient faits, annules ou reportes.</p>
+      <section class="section-card actions-card dashboard-cta-card">
+        <p class="eyebrow">Action rapide</p>
+        <h2>Prendre un rendez-vous</h2>
+        <p>Le médecin et sa spécialité sont déjà remplis pour garder le même contexte clinique.</p>
+        <div class="actions-row">
+          <button type="button" class="primary-action" (click)="goToBooking()">Prendre un rendez-vous</button>
+        </div>
+      </section>
 
-        <div class="table-wrapper" *ngIf="appointments.length > 0; else emptyHistory">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Heure</th>
-                <th>Medecin</th>
-                <th>Specialite</th>
-                <th>Motif</th>
-                <th>Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let appointment of appointments">
-                <td>{{ appointment.dateLabel }}</td>
-                <td>{{ appointment.timeLabel }}</td>
-                <td>{{ appointment.doctorLabel }}</td>
-                <td>{{ appointment.specialite }}</td>
-                <td>{{ appointment.motif }}</td>
-                <td>
-                  <span class="badge" [ngClass]="appointment.statusClass">{{ appointment.statut }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <section class="section-card history-card dashboard-history-card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Historique</p>
+            <h2>Rendez-vous avec ce médecin</h2>
+          </div>
+          <span class="history-count">{{ doctorAppointments.length }}</span>
+        </div>
+
+        <div *ngIf="doctorAppointments.length; else emptyHistory" class="history-list">
+          <article *ngFor="let appointment of doctorAppointments" class="history-item">
+            <div>
+              <strong>{{ appointment.dateLabel }}</strong>
+              <p>{{ appointment.timeLabel }} · {{ appointment.motif }}</p>
+            </div>
+            <span class="badge" [ngClass]="appointment.statusClass">{{ appointment.statut }}</span>
+          </article>
         </div>
 
         <ng-template #emptyHistory>
-          <p class="state-card">Aucun rendez-vous trouve pour le moment.</p>
+          <div class="empty-state">Aucun rendez-vous trouvé avec ce médecin.</div>
         </ng-template>
-      </article>
+      </section>
     </div>
-  </ng-container>
-</section>
+  </section>
+</main>

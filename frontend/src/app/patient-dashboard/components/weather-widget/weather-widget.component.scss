@@ -1,0 +1,45 @@
+.mini-widget {
+  padding: 1rem 1.1rem;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(16, 37, 58, 0.08);
+  box-shadow: 0 16px 36px rgba(18, 32, 49, 0.08);
+}
+
+.mini-widget__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+  color: #123046;
+}
+
+.mini-widget__header span {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #6c7f8d;
+}
+
+.mini-widget__body {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mini-widget__value {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #10324d;
+}
+
+.mini-widget__detail {
+  color: #5e7180;
+}
+
+.mini-widget__loading {
+  color: #5e7180;
+}
+
+.mini-widget--weather {
+  background: linear-gradient(180deg, rgba(245, 251, 255, 0.96), rgba(231, 246, 255, 0.86));
+}

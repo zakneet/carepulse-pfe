@@ -1,0 +1,22 @@
+<article class="mini-widget mini-widget--weather">
+  <div class="mini-widget__header">
+    <span>{{ title }}</span>
+    <strong>{{ weather?.status || 'En cours' }}</strong>
+  </div>
+
+  <div class="mini-widget__body" *ngIf="!weather?.loading; else weatherLoading">
+    <div class="mini-widget__value" *ngIf="weather?.temperature !== undefined; else weatherFallback">
+      {{ weather?.temperature | number:'1.0-0' }}°C
+    </div>
+    <ng-template #weatherFallback>
+      <div class="mini-widget__value">--°</div>
+    </ng-template>
+
+    <div class="mini-widget__detail">Vent {{ weather?.windspeed || 0 }} km/h</div>
+    <div class="mini-widget__detail">{{ weather?.recommendation || 'Prévision disponible pour votre rendez-vous.' }}</div>
+  </div>
+
+  <ng-template #weatherLoading>
+    <div class="mini-widget__loading">Chargement de la météo...</div>
+  </ng-template>
+</article>

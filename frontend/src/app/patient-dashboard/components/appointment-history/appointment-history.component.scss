@@ -1,0 +1,116 @@
+.history-card {
+  padding: 1.4rem;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 24px 60px rgba(16, 29, 43, 0.08);
+  border: 1px solid rgba(16, 29, 43, 0.06);
+}
+
+.history-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.history-card__eyebrow {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: #6d7f8c;
+}
+
+.history-card h2 {
+  margin: 0;
+  color: #123048;
+}
+
+.history-card__search {
+  min-width: min(420px, 100%);
+}
+
+.history-card__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.history-card__filter {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 0.95rem;
+  background: rgba(18, 48, 72, 0.06);
+  color: #355066;
+  font-weight: 600;
+}
+
+.history-card__filter--active {
+  background: linear-gradient(135deg, #123048, #1d86aa);
+  color: #fff;
+}
+
+.history-card__grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 130px 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.05rem;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 249, 252, 0.92));
+  border: 1px solid rgba(16, 29, 43, 0.06);
+}
+
+.history-item__date {
+  font-weight: 700;
+  color: #123048;
+}
+
+.history-item__content {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.history-item__content span {
+  color: #5d6f7d;
+}
+
+.history-item__status {
+  padding: 0.5rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 700;
+  text-transform: capitalize;
+  background: rgba(18, 48, 72, 0.06);
+  color: #123048;
+}
+
+.history-item__status[data-tone='done'] { background: rgba(94, 190, 122, 0.15); color: #1f7a3c; }
+.history-item__status[data-tone='cancelled'] { background: rgba(225, 84, 84, 0.13); color: #ad2f2f; }
+.history-item__status[data-tone='delayed'] { background: rgba(236, 177, 78, 0.15); color: #9b6610; }
+.history-item__status[data-tone='scheduled'] { background: rgba(18, 132, 168, 0.12); color: #0f718f; }
+
+.history-card__empty {
+  padding: 1rem 1.05rem;
+  border-radius: 18px;
+  background: rgba(18, 48, 72, 0.06);
+  color: #355066;
+}
+
+@media (max-width: 900px) {
+  .history-card__header,
+  .history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .history-item__status {
+    justify-self: start;
+  }
+}
