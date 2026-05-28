@@ -43,9 +43,42 @@ export class HomeComponent implements OnInit {
   }
 
   onSearch(spec: string, region: string): void {
+    this.isLoading = true;
+    let url = 'http://localhost:5000/medical-staff?';
+    if (spec?.trim()) url += `specialite=${encodeURIComponent(spec.trim())}&`;
+    if (region?.trim()) url += `region=${encodeURIComponent(region.trim())}&`;
+    
+    this.http.get<any>(url).subscribe({
+      next: (res) => {
+        const dataArray = Array.isArray(res) ? res : (res.data || []);
+        if (dataArray && dataArray.length > 0) {
+          this.doctors = dataArray.slice(0, 50); // limit to a reasonable number
+        } else {
+          this.doctors = [];
+        }
+        this.isLoading = false;
+        setTimeout(() => {
+          document.getElementById('medecins')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      },
+      error: () => { 
+        console.error('API failed, using fallback mock data for doctors.');
+        this.doctors = this.fallbackDoctors.filter(d => 
+          (!spec || d.specialite.toLowerCase() === spec.toLowerCase())
+        );
+        this.isLoading = false;
+        setTimeout(() => {
+          document.getElementById('medecins')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    });
+  }
+
+  bookDoctor(doc: any): void {
     const q: any = {};
-    if (spec?.trim()) q.specialite = spec.trim();
-    if (region?.trim()) q.region = region.trim();
+    if (doc.specialite) q.specialite = doc.specialite;
+    if (doc.id_personnel) q.idPersonnel = doc.id_personnel;
+    else if (doc.id) q.idPersonnel = doc.id;
     this.router.navigate(['/patient/booking'], { queryParams: q });
   }
 

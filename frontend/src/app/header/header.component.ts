@@ -20,7 +20,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   longAbsenceValue = 1;
   longAbsenceUnit: DoctorLongAbsenceUnit = 'day';
   shortEmergencyLoading = false;
-  logoPath = 'assets/logo_opticlinic.png';
+  logoPath = 'assets/logo_opticlinic.svg.jpeg';
   isPatientView = false;
   private routerSubscription?: Subscription;
   private shortEmergencyResetTimer?: number;

@@ -13,10 +13,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-[72px]">
         <a routerLink="/" class="flex items-center gap-3" (click)="scrollTo('top', $event)">
-          <div class="bg-primary text-white p-1.5 rounded-lg flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          </div>
-          <span class="text-xl font-extrabold text-slate-900 tracking-tight">OptiClinic</span>
+          <img src="assets/logo_opticlinic.svg.jpeg" class="h-10" alt="OptiClinic">
         </a>
 
         <nav class="hidden md:flex items-center gap-8">
@@ -57,7 +54,90 @@
               <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
               </div>
-              <input #regionInput type="text" placeholder="Ville ou Région (ex: Tunis)" class="w-full h-14 pl-12 pr-4 bg-slate-50/50 hover:bg-slate-100/50 focus:bg-white rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-primary transition-all text-slate-900 placeholder:text-slate-500 font-medium">
+              <select #regionInput class="w-full h-14 pl-12 pr-4 bg-slate-50/50 hover:bg-slate-100/50 focus:bg-white rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-primary transition-all text-slate-900 placeholder:text-slate-500 font-medium appearance-none">
+                <option value="">Ville ou Région (ex: Tunis)</option>
+                <optgroup label="Tunis & Ariana">
+                  <option value="Carthage">Carthage</option>
+                  <option value="Bardo">Bardo</option>
+                  <option value="La Marsa">La Marsa</option>
+                  <option value="Ariana Ville">Ariana Ville</option>
+                  <option value="Soukra">Soukra</option>
+                  <option value="Raoued">Raoued</option>
+                  <option value="Cité Attadhamon">Cité Attadhamon</option>
+                </optgroup>
+                <optgroup label="Ben Arous & Manouba">
+                  <option value="Radès">Radès</option>
+                  <option value="Hammam Lif">Hammam Lif</option>
+                  <option value="Mornag">Mornag</option>
+                  <option value="Manouba">Manouba</option>
+                  <option value="Oued Ellil">Oued Ellil</option>
+                  <option value="Tebourba">Tebourba</option>
+                </optgroup>
+                <optgroup label="Nabeul & Bizerte">
+                  <option value="Nabeul">Nabeul</option>
+                  <option value="Hammamet">Hammamet</option>
+                  <option value="Kelibia">Kelibia</option>
+                  <option value="Bizerte Nord">Bizerte Nord</option>
+                  <option value="Menzel Bourguiba">Menzel Bourguiba</option>
+                  <option value="Ras Jebel">Ras Jebel</option>
+                </optgroup>
+                <optgroup label="Zaghouan & Sousse">
+                  <option value="Zaghouan">Zaghouan</option>
+                  <option value="Fahs">Fahs</option>
+                  <option value="Sousse (Ryadh/Jawhara)">Sousse (Ryadh/Jawhara)</option>
+                  <option value="Hammam Sousse">Hammam Sousse</option>
+                  <option value="Msaken">Msaken</option>
+                  <option value="Enfidha">Enfidha</option>
+                </optgroup>
+                <optgroup label="Monastir & Mahdia">
+                  <option value="Monastir">Monastir</option>
+                  <option value="Moknine">Moknine</option>
+                  <option value="Ksar Helal">Ksar Helal</option>
+                  <option value="Mahdia">Mahdia</option>
+                  <option value="Eljem">Eljem</option>
+                  <option value="Chebba">Chebba</option>
+                </optgroup>
+                <optgroup label="Sfax">
+                  <option value="Sfax (Ville/Ouest/Sud)">Sfax (Ville/Ouest/Sud)</option>
+                  <option value="Sakiet Ezzit">Sakiet Ezzit</option>
+                  <option value="Agareb">Agareb</option>
+                  <option value="Mahrès">Mahrès</option>
+                  <option value="Kerkennah">Kerkennah</option>
+                </optgroup>
+                <optgroup label="Nord-Ouest">
+                  <option value="Béja">Béja</option>
+                  <option value="Testour">Testour</option>
+                  <option value="Jendouba">Jendouba</option>
+                  <option value="Tabarka">Tabarka</option>
+                  <option value="Ain Drahem">Ain Drahem</option>
+                  <option value="Kef">Kef</option>
+                  <option value="Dahmani">Dahmani</option>
+                  <option value="Siliana">Siliana</option>
+                  <option value="Makther">Makther</option>
+                </optgroup>
+                <optgroup label="Centre-Ouest">
+                  <option value="Kairouan">Kairouan</option>
+                  <option value="Haffouz">Haffouz</option>
+                  <option value="Sidi Bouzid">Sidi Bouzid</option>
+                  <option value="Regueb">Regueb</option>
+                  <option value="Kasserine">Kasserine</option>
+                  <option value="Sbitla">Sbitla</option>
+                  <option value="Thala">Thala</option>
+                </optgroup>
+                <optgroup label="Sud">
+                  <option value="Gabès">Gabès</option>
+                  <option value="El Hamma">El Hamma</option>
+                  <option value="Médenine">Médenine</option>
+                  <option value="Zarzis">Zarzis</option>
+                  <option value="Djerba">Djerba</option>
+                  <option value="Gafsa">Gafsa</option>
+                  <option value="Métlaoui">Métlaoui</option>
+                  <option value="Tozeur">Tozeur</option>
+                  <option value="Nefta">Nefta</option>
+                  <option value="Tataouine">Tataouine</option>
+                  <option value="Kébili">Kébili</option>
+                </optgroup>
+              </select>
             </div>
 
             <button (click)="onSearch(specInput.value, regionInput.value)" class="h-14 px-8 bg-primary hover:bg-primary-dark text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/30 shrink-0 group">
@@ -71,12 +151,12 @@
           <div class="bg-white/40 backdrop-blur-2xl p-8 rounded-[2rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-white/60 max-w-md w-full relative z-10 group hover:bg-white/60 transition-colors duration-500">
             <div class="relative z-10">
               <div class="flex items-center gap-4 mb-8">
-                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary/30">
-                  RD
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary/30 overflow-hidden">
+                  <img src="assets/telemedicine_doctor.png" alt="Doctor" class="w-full h-full object-cover">
                 </div>
                 <div>
-                  <h3 class="font-bold text-slate-900 text-xl">Dr. Rania Dhaou</h3>
-                  <p class="text-sm font-medium text-slate-500">Médecine Générale • Tunis</p>
+                  <h3 class="font-bold text-slate-900 text-xl">Dr. Youssef Haddad</h3>
+                  <p class="text-sm font-medium text-slate-500">Téléconsultation • Tunis</p>
                 </div>
               </div>
               
@@ -110,119 +190,7 @@
     </div>
   </section>
 
-  <section id="specialites" class="py-24 relative z-10">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center max-w-2xl mx-auto mb-16">
-        <h2 class="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Trouvez le bon spécialiste</h2>
-        <p class="text-lg text-slate-500 font-medium">Une offre de soins complète couvrant toutes les spécialités médicales majeures.</p>
-      </div>
-
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
-        <!-- 8 Specialites -->
-        <a routerLink="/patient/booking" [queryParams]="{specialite: 'Médecine Générale'}" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🩺</div>
-          <h3 class="font-bold text-slate-900 text-lg">Médecine générale</h3>
-          <p class="text-sm text-slate-500">Consultation & suivi</p>
-        </a>
-        <a routerLink="/patient/booking" [queryParams]="{specialite: 'Cardiologie'}" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">❤️</div>
-          <h3 class="font-bold text-slate-900 text-lg">Cardiologie</h3>
-          <p class="text-sm text-slate-500">Coeur & vaisseaux</p>
-        </a>
-        <a routerLink="/patient/booking" [queryParams]="{specialite: 'Dermatologie'}" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">✨</div>
-          <h3 class="font-bold text-slate-900 text-lg">Dermatologie</h3>
-          <p class="text-sm text-slate-500">Peau & cheveux</p>
-        </a>
-        <a routerLink="/patient/booking" [queryParams]="{specialite: 'Pédiatrie'}" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">👶</div>
-          <h3 class="font-bold text-slate-900 text-lg">Pédiatrie</h3>
-          <p class="text-sm text-slate-500">Enfants & nourrissons</p>
-        </a>
-        <a routerLink="/patient/booking" [queryParams]="{specialite: 'Dentaire'}" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🦷</div>
-          <h3 class="font-bold text-slate-900 text-lg">Dentaire</h3>
-          <p class="text-sm text-slate-500">Soins dentaires</p>
-        </a>
-        <a routerLink="/patient/booking" [queryParams]="{specialite: 'Ophtalmologie'}" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">👁️</div>
-          <h3 class="font-bold text-slate-900 text-lg">Ophtalmologie</h3>
-          <p class="text-sm text-slate-500">Yeux & vision</p>
-        </a>
-        <a routerLink="/patient/booking" [queryParams]="{specialite: 'Gynécologie'}" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🌷</div>
-          <h3 class="font-bold text-slate-900 text-lg">Gynécologie</h3>
-          <p class="text-sm text-slate-500">Santé féminine</p>
-        </a>
-        <a routerLink="/patient/booking" [queryParams]="{specialite: 'Neurologie'}" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🧠</div>
-          <h3 class="font-bold text-slate-900 text-lg">Neurologie</h3>
-          <p class="text-sm text-slate-500">Système nerveux</p>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <section id="medecins" class="py-24 bg-white relative z-10 border-t border-slate-100">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center max-w-2xl mx-auto mb-16">
-        <p class="text-[#0284c7] font-bold uppercase tracking-widest text-[11px] mb-3">NOS PRATICIENS</p>
-        <h2 class="text-[36px] font-extrabold text-slate-900 tracking-tight">Des médecins de confiance</h2>
-      </div>
-
-      <!-- Skeleton Loaders -->
-      <div *ngIf="isLoading" class="grid md:grid-cols-3 gap-8">
-        <div *ngFor="let i of [1, 2, 3, 4, 5, 6]" class="bg-white p-6 rounded-3xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] animate-pulse">
-          <div class="flex items-center gap-4 mb-6">
-            <div class="w-[52px] h-[52px] rounded-full bg-slate-200"></div>
-            <div class="flex-1">
-              <div class="h-4 bg-slate-200 rounded-full w-3/4 mb-2"></div>
-              <div class="h-3 bg-slate-100 rounded-full w-1/2"></div>
-            </div>
-          </div>
-          <div class="flex items-center justify-between mb-5">
-            <div class="h-4 bg-slate-200 rounded-full w-1/4"></div>
-            <div class="h-4 bg-slate-100 rounded-full w-1/3"></div>
-          </div>
-          <div class="h-10 bg-slate-100 rounded-2xl w-full"></div>
-        </div>
-      </div>
-
-      <!-- Doctor Cards -->
-      <div *ngIf="!isLoading" class="grid md:grid-cols-3 gap-8">
-        <div *ngFor="let doc of doctors" class="group bg-white p-6 rounded-3xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] hover:border-[#0284c7]/20 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer">
-          <div class="flex items-center gap-5 mb-6">
-            <div [class]="getAvatarColor(doc.nom) + ' w-[56px] h-[56px] rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0 group-hover:scale-105 transition-transform duration-300'">
-              {{ getInitials(doc.nom || doc.prenom) }}
-            </div>
-            <div>
-              <h3 class="font-bold text-slate-900 text-[16px] group-hover:text-[#0284c7] transition-colors">Dr. {{ doc.nom }} {{ doc.prenom }}</h3>
-              <p class="text-[13px] text-slate-500 font-medium mt-0.5">{{ doc.specialite }}</p>
-            </div>
-          </div>
-          
-          <div class="flex items-center justify-between mb-6 px-1">
-            <div class="flex items-center gap-1.5 text-[13px] font-bold">
-              <span class="text-amber-400 text-lg leading-none">★</span>
-              <span class="text-slate-900">{{ getReviews(doc.nom).rating }}</span>
-              <span class="text-slate-400 font-medium">({{ getReviews(doc.nom).count }})</span>
-            </div>
-            <div class="text-[13px] text-slate-500 font-medium flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              {{ getReviews(doc.nom).exp }} ans d'expérience
-            </div>
-          </div>
-
-          <button (click)="onSearch(doc.specialite, '')" class="w-full py-3 bg-[#f0f9ff] group-hover:bg-[#0284c7] text-[#0284c7] group-hover:text-white font-bold text-[14px] rounded-2xl transition-all duration-300 flex items-center justify-center gap-2">
-            Voir les disponibilités
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="fonctionnalites" class="py-24 relative z-10">
+<section id="fonctionnalites" class="py-24 relative z-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto mb-16">
         <p class="text-primary font-bold uppercase tracking-wider text-sm mb-2">Pourquoi OptiClinic</p>
@@ -270,7 +238,149 @@
     </div>
   </section>
 
-  <section class="py-24 relative z-10">
+
+  <section id="comment-ca-marche" class="py-24 bg-slate-50 relative z-10 border-t border-slate-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <p class="text-primary font-bold uppercase tracking-wider text-sm mb-2">Simple & Rapide</p>
+        <h2 class="text-4xl lg:text-5xl font-extrabold mb-6 tracking-tight text-slate-900">Comment ça marche ?</h2>
+      </div>
+      <div class="grid md:grid-cols-3 gap-8 relative">
+        <div class="hidden md:block absolute top-1/2 left-[15%] right-[15%] h-0.5 bg-gradient-to-r from-primary/20 via-primary/40 to-primary/20 -translate-y-1/2 z-0"></div>
+        
+        <div class="relative z-10 flex flex-col items-center text-center group">
+          <div class="w-20 h-20 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center text-2xl font-black text-primary shadow-xl mb-6 group-hover:scale-110 transition-transform">1</div>
+          <h3 class="text-xl font-bold text-slate-900 mb-3">Recherchez</h3>
+          <p class="text-slate-500 font-medium">Trouvez le bon spécialiste près de chez vous ou en ligne.</p>
+        </div>
+        
+        <div class="relative z-10 flex flex-col items-center text-center group">
+          <div class="w-20 h-20 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center text-2xl font-black text-primary shadow-xl mb-6 group-hover:scale-110 transition-transform">2</div>
+          <h3 class="text-xl font-bold text-slate-900 mb-3">Prenez RDV</h3>
+          <p class="text-slate-500 font-medium">Choisissez le créneau qui vous convient et réservez en 1 clic.</p>
+        </div>
+        
+        <div class="relative z-10 flex flex-col items-center text-center group">
+          <div class="w-20 h-20 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center text-2xl font-black text-primary shadow-xl mb-6 group-hover:scale-110 transition-transform">3</div>
+          <h3 class="text-xl font-bold text-slate-900 mb-3">Consultez</h3>
+          <p class="text-slate-500 font-medium">Rendez-vous au cabinet ou consultez en vidéo simplement.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+<section id="specialites" class="py-24 relative z-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-2xl mx-auto mb-16">
+        <h2 class="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Trouvez le bon spécialiste</h2>
+        <p class="text-lg text-slate-500 font-medium">Une offre de soins complète couvrant toutes les spécialités médicales majeures.</p>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <!-- 8 Specialites -->
+        <a (click)="onSearch('Médecine Générale', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
+          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🩺</div>
+          <h3 class="font-bold text-slate-900 text-lg">Médecine générale</h3>
+          <p class="text-sm text-slate-500">Consultation & suivi</p>
+        </a>
+        <a (click)="onSearch('Cardiologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
+          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">❤️</div>
+          <h3 class="font-bold text-slate-900 text-lg">Cardiologie</h3>
+          <p class="text-sm text-slate-500">Coeur & vaisseaux</p>
+        </a>
+        <a (click)="onSearch('Dermatologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
+          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">✨</div>
+          <h3 class="font-bold text-slate-900 text-lg">Dermatologie</h3>
+          <p class="text-sm text-slate-500">Peau & cheveux</p>
+        </a>
+        <a (click)="onSearch('Pédiatrie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
+          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">👶</div>
+          <h3 class="font-bold text-slate-900 text-lg">Pédiatrie</h3>
+          <p class="text-sm text-slate-500">Enfants & nourrissons</p>
+        </a>
+        <a (click)="onSearch('Dentaire', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
+          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🦷</div>
+          <h3 class="font-bold text-slate-900 text-lg">Dentaire</h3>
+          <p class="text-sm text-slate-500">Soins dentaires</p>
+        </a>
+        <a (click)="onSearch('Ophtalmologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
+          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">👁️</div>
+          <h3 class="font-bold text-slate-900 text-lg">Ophtalmologie</h3>
+          <p class="text-sm text-slate-500">Yeux & vision</p>
+        </a>
+        <a (click)="onSearch('Gynécologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
+          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🌷</div>
+          <h3 class="font-bold text-slate-900 text-lg">Gynécologie</h3>
+          <p class="text-sm text-slate-500">Santé féminine</p>
+        </a>
+        <a (click)="onSearch('Neurologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
+          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🧠</div>
+          <h3 class="font-bold text-slate-900 text-lg">Neurologie</h3>
+          <p class="text-sm text-slate-500">Système nerveux</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+<section id="medecins" class="py-24 bg-white relative z-10 border-t border-slate-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-2xl mx-auto mb-16">
+        <p class="text-[#0284c7] font-bold uppercase tracking-widest text-[11px] mb-3">NOS PRATICIENS</p>
+        <h2 class="text-[36px] font-extrabold text-slate-900 tracking-tight">Des médecins de confiance</h2>
+      </div>
+
+      <!-- Skeleton Loaders -->
+      <div *ngIf="isLoading" class="grid md:grid-cols-3 gap-8">
+        <div *ngFor="let i of [1, 2, 3, 4, 5, 6]" class="bg-white p-6 rounded-3xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] animate-pulse">
+          <div class="flex items-center gap-4 mb-6">
+            <div class="w-[52px] h-[52px] rounded-full bg-slate-200"></div>
+            <div class="flex-1">
+              <div class="h-4 bg-slate-200 rounded-full w-3/4 mb-2"></div>
+              <div class="h-3 bg-slate-100 rounded-full w-1/2"></div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mb-5">
+            <div class="h-4 bg-slate-200 rounded-full w-1/4"></div>
+            <div class="h-4 bg-slate-100 rounded-full w-1/3"></div>
+          </div>
+          <div class="h-10 bg-slate-100 rounded-2xl w-full"></div>
+        </div>
+      </div>
+
+      <!-- Doctor Cards -->
+      <div *ngIf="!isLoading" class="grid md:grid-cols-3 gap-8">
+        <div *ngFor="let doc of doctors" class="group bg-white p-6 rounded-3xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] hover:border-[#0284c7]/20 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer">
+          <div class="flex items-center gap-5 mb-6">
+            <img src="assets/telemedicine_doctor.png" class="w-[56px] h-[56px] rounded-full object-cover shrink-0 group-hover:scale-105 transition-transform duration-300" alt="Dr. {{ doc.nom }} {{ doc.prenom }}">
+            <div>
+              <h3 class="font-bold text-slate-900 text-[16px] group-hover:text-[#0284c7] transition-colors">Dr. {{ doc.nom }} {{ doc.prenom }}</h3>
+              <p class="text-[13px] text-slate-500 font-medium mt-0.5">{{ doc.specialite }}</p>
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-between mb-6 px-1">
+            <div class="flex items-center gap-1.5 text-[13px] font-bold">
+              <span class="text-amber-400 text-lg leading-none">★</span>
+              <span class="text-slate-900">{{ getReviews(doc.nom).rating }}</span>
+              <span class="text-slate-400 font-medium">({{ getReviews(doc.nom).count }})</span>
+            </div>
+            <div class="text-[13px] text-slate-500 font-medium flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              {{ getReviews(doc.nom).exp }} ans d'expérience
+            </div>
+          </div>
+
+          <button (click)="bookDoctor(doc)" class="w-full py-3 bg-[#f0f9ff] group-hover:bg-[#0284c7] text-[#0284c7] group-hover:text-white font-bold text-[14px] rounded-2xl transition-all duration-300 flex items-center justify-center gap-2">
+            Voir les disponibilités
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+<section class="py-24 relative z-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="bg-primary rounded-[3rem] p-10 md:p-16 text-white flex flex-col md:flex-row items-center justify-between gap-12 relative overflow-hidden shadow-2xl">
         <div class="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-white opacity-10 rounded-full blur-3xl"></div>

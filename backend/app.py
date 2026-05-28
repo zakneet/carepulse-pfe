@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 import functools
 import os
 import threading
@@ -452,6 +452,7 @@ def _ensure_personnel_table_columns():
                 nom VARCHAR(100) NOT NULL,
                 prenom VARCHAR(100) NOT NULL,
                 specialite VARCHAR(120) NULL,
+                    region VARCHAR(120) NULL,
                 disponibilite TINYINT(1) NOT NULL DEFAULT 1,
                 PRIMARY KEY (id_personnel)
             ) ENGINE=InnoDB
@@ -463,14 +464,19 @@ def _ensure_personnel_table_columns():
                 conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `specialite` VARCHAR(120) NULL")
             except Exception:
                 pass
-        
+                
+        if "region" not in existing_columns:
+            try:
+                conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `region` VARCHAR(120) NULL")
+            except Exception:
+                pass
         if "disponibilite" not in existing_columns:
             try:
                 conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `disponibilite` TINYINT(1) NOT NULL DEFAULT 1")
             except Exception:
                 pass
 
-        for legacy_column in ("telephone", "email", "region", "ville", "type_personnel", "password", "access_code"):
+        for legacy_column in ("telephone", "email", "ville", "type_personnel", "password", "access_code"):
             if legacy_column in existing_columns:
                 try:
                     conn.exec_driver_sql(f"ALTER TABLE personnel_de_sante DROP COLUMN `{legacy_column}`")
@@ -682,7 +688,7 @@ def _get_personnel_row(id_personnel):
     with db.engine.connect() as conn:
         return conn.exec_driver_sql(
             """
-            SELECT id_personnel, nom, prenom, specialite, disponibilite
+            SELECT id_personnel, nom, prenom, specialite, region, disponibilite
             FROM personnel_de_sante
             WHERE id_personnel = %s
             LIMIT 1
@@ -1945,6 +1951,7 @@ def migrate_mysql_schema():
                     nom VARCHAR(100) NOT NULL,
                     prenom VARCHAR(100) NOT NULL,
                     specialite VARCHAR(120) NULL,
+                    region VARCHAR(120) NULL,
                     disponibilite TINYINT(1) NOT NULL DEFAULT 1,
                     PRIMARY KEY (id_personnel)
                 ) ENGINE=InnoDB
@@ -1958,12 +1965,13 @@ def migrate_mysql_schema():
                     nom VARCHAR(100) NOT NULL,
                     prenom VARCHAR(100) NOT NULL,
                     telephone VARCHAR(30) NULL,
+                    adresse VARCHAR(255) NULL,
                     PRIMARY KEY (id_patient)
                 ) ENGINE=InnoDB
                 """
             )
 
-            for column_name in ("email", "cin", "password", "adresse"):
+            for column_name in ("email", "cin", "password"):
                 try:
                     conn.exec_driver_sql(f"ALTER TABLE patient DROP COLUMN IF EXISTS `{column_name}`")
                 except Exception:
@@ -1993,6 +2001,7 @@ def migrate_mysql_schema():
                     email VARCHAR(120) NULL,
                     role INT NOT NULL,
                     specialite VARCHAR(120) NULL,
+                    region VARCHAR(120) NULL,
                     disponibilite VARCHAR(255) NULL,
                     password VARCHAR(255) NOT NULL DEFAULT '',
                     access_code VARCHAR(120) NULL,
@@ -2004,11 +2013,18 @@ def migrate_mysql_schema():
             )
 
             # Ensure required columns exist even when `user` table already existed.
-            conn.exec_driver_sql("ALTER TABLE user ADD COLUMN IF NOT EXISTS email VARCHAR(120) NULL")
-            conn.exec_driver_sql("ALTER TABLE user ADD COLUMN IF NOT EXISTS specialite VARCHAR(120) NULL")
-            conn.exec_driver_sql("ALTER TABLE user ADD COLUMN IF NOT EXISTS password VARCHAR(255) NOT NULL DEFAULT ''")
-            conn.exec_driver_sql("ALTER TABLE user ADD COLUMN IF NOT EXISTS access_code VARCHAR(120) NULL")
-            conn.exec_driver_sql("ALTER TABLE user ADD COLUMN IF NOT EXISTS role INT NULL")
+            for col_def in [
+                "email VARCHAR(120) NULL",
+                "specialite VARCHAR(120) NULL",
+                "password VARCHAR(255) NOT NULL DEFAULT ''",
+                "access_code VARCHAR(120) NULL",
+                "role INT NULL"
+            ]:
+                col_name = col_def.split()[0]
+                try:
+                    conn.exec_driver_sql(f"ALTER TABLE user ADD COLUMN {col_def}")
+                except Exception:
+                    pass
 
             statut_exists = conn.exec_driver_sql(
                 """
@@ -2375,6 +2391,7 @@ def get_users():
                     "prenom": row["prenom"],
                     "email": row["email"],
                     "specialite": row["specialite"],
+                    "region": row.get("region"),
                     "role": "medical_staff",
                     "statut": 2
                 })
@@ -2388,9 +2405,10 @@ def get_users():
 def get_medical_staff():
     try:
         specialite = request.args.get('specialite', '')
+        region = request.args.get('region', '')
 
         query = """
-            SELECT id_personnel, nom, prenom, specialite, disponibilite
+            SELECT id_personnel, nom, prenom, specialite, region, disponibilite
             FROM personnel_de_sante
             WHERE 1=1
         """
@@ -2398,6 +2416,9 @@ def get_medical_staff():
         if specialite:
             query += " AND LOWER(specialite) LIKE LOWER(%s)"
             params.append(f"%{specialite}%")
+        if region:
+            query += " AND LOWER(region) LIKE LOWER(%s)"
+            params.append(f"%{region}%")
             
         query += " ORDER BY nom ASC, prenom ASC"
 
@@ -2414,6 +2435,7 @@ def get_medical_staff():
                     "nom": row["nom"],
                     "prenom": row["prenom"],
                     "specialite": row["specialite"],
+                    "region": row.get("region"),
                     "disponibilite": bool(row["disponibilite"]),
                 }
             )
