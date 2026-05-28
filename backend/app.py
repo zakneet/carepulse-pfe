@@ -518,6 +518,17 @@ class Rdv(db.Model):
     heureDebut = db.Column(db.Time, nullable=False)
     heureFin = db.Column(db.Time, nullable=False)
     motifConsultation = db.Column(db.Text, nullable=False, default="")
+<<<<<<< Updated upstream
+=======
+
+    @property
+    def statut(self):
+        return getattr(self, "_statut", "Confirme")
+
+    @statut.setter
+    def statut(self, value):
+        self._statut = value or "Confirme"
+>>>>>>> Stashed changes
 
     def to_dict(self):
         return {
@@ -562,22 +573,8 @@ def _generate_unique_patient_email(prefix="patient"):
     import time
 
     base_suffix = int(time.time() * 1000) % 1000000
-    for attempt in range(20):
-        suffix = f"{base_suffix + attempt:06d}"
-        email = f"{prefix}_{suffix}@gestion-rdv.local"
-        with db.engine.connect() as conn:
-            existing = conn.exec_driver_sql(
-                """
-                SELECT id_patient FROM patient
-                WHERE LOWER(email) = LOWER(%s)
-                LIMIT 1
-                """,
-                (email,),
-            ).mappings().first()
-        if not existing:
-            return email
-
-    return f"{prefix}_{int(time.time() * 1000)}@gestion-rdv.local"
+    suffix = f"{base_suffix:06d}"
+    return f"{prefix}_{suffix}@gestion-rdv.local"
 
 
 def _split_health_values(value):
@@ -1305,6 +1302,10 @@ def schedule_with_emergency(existing_rdvs, duration, start_window, end_window):
     model.Add(u_end == u_start + urgent_duration)
     u_interval = model.NewIntervalVar(u_start, urgent_duration, u_end, "u_int")
     model.AddNoOverlap(intervals + [u_interval])
+
+    # Maintien de l'ordre chronologique strict des RDVs non urgents
+    for i in range(len(starts) - 1):
+        model.Add(starts[i] <= starts[i+1])
 
     # Lexicographic-like objective: place the urgent patient as early as possible,
     # then minimize the number of displaced RDVs, then minimize the displacement size.
@@ -3831,11 +3832,6 @@ def update_medical_staff_patient_full_profile():
                     "UPDATE patient SET prenom = %s WHERE id_patient = %s",
                     (str(payload.get("prenom") or "").strip() or patient["prenom"], int(id_patient)),
                 )
-            if payload.get("email") is not None:
-                conn.exec_driver_sql(
-                    "UPDATE patient SET email = %s WHERE id_patient = %s",
-                    (str(payload.get("email") or "").strip() or None, int(id_patient)),
-                )
             if payload.get("telephone") is not None:
                 conn.exec_driver_sql(
                     "UPDATE patient SET telephone = %s WHERE id_patient = %s",
@@ -4177,21 +4173,9 @@ def add_rdv():
                     print(f"    ERROR: Patient ID {id_patient} not found in patient table")
                     return jsonify({"error": "patient introuvable"}), 404
             elif patient_nom and patient_prenom:
-                # Generate unique email if not provided or if it already exists
                 email = (data.get("email") or "").strip()
-                existing = conn.exec_driver_sql(
-                    """
-                    SELECT id_patient FROM patient
-                    WHERE LOWER(email) = LOWER(%s)
-                    LIMIT 1
-                    """,
-                    (email or _generate_unique_patient_email(),),
-                ).mappings().first()
-                
-                if not email or existing:
-                    # Email is missing or already exists - generate a unique one
+                if not email:
                     email = _generate_unique_patient_email()
-                    print(f"    Generated unique email: {email}")
                 
                 conn.exec_driver_sql(
                     """
@@ -4289,11 +4273,11 @@ def add_rdv():
                     now_reference = None
 
                 immediate_result = _find_immediate_urgent_slot(
-                    existing_rdvs=existing_rdvs,
-                    duration=urgent_duration,
-                    start_window=window_start,
-                    end_window=window_end,
-                    reference_minute=now_reference,
+                    existing_rdvs,
+                    urgent_duration,
+                    window_start,
+                    window_end,
+                    now_reference,
                 )
 
                 if immediate_result:

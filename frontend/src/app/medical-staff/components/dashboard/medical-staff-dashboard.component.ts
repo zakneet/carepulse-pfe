@@ -578,7 +578,8 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
       const endRaw = (appointment.heureFin || '').slice(0, 5);
       const end = endRaw ? this.toMinutes(endRaw) : start + 30;
 
-      if (slotStart >= start && slotEnd <= end) {
+      // An appointment belongs to a slot if it overlaps with it
+      if (start < slotEnd && end > slotStart) {
         return appointment;
       }
     }
