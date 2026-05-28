@@ -15,7 +15,7 @@
       </div>
 
       <div class="rdv-list" *ngIf="rdvs.length > 0">
-        <article class="rdv-item" *ngFor="let rdv of rdvs; let i = index">
+        <article class="rdv-item" *ngFor="let rdv of rdvs; let i = index" [ngClass]="{'cancelled': isCancelledStatus(rdv.statut)}">
           <div class="rdv-left">
             <strong>{{ toDateOnly(rdv.dateRDV) }}</strong>
             <p>{{ rdv.heureDebut }} - {{ rdv.heureFin }}</p>

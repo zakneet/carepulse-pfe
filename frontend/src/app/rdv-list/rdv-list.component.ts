@@ -436,13 +436,18 @@ export class RdvListComponent implements OnInit, OnDestroy {
     if (['termine', 'terminee', 'effectue', 'effectuee', 'realise', 'realisee'].includes(lower)) {
       return 'success-pill';
     }
-    if (['annule', 'annulee', 'cancelled'].includes(lower)) {
-      return 'danger-pill';
+    if (['annule', 'annulee', 'cancelled'].includes(lower) || lower.startsWith('annule')) {
+      return 'cancelled-pill';
     }
     if (['reporte', 'reportee', 'postponed'].includes(lower)) {
       return 'warning-pill';
     }
     return 'info-pill';
+  }
+
+  isCancelledStatus(statut?: string | null): boolean {
+    const lower = (statut || '').toLowerCase().trim();
+    return ['annule', 'annulee', 'cancelled', 'annule (urgence medecin)'].includes(lower) || lower.startsWith('annule');
   }
 
   private normalizeTime(value: string): string {

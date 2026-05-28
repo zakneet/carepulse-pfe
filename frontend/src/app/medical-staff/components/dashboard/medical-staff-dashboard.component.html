@@ -11,7 +11,7 @@
         class="search-input"
         name="planningSearch"
         [(ngModel)]="searchQuery"
-        placeholder="Rechercher: nom, prénom, CIN, email, motif, statut"
+        placeholder="Rechercher: nom, prénom, motif, statut"
       >
     </div>
   </section>
@@ -62,11 +62,6 @@
       <p class="muted summary-footer">Mis à jour à {{ urgentSummary.recalculatedAt }}</p>
     </section>
 
-    <div class="fusion-legend" *ngIf="!loading && !errorMessage">
-      <span class="legend-chip normal">Planning normal</span>
-      <span class="legend-chip optimized">Planning optimise</span>
-    </div>
-
     <div class="planning-grid-wrap" *ngIf="!loading && !errorMessage">
       <table class="planning-grid">
         <thead>
@@ -97,20 +92,6 @@
                 </div>
               </ng-container>
 
-              <ng-container *ngIf="getOptimizedSlotForCell(day.date, slot) as optimizedSlot">
-                <div
-                  class="slot-card optimized-card"
-                  role="button"
-                  tabindex="0"
-                  (click)="openOptimizedSlotDetails(optimizedSlot)"
-                  (keydown.enter)="openOptimizedSlotDetails(optimizedSlot)"
-                >
-                  <div class="time">{{ optimizedSlot.startTime }}</div>
-                  <strong>{{ optimizedSlot.patientName }}</strong>
-                  <span>{{ optimizedSlot.motif }}</span>
-                  <span class="status">{{ optimizedSlot.isUrgent ? 'urgence' : 'optimise' }}</span>
-                </div>
-              </ng-container>
             </td>
           </tr>
         </tbody>
@@ -167,18 +148,6 @@
               name="telephone"
               type="tel"
               [(ngModel)]="urgentPatientForm.telephone"
-              required
-              autocomplete="off"
-            >
-          </div>
-
-          <div class="form-field">
-            <label for="urgent-cin">CIN</label>
-            <input
-              id="urgent-cin"
-              name="cin"
-              type="text"
-              [(ngModel)]="urgentPatientForm.cin"
               required
               autocomplete="off"
             >
@@ -282,7 +251,11 @@
             Aucun rendez-vous precedent pour ce patient avec vous.
           </div>
           <div class="history-list" *ngIf="patientRecord.appointments.length > 0">
-            <article class="history-item" *ngFor="let item of patientRecord.appointments | slice:0:6">
+            <article
+              class="history-item"
+              *ngFor="let item of patientRecord.appointments | slice:0:6"
+              [ngClass]="{'cancelled': isCancelledStatus(item.statut), 'delayed': isDelayedStatus(item.statut)}"
+            >
               <div>
                 <strong>{{ formatShortDate(item.dateRDV) }}</strong>
                 <p>{{ formatShortTime(item.heureDebut) }} - {{ formatShortTime(item.heureFin) }}</p>
@@ -291,7 +264,7 @@
                 <p>Dr {{ item.medecin || buildDoctorName(item) }}</p>
                 <p class="muted">{{ item.specialite || 'Generaliste' }}</p>
                 <p>{{ item.motifConsultation || 'consultation' }}</p>
-                <span class="status-pill" *ngIf="item.statut">{{ item.statut }}</span>
+                <span class="status-pill" [ngClass]="{'cancelled': isCancelledStatus(item.statut), 'delayed': isDelayedStatus(item.statut)}" *ngIf="item.statut">{{ item.statut }}</span>
               </div>
             </article>
           </div>

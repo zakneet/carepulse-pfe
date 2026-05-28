@@ -2,12 +2,12 @@ import sys
 from app import app, db, PersonnelDeSante
 
 doctors_data = [
-    {"nom": "Ben Salah", "prenom": "Amira", "specialite": "Médecine générale", "type_personnel": "medecin"},
-    {"nom": "Trabelsi", "prenom": "Karim", "specialite": "Cardiologie", "type_personnel": "medecin"},
-    {"nom": "Mansour", "prenom": "Leïla", "specialite": "Dermatologie", "type_personnel": "medecin"},
-    {"nom": "Haddad", "prenom": "Youssef", "specialite": "Pédiatrie", "type_personnel": "medecin"},
-    {"nom": "Gharbi", "prenom": "Sami", "specialite": "Dentaire", "type_personnel": "medecin"},
-    {"nom": "Cherif", "prenom": "Nadia", "specialite": "Ophtalmologie", "type_personnel": "medecin"}
+    {"nom": "Ben Salah", "prenom": "Amira", "specialite": "Médecine générale"},
+    {"nom": "Trabelsi", "prenom": "Karim", "specialite": "Cardiologie"},
+    {"nom": "Mansour", "prenom": "Leïla", "specialite": "Dermatologie"},
+    {"nom": "Haddad", "prenom": "Youssef", "specialite": "Pédiatrie"},
+    {"nom": "Gharbi", "prenom": "Sami", "specialite": "Dentaire"},
+    {"nom": "Cherif", "prenom": "Nadia", "specialite": "Ophtalmologie"}
 ]
 
 with app.app_context():
@@ -18,7 +18,7 @@ with app.app_context():
                 nom=doc["nom"],
                 prenom=doc["prenom"],
                 specialite=doc["specialite"],
-                type_personnel=doc["type_personnel"]
+                disponibilite=True
             )
             db.session.add(new_doc)
     

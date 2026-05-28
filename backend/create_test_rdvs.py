@@ -11,7 +11,6 @@ def find_doctor_and_patient():
             """
             SELECT id_personnel AS id, nom, prenom
             FROM personnel_de_sante
-            WHERE type_personnel IN ('medecin', 'secretaire')
             ORDER BY id_personnel ASC
             LIMIT 1
             """

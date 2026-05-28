@@ -1,7 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 
 :root {
 	--bg-1: #0f172a;
@@ -886,4 +886,3 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
 		transition: none;
 	}
 }
-

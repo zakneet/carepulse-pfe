@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
 import functools
 import os
 import threading
@@ -174,52 +174,49 @@ def _notify_patients_of_cancellation(rdv_ids: list, target_date):
         try:
             with db.engine.connect() as conn:
                 row = conn.exec_driver_sql(
-                    "SELECT p.prenom, p.nom, p.email, p.telephone, r.heureDebut, r.heureFin "
+                    "SELECT p.prenom, p.nom, p.email, p.telephone, r.heureDebut, r.heureFin, r.idPatient "
                     "FROM rdv r JOIN patient p ON p.id_patient = r.idPatient WHERE r.idRDV = %s LIMIT 1",
-                    (int(rdv_id),),
+                    (rdv_id,),
                 ).mappings().first()
-        except Exception:
-            row = None
 
-        if not row:
-            continue
+            if not row:
+                continue
 
-        time_text = f"{_format_time_for_client(row.get('heureDebut'))} - {_format_time_for_client(row.get('heureFin'))}"
-        subject = "Annulation de votre rendez-vous"
-        body = (
-            f"Bonjour {row.get('prenom') or ''},\n\n"
-            f"Votre rendez-vous prévu le {target_date.isoformat()} à {time_text} a été annulé en raison d'une urgence médicale.\n\n"
-            "Veuillez contacter la clinique pour fixer un nouveau rendez-vous ou gérer vos créneaux ici: "
-            f"{FRONTEND_URL}/patient/appointments\n\nCordialement,\nClinique"
-        )
+            time_text = f"{_format_time_for_client(row.get('heureDebut'))} - {_format_time_for_client(row.get('heureFin'))}"
+            subject = "Annulation de votre rendez-vous"
+            body = (
+                f"Bonjour {row.get('prenom') or ''},\n\n"
+                f"Votre rendez-vous prévu le {target_date.isoformat()} à {time_text} a été annulé en raison d'une urgence médicale.\n\n"
+                f"Cordialement,\n"
+                f"L'équipe médicale"
+            )
 
-        if row.get('email'):
-            sent = _send_email(row.get('email'), subject, body)
-            print(f"[notify] cancellation email sent={sent} to {row.get('email')}", flush=True)
-        else:
-            print(f"[notify] no email for patient of rdv {rdv_id}, tel={row.get('telephone')}", flush=True)
+            if row.get('email'):
+                sent = _send_email(row.get('email'), subject, body)
+                print(f"[notify] cancellation email sent={sent} to {row.get('email')}", flush=True)
+            else:
+                print(f"[notify] no email for patient of rdv {rdv_id}, tel={row.get('telephone')}", flush=True)
 
-        # Push notification
-        payload = {
-            "title": "Rendez-vous annulé",
-            "body": f"Votre rendez-vous du {target_date.isoformat()} a été annulé.",
-            "url": f"{FRONTEND_URL}/patient/appointments",
-            "rdvId": rdv_id,
-        }
-        try:
-            for sub in list(PUSH_SUBSCRIPTIONS):
-                try:
-                    if not isinstance(sub, dict):
+            payload = {
+                "title": "Rendez-vous annulé",
+                "body": f"Votre rendez-vous du {target_date.isoformat()} a été annulé.",
+                "url": f"{FRONTEND_URL}/patient/appointments",
+                "rdvId": rdv_id,
+            }
+            try:
+                for sub in list(PUSH_SUBSCRIPTIONS):
+                    try:
+                        if not isinstance(sub, dict):
+                            continue
+                        if int(sub.get("patientId") or 0) != int(row.get("idPatient") or 0):
+                            continue
+                        _send_webpush(sub.get("subscription") or sub, payload)
+                    except Exception:
                         continue
-                    if int(sub.get("patientId") or 0) != int(row.get("id_patient") or 0):
-                        continue
-                    _send_webpush(sub.get("subscription") or sub, payload)
-                except Exception:
-                    continue
+            except Exception:
+                pass
         except Exception:
             pass
-
-
 def _send_webpush(subscription_info, payload: dict) -> bool:
     """Send a Web Push notification using pywebpush. subscription_info should
     be the object returned by `pushManager.subscribe()` on the client.
@@ -421,10 +418,6 @@ class Patient(db.Model):
     nom = db.Column(db.String(100), nullable=False)
     prenom = db.Column(db.String(100), nullable=False)
     telephone = db.Column(db.String(30), nullable=True)
-    email = db.Column(db.String(120), nullable=True)
-    adresse = db.Column(db.String(255), nullable=True)
-    cin = db.Column(db.String(50), nullable=True)
-    password = db.Column(db.String(255), nullable=False, default="")
 
 
 class PersonnelDeSante(db.Model):
@@ -434,14 +427,8 @@ class PersonnelDeSante(db.Model):
     id_personnel = db.Column(db.Integer, primary_key=True)
     nom = db.Column(db.String(100), nullable=False)
     prenom = db.Column(db.String(100), nullable=False)
-    telephone = db.Column(db.String(30), nullable=True)
-    email = db.Column(db.String(120), nullable=True)
     specialite = db.Column(db.String(120), nullable=True)
-    region = db.Column(db.String(120), nullable=True)
-    ville = db.Column(db.String(120), nullable=True)
-    type_personnel = db.Column(db.String(50), nullable=False, default='medecin')
-    password = db.Column(db.String(255), nullable=False, default="")
-    access_code = db.Column(db.String(120), nullable=True)
+    disponibilite = db.Column(db.Boolean, nullable=False, default=True)
 
 
 def _ensure_personnel_table_columns():
@@ -457,18 +444,38 @@ def _ensure_personnel_table_columns():
                 """
             ).fetchall()
         }
+
+        conn.exec_driver_sql(
+            """
+            CREATE TABLE IF NOT EXISTS personnel_de_sante (
+                id_personnel INT NOT NULL AUTO_INCREMENT,
+                nom VARCHAR(100) NOT NULL,
+                prenom VARCHAR(100) NOT NULL,
+                specialite VARCHAR(120) NULL,
+                disponibilite TINYINT(1) NOT NULL DEFAULT 1,
+                PRIMARY KEY (id_personnel)
+            ) ENGINE=InnoDB
+            """
+        )
         
-        if "region" not in existing_columns:
+        if "specialite" not in existing_columns:
             try:
-                conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `region` VARCHAR(120) NULL")
+                conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `specialite` VARCHAR(120) NULL")
             except Exception:
                 pass
         
-        if "ville" not in existing_columns:
+        if "disponibilite" not in existing_columns:
             try:
-                conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `ville` VARCHAR(120) NULL")
+                conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `disponibilite` TINYINT(1) NOT NULL DEFAULT 1")
             except Exception:
                 pass
+
+        for legacy_column in ("telephone", "email", "region", "ville", "type_personnel", "password", "access_code"):
+            if legacy_column in existing_columns:
+                try:
+                    conn.exec_driver_sql(f"ALTER TABLE personnel_de_sante DROP COLUMN `{legacy_column}`")
+                except Exception:
+                    pass
 
 
 
@@ -629,8 +636,22 @@ def _ensure_optional_user_columns():
 
 def _ensure_patient_table_columns():
     with db.engine.begin() as conn:
-        conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS password VARCHAR(255) NOT NULL DEFAULT ''")
-        conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS adresse VARCHAR(255) NULL")
+        conn.exec_driver_sql(
+            """
+            CREATE TABLE IF NOT EXISTS patient (
+                id_patient INT NOT NULL AUTO_INCREMENT,
+                nom VARCHAR(100) NOT NULL,
+                prenom VARCHAR(100) NOT NULL,
+                telephone VARCHAR(30) NULL,
+                PRIMARY KEY (id_patient)
+            ) ENGINE=InnoDB
+            """
+        )
+        for column_name in ("email", "adresse", "cin", "password"):
+            try:
+                conn.exec_driver_sql(f"ALTER TABLE patient DROP COLUMN IF EXISTS `{column_name}`")
+            except Exception:
+                pass
     _ensure_rdv_table_columns()
     _ensure_personnel_table_columns()
 
@@ -649,9 +670,9 @@ def _ensure_rdv_table_columns():
             ).fetchall()
         }
 
-        if "statut" not in existing_columns:
+        if "statut" in existing_columns:
             try:
-                conn.exec_driver_sql("ALTER TABLE rdv ADD COLUMN `statut` VARCHAR(50) NULL")
+                conn.exec_driver_sql("ALTER TABLE rdv DROP COLUMN `statut`")
             except Exception:
                 # Keep API available even if schema migration rights are restricted.
                 pass
@@ -661,7 +682,7 @@ def _get_personnel_row(id_personnel):
     with db.engine.connect() as conn:
         return conn.exec_driver_sql(
             """
-            SELECT id_personnel, type_personnel, specialite
+            SELECT id_personnel, nom, prenom, specialite, disponibilite
             FROM personnel_de_sante
             WHERE id_personnel = %s
             LIMIT 1
@@ -772,9 +793,9 @@ def _get_patient_row_by_cin(cin):
     with db.engine.connect() as conn:
         return conn.exec_driver_sql(
             """
-            SELECT id_patient, nom, prenom, email, telephone, cin, password
+            SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
             FROM patient
-            WHERE LOWER(TRIM(cin)) = %s
+            WHERE telephone = %s
             LIMIT 1
             """,
             (str(cin).strip().lower(),),
@@ -789,9 +810,9 @@ def _patient_payload_from_row(row):
         "id": int(row["id_patient"]),
         "nom": row["nom"],
         "prenom": row["prenom"],
-        "cin": row["cin"],
         "telephone": row["telephone"],
-        "email": row["email"],
+        "email": row.get("email") if hasattr(row, "get") else None,
+        "cin": row.get("cin") if hasattr(row, "get") else None,
         "statut": 1,
         "statut_label": "patient",
     }
@@ -887,20 +908,20 @@ def is_medical_staff(staff_id: int) -> bool:
         with db.engine.connect() as conn:
             row = conn.exec_driver_sql(
                 """
-                SELECT id_personnel, type_personnel
+                SELECT id_personnel
                 FROM personnel_de_sante
                 WHERE id_personnel = %s
                 LIMIT 1
                 """,
                 (staff_id,),
             ).mappings().first()
-            return bool(row and row["type_personnel"] in ("medecin", "infirmier"))
+            return bool(row)
     except Exception:
         return False
 
 
 def get_staff_category(staff_id: int) -> str:
-    """Get staff category (doctor/nurse) from personnel_de_sante table."""
+    """Get staff category from personnel_de_sante table."""
     if not staff_id or not isinstance(staff_id, int):
         return "secretary"
     try:
@@ -916,11 +937,11 @@ def get_staff_category(staff_id: int) -> str:
             ).mappings().first()
             if row:
                 specialite = (row["specialite"] or "").strip().lower()
-                if "infirm" in specialite:
-                    return "nurse"
-            return "doctor"
+                if specialite:
+                    return "doctor"
     except Exception:
         return "secretary"
+    return "secretary"
 
 
 def is_doctor(staff_id: int) -> bool:
@@ -1196,9 +1217,6 @@ def optimize_day_with_absence(existing_rdvs, day_start, day_end, absence_start, 
         if start is None or duration is None or duration <= 0:
             return None
 
-        if (start + duration) <= window_start:
-            return None
-
         normalized.append({"id": rdv_id, "start": int(start), "duration": int(duration)})
 
     if not normalized:
@@ -1251,6 +1269,7 @@ def schedule_with_emergency(existing_rdvs, duration, start_window, end_window):
         return None
     model = cp_model.CpModel()
     starts, intervals, shifts, normalized_rdvs = [], [], [], []
+    moved_flags = []
     for index, rdv in enumerate(existing_rdvs):
         if not isinstance(rdv, dict):
             return None
@@ -1268,25 +1287,84 @@ def schedule_with_emergency(existing_rdvs, duration, start_window, end_window):
         interval = model.NewIntervalVar(s, rdv_duration, e, f"int_{index}")
         shift = model.NewIntVar(0, window_end - window_start, f"shift_{index}")
         model.AddAbsEquality(shift, s - rdv_start)
+        moved = model.NewBoolVar(f"moved_{index}")
+        model.Add(shift == 0).OnlyEnforceIf(moved.Not())
+        model.Add(shift >= 1).OnlyEnforceIf(moved)
         starts.append(s)
         intervals.append(interval)
         shifts.append(shift)
+        moved_flags.append(moved)
         normalized_rdvs.append({"id": rdv_id, "start": rdv_start, "duration": rdv_duration})
     u_start = model.NewIntVar(window_start, window_end - urgent_duration, "u_start")
     u_end = model.NewIntVar(window_start + urgent_duration, window_end, "u_end")
     model.Add(u_end == u_start + urgent_duration)
     u_interval = model.NewIntervalVar(u_start, urgent_duration, u_end, "u_int")
     model.AddNoOverlap(intervals + [u_interval])
-    model.Minimize(u_start + (sum(shifts) * 10 if shifts else 0))
+
+    # Lexicographic-like objective: place the urgent patient as early as possible,
+    # then minimize the number of displaced RDVs, then minimize the displacement size.
+    planning_span = max(1, window_end - window_start)
+    max_shift_penalty = planning_span * max(1, len(normalized_rdvs))
+    urgent_weight = max_shift_penalty * 1000 + 1
+    move_weight = planning_span * 10
+    model.Minimize(
+        (u_start * urgent_weight)
+        + (sum(moved_flags) * move_weight if moved_flags else 0)
+        + (sum(shifts) if shifts else 0)
+    )
+
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = 5.0
+    solver.parameters.num_search_workers = 8
     status = solver.Solve(model)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
     updated = []
     for i, rdv in enumerate(normalized_rdvs):
-        updated.append({"id": rdv["id"], "old_start": rdv["start"], "new_start": solver.Value(starts[i]), "new_end": solver.Value(starts[i]) + rdv["duration"]})
-    return {"urgent_start": solver.Value(u_start), "urgent_end": solver.Value(u_end), "updated": updated}
+        new_start = solver.Value(starts[i])
+        new_end = new_start + rdv["duration"]
+        updated.append({
+            "id": rdv["id"],
+            "old_start": rdv["start"],
+            "new_start": new_start,
+            "new_end": new_end,
+            "moved": new_start != rdv["start"],
+        })
+
+    updated.sort(key=lambda item: (item["new_start"], item["id"]))
+    optimized_plan = [
+        {
+            "id": item["id"],
+            "heureDebut": _to_hhmmss(item["new_start"]),
+            "heureFin": _to_hhmmss(item["new_end"]),
+            "old_start": item["old_start"],
+            "new_start": item["new_start"],
+            "new_end": item["new_end"],
+            "moved": item["moved"],
+            "isUrgent": False,
+        }
+        for item in updated
+    ]
+    optimized_plan.append(
+        {
+            "id": "urgent",
+            "heureDebut": _to_hhmmss(solver.Value(u_start)),
+            "heureFin": _to_hhmmss(solver.Value(u_end)),
+            "old_start": None,
+            "new_start": solver.Value(u_start),
+            "new_end": solver.Value(u_end),
+            "moved": False,
+            "isUrgent": True,
+        }
+    )
+    optimized_plan.sort(key=lambda item: (item["new_start"], 1 if item.get("isUrgent") else 0, item["id"]))
+
+    return {
+        "urgent_start": solver.Value(u_start),
+        "urgent_end": solver.Value(u_end),
+        "updated": updated,
+        "optimized_plan": optimized_plan,
+    }
 
 
 def _get_doctor_planning_window(id_personnel, date_rdv):
@@ -1325,6 +1403,81 @@ def _build_rdv_snapshot(rdv):
     }
 
 
+def _find_immediate_urgent_slot(existing_rdvs, duration, window_start, window_end, reference_minute=None):
+    """Return a free slot for an urgent appointment without moving any RDV."""
+    urgent_duration = _coerce_minutes_value(duration)
+    window_start = _coerce_minutes_value(window_start)
+    window_end = _coerce_minutes_value(window_end)
+    reference_minute = _coerce_minutes_value(reference_minute)
+
+    if urgent_duration is None or window_start is None or window_end is None:
+        return None
+    if urgent_duration <= 0 or window_end <= window_start:
+        return None
+
+    cursor = max(window_start, reference_minute if reference_minute is not None else window_start)
+    if cursor + urgent_duration > window_end:
+        return None
+
+    ordered_rdvs = []
+    for index, rdv in enumerate(existing_rdvs or []):
+        if not isinstance(rdv, dict):
+            continue
+        rdv_start = _coerce_minutes_value(rdv.get("start") or rdv.get("heureDebut"))
+        rdv_duration = _coerce_minutes_value(rdv.get("duration") or rdv.get("duree"))
+        if rdv_start is None or rdv_duration is None or rdv_duration <= 0:
+            continue
+        ordered_rdvs.append((rdv_start, rdv_start + rdv_duration, rdv.get("id") or rdv.get("idRdv") or index))
+
+    ordered_rdvs.sort(key=lambda item: item[0])
+
+    for rdv_start, rdv_end, _ in ordered_rdvs:
+        if cursor + urgent_duration <= rdv_start:
+            return {
+                "urgent_start": cursor,
+                "urgent_end": cursor + urgent_duration,
+                "updated": [],
+                "optimized_plan": [
+                    {
+                        "id": "urgent",
+                        "heureDebut": _to_hhmmss(cursor),
+                        "heureFin": _to_hhmmss(cursor + urgent_duration),
+                        "old_start": None,
+                        "new_start": cursor,
+                        "new_end": cursor + urgent_duration,
+                        "moved": False,
+                        "isUrgent": True,
+                    }
+                ],
+                "mode": "immediate",
+            }
+        cursor = max(cursor, rdv_end)
+        if cursor + urgent_duration > window_end:
+            return None
+
+    if cursor + urgent_duration <= window_end:
+        return {
+            "urgent_start": cursor,
+            "urgent_end": cursor + urgent_duration,
+            "updated": [],
+            "optimized_plan": [
+                {
+                    "id": "urgent",
+                    "heureDebut": _to_hhmmss(cursor),
+                    "heureFin": _to_hhmmss(cursor + urgent_duration),
+                    "old_start": None,
+                    "new_start": cursor,
+                    "new_end": cursor + urgent_duration,
+                    "moved": False,
+                    "isUrgent": True,
+                }
+            ],
+            "mode": "immediate",
+        }
+
+    return None
+
+
 def _apply_rescheduled_appointments(id_personnel, date_rdv, result):
     """Persist the optimized urgent slot and the shifted appointments."""
     urgent_start = parse_time(_to_hhmmss(result["urgent_start"]))
@@ -1351,7 +1504,7 @@ def _apply_rescheduled_appointments(id_personnel, date_rdv, result):
             "heureFin": _format_time_for_client(rdv.heureFin),
             "idPatient": rdv.idPatient,
             "idPersonnel": rdv.idPersonnel,
-            "statut": rdv.statut,
+            "statut": "Confirme",
         })
 
     return {
@@ -1403,9 +1556,6 @@ def _apply_optimized_day_plan(id_personnel, date_rdv, optimized_plan):
         rdv.heureDebut = heure_debut
         rdv.heureFin = heure_fin
 
-        if previous_start != next_start or previous_end != next_end:
-            rdv.statut = "decale (urgence medecin courte)"
-
         updated_rows.append(
             {
                 "id": rdv.idRdv,
@@ -1413,7 +1563,7 @@ def _apply_optimized_day_plan(id_personnel, date_rdv, optimized_plan):
                 "heureFin": _format_time_for_client(rdv.heureFin),
                 "idPatient": rdv.idPatient,
                 "idPersonnel": rdv.idPersonnel,
-                "statut": rdv.statut,
+                "statut": "Confirme",
                 "previousHeureDebut": previous_start_str,
                 "previousHeureFin": previous_end_str,
             }
@@ -1794,38 +1944,10 @@ def migrate_mysql_schema():
                     id_personnel INT NOT NULL AUTO_INCREMENT,
                     nom VARCHAR(100) NOT NULL,
                     prenom VARCHAR(100) NOT NULL,
-                    telephone VARCHAR(30) NULL,
-                    email VARCHAR(120) NULL,
                     specialite VARCHAR(120) NULL,
-                    type_personnel VARCHAR(50) NOT NULL DEFAULT 'medecin',
-                    password VARCHAR(255) NOT NULL DEFAULT '',
-                    access_code VARCHAR(120) NULL,
-                    PRIMARY KEY (id_personnel),
-                    UNIQUE KEY uq_personnel_email (email),
-                    UNIQUE KEY uq_personnel_access_code (access_code)
+                    disponibilite TINYINT(1) NOT NULL DEFAULT 1,
+                    PRIMARY KEY (id_personnel)
                 ) ENGINE=InnoDB
-                """
-            )
-
-            conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN IF NOT EXISTS password VARCHAR(255) NOT NULL DEFAULT ''")
-            conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN IF NOT EXISTS access_code VARCHAR(120) NULL")
-            conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD UNIQUE INDEX IF NOT EXISTS uq_personnel_email (email)")
-            conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD UNIQUE INDEX IF NOT EXISTS uq_personnel_access_code (access_code)")
-
-            conn.exec_driver_sql(
-                """
-                INSERT INTO personnel_de_sante (id_personnel, nom, prenom, telephone, email, specialite, type_personnel, password, access_code)
-                SELECT id, nom, prenom, telephone, email, specialite, 'medecin', COALESCE(password, ''), access_code
-                FROM user
-                WHERE role = 2
-                ON DUPLICATE KEY UPDATE
-                    nom = VALUES(nom),
-                    prenom = VALUES(prenom),
-                    telephone = VALUES(telephone),
-                    email = VALUES(email),
-                    specialite = VALUES(specialite),
-                    password = VALUES(password),
-                    access_code = VALUES(access_code)
                 """
             )
 
@@ -1836,32 +1958,27 @@ def migrate_mysql_schema():
                     nom VARCHAR(100) NOT NULL,
                     prenom VARCHAR(100) NOT NULL,
                     telephone VARCHAR(30) NULL,
-                    email VARCHAR(120) NULL,
-                    cin VARCHAR(50) NULL,
-                    password VARCHAR(255) NOT NULL DEFAULT '',
                     PRIMARY KEY (id_patient)
                 ) ENGINE=InnoDB
                 """
             )
 
-            conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS cin VARCHAR(50) NULL")
-            conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN IF NOT EXISTS password VARCHAR(255) NOT NULL DEFAULT ''")
-            # Drop UNIQUE constraint on email to allow NULL values and optional email
-            conn.exec_driver_sql("ALTER TABLE patient DROP INDEX IF EXISTS uq_patient_email")
+            for column_name in ("email", "cin", "password", "adresse"):
+                try:
+                    conn.exec_driver_sql(f"ALTER TABLE patient DROP COLUMN IF EXISTS `{column_name}`")
+                except Exception:
+                    pass
 
             conn.exec_driver_sql(
                 """
-                INSERT INTO patient (id_patient, nom, prenom, telephone, email, cin, password)
-                SELECT id, nom, prenom, telephone, email, cin, COALESCE(password, cin, '')
+                INSERT INTO patient (id_patient, nom, prenom, telephone)
+                SELECT id, nom, prenom, telephone
                 FROM user
                 WHERE role = 1
                 ON DUPLICATE KEY UPDATE
                     nom = VALUES(nom),
                     prenom = VALUES(prenom),
-                    telephone = VALUES(telephone),
-                    email = VALUES(email),
-                    cin = VALUES(cin),
-                    password = VALUES(password)
+                    telephone = VALUES(telephone)
                 """
             )
 
@@ -2029,9 +2146,6 @@ def register_user():
         if statut not in USER_STATUS:
             return jsonify({"error": "statut invalide (1=patient, 2=personnel medical)"}), 400
 
-        if statut == 1 and not email:
-            return jsonify({"error": "email est obligatoire pour un patient"}), 400
-
         if statut == 2 and not specialite:
             return jsonify({"error": "specialite est obligatoire pour le personnel medical"}), 400
 
@@ -2043,33 +2157,33 @@ def register_user():
             with db.engine.begin() as conn:
                 existing = conn.exec_driver_sql(
                     """
-                    SELECT id_patient, nom, prenom, email, telephone, cin, password
+                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                     FROM patient
-                    WHERE LOWER(email) = LOWER(%s)
+                    WHERE telephone = %s
                     LIMIT 1
                     """,
-                    (email,),
+                    (telephone,),
                 ).mappings().first()
 
                 if existing:
-                    return jsonify({"error": "email deja utilise"}), 409
+                    return jsonify({"message": "patient deja existant", "patient": _patient_payload_from_row(existing)}), 200
 
                 conn.exec_driver_sql(
                     """
-                    INSERT INTO patient (nom, prenom, telephone, email, cin, password)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO patient (nom, prenom, telephone)
+                    VALUES (%s, %s, %s)
                     """,
-                    (nom, prenom, telephone, email, None, password),
+                    (nom, prenom, telephone),
                 )
 
                 patient_row = conn.exec_driver_sql(
                     """
-                    SELECT id_patient, nom, prenom, email, telephone, cin
+                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                     FROM patient
-                    WHERE LOWER(email) = LOWER(%s)
+                    WHERE telephone = %s
                     LIMIT 1
                     """,
-                    (email,),
+                    (telephone,),
                 ).mappings().first()
 
             return jsonify({"message": "patient cree avec succes", "patient": _patient_payload_from_row(patient_row)}), 201
@@ -2177,38 +2291,25 @@ def login_user():
                 }
             }), 200
 
-        # Mode patient: telephone/email + mot de passe
+        # Mode patient: telephone only
         telephone = (data.get("telephone") or "").strip()
-        email = (data.get("email") or "").strip().lower()
-        password = (data.get("password") or "").strip()
 
-        if not password or (not email and not telephone):
-            return jsonify({"error": "telephone/email et mot de passe obligatoires"}), 400
+        if not telephone:
+            return jsonify({"error": "telephone obligatoire"}), 400
 
         _ensure_patient_table_columns()
 
         patient_row = None
         with db.engine.connect() as conn:
-            if telephone:
-                patient_row = conn.exec_driver_sql(
-                    """
-                    SELECT id_patient, nom, prenom, email, telephone, cin, password
-                    FROM patient
-                    WHERE telephone = %s AND password = %s
-                    LIMIT 1
-                    """,
-                    (telephone, password),
-                ).mappings().first()
-            if not patient_row and email:
-                patient_row = conn.exec_driver_sql(
-                    """
-                    SELECT id_patient, nom, prenom, email, telephone, cin, password
-                    FROM patient
-                    WHERE LOWER(email) = LOWER(%s) AND password = %s
-                    LIMIT 1
-                    """,
-                    (email, password),
-                ).mappings().first()
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
+                FROM patient
+                WHERE telephone = %s
+                LIMIT 1
+                """,
+                (telephone,),
+            ).mappings().first()
 
         if not patient_row:
             return jsonify({"error": "identifiants patient incorrects"}), 401
@@ -2221,7 +2322,6 @@ def login_user():
                 "id": int(patient_row["id_patient"]),
                 "nom": patient_row["nom"],
                 "prenom": patient_row["prenom"],
-                "email": patient_row["email"],
                 "telephone": patient_row["telephone"],
                 "role": "patient",
                 "userType": "patient"
@@ -2243,7 +2343,7 @@ def get_users():
         with db.engine.connect() as conn:
             patient_rows = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                 FROM patient
                 ORDER BY nom ASC, prenom ASC
                 """
@@ -2288,11 +2388,9 @@ def get_users():
 def get_medical_staff():
     try:
         specialite = request.args.get('specialite', '')
-        region = request.args.get('region', '')
-        ville = request.args.get('ville', '')
 
         query = """
-            SELECT id_personnel, nom, prenom, email, specialite, region, ville, type_personnel
+            SELECT id_personnel, nom, prenom, specialite, disponibilite
             FROM personnel_de_sante
             WHERE 1=1
         """
@@ -2300,12 +2398,6 @@ def get_medical_staff():
         if specialite:
             query += " AND LOWER(specialite) LIKE LOWER(%s)"
             params.append(f"%{specialite}%")
-        if region:
-            query += " AND LOWER(region) LIKE LOWER(%s)"
-            params.append(f"%{region}%")
-        if ville:
-            query += " AND LOWER(ville) LIKE LOWER(%s)"
-            params.append(f"%{ville}%")
             
         query += " ORDER BY nom ASC, prenom ASC"
 
@@ -2314,18 +2406,15 @@ def get_medical_staff():
             
         payload = []
         for staff in personnel_rows:
+            row = dict(staff)
             payload.append(
                 {
-                    "id": staff["id_personnel"],
-                    "id_personnel": staff["id_personnel"],
-                    "nom": staff["nom"],
-                    "prenom": staff["prenom"],
-                    "email": staff["email"],
-                    "specialite": (staff["specialite"] or "Generaliste") if staff["type_personnel"] == "medecin" else None,
-                    "region": staff["region"],
-                    "ville": staff["ville"],
-                    "type_personnel": staff["type_personnel"],
-                    "staffCategory": "doctor" if staff["type_personnel"] == "medecin" else "secretary",
+                    "id": row["id_personnel"],
+                    "id_personnel": row["id_personnel"],
+                    "nom": row["nom"],
+                    "prenom": row["prenom"],
+                    "specialite": row["specialite"],
+                    "disponibilite": bool(row["disponibilite"]),
                 }
             )
         return jsonify(payload), 200
@@ -2355,7 +2444,7 @@ def get_medical_staff_patient_by_cin():
         with db.engine.connect() as conn:
             patient = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                 FROM patient
                 WHERE LOWER(TRIM(cin)) = %s
                 LIMIT 1
@@ -2399,21 +2488,23 @@ def save_medical_staff_patient():
         telephone = str(patient_payload.get("telephone") or "").strip() or None
         email = str(patient_payload.get("email") or "").strip().lower()
 
-        if not nom or not prenom or not cin:
-            return jsonify({"error": "nom, prenom et cin sont obligatoires"}), 400
+        if not nom or not prenom:
+            return jsonify({"error": "nom et prenom sont obligatoires"}), 400
 
         _ensure_patient_table_columns()
 
         with db.engine.begin() as conn:
-            existing_patient = conn.exec_driver_sql(
-                """
-                SELECT id_patient, nom, prenom, email, telephone, cin, password
-                FROM patient
-                WHERE LOWER(TRIM(cin)) = %s
-                LIMIT 1
-                """,
-                (cin.lower(),),
-            ).mappings().first()
+            existing_patient = None
+            if cin:
+                existing_patient = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
+                    FROM patient
+                    WHERE telephone = %s
+                    LIMIT 1
+                    """,
+                    (telephone,),
+                ).mappings().first()
 
             if existing_patient:
                 conn.exec_driver_sql(
@@ -2421,25 +2512,19 @@ def save_medical_staff_patient():
                     UPDATE patient
                     SET nom = %s,
                         prenom = %s,
-                        telephone = %s,
-                        email = %s,
-                        cin = %s,
-                        password = %s
+                        telephone = %s
                     WHERE id_patient = %s
                     """,
                     (
                         nom,
                         prenom,
                         telephone,
-                        email or None,
-                        cin,
-                        cin,
                         int(existing_patient["id_patient"]),
                     ),
                 )
                 patient_row = conn.exec_driver_sql(
                     """
-                    SELECT id_patient, nom, prenom, email, telephone, cin, password
+                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                     FROM patient
                     WHERE id_patient = %s
                     LIMIT 1
@@ -2455,29 +2540,26 @@ def save_medical_staff_patient():
                     }
                 ), 200
 
-            if not email or conn.exec_driver_sql(
-                "SELECT COUNT(*) FROM patient WHERE LOWER(email) = LOWER(%s)",
-                (email,),
-            ).scalar() > 0:
-                email = f"patient_{int(datetime.utcnow().timestamp() * 1000)}@gestion-rdv.local"
-
-            conn.exec_driver_sql(
+            insert_result = conn.exec_driver_sql(
                 """
-                INSERT INTO patient (nom, prenom, telephone, email, cin, password)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO patient (nom, prenom, telephone)
+                VALUES (%s, %s, %s)
                 """,
-                (nom, prenom, telephone, email, cin, cin),
+                (nom, prenom, telephone),
             )
 
-            patient_row = conn.exec_driver_sql(
-                """
-                SELECT id_patient, nom, prenom, email, telephone, cin, password
-                FROM patient
-                WHERE LOWER(TRIM(cin)) = %s
-                LIMIT 1
-                """,
-                (cin.lower(),),
-            ).mappings().first()
+            inserted_patient_id = int(insert_result.lastrowid or 0)
+            patient_row = None
+            if inserted_patient_id:
+                patient_row = conn.exec_driver_sql(
+                    """
+                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
+                    FROM patient
+                    WHERE id_patient = %s
+                    LIMIT 1
+                    """,
+                    (inserted_patient_id,),
+                ).mappings().first()
 
         return jsonify(
             {
@@ -2558,7 +2640,7 @@ def get_medical_staff_planning():
                     "heureDebut": _format_sql_time(rdv["heureDebut"]),
                     "heureFin": _format_sql_time(rdv["heureFin"]),
                     "motifConsultation": rdv["motifConsultation"],
-                    "statut": None,
+                    "statut": "Confirme",
                     "patientNom": rdv["patientNom"] or "",
                     "patientPrenom": rdv["patientPrenom"] or "",
                     "medecinNom": rdv["medecinNom"] or "",
@@ -2633,7 +2715,6 @@ def cancel_all_medical_staff_day():
                 old_motif = (r.motifConsultation or "").strip()
                 if not old_motif.lower().startswith("annule"):
                     r.motifConsultation = f"Annule - {old_motif or 'consultation'}"
-                r.statut = "annule (urgence medecin)"
                 updated.append(r.idRdv)
             db.session.commit()
             try:
@@ -2798,7 +2879,7 @@ def get_medical_staff_patient_record():
         with db.engine.connect() as conn:
             patient = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                 FROM patient
                 WHERE id_patient = %s
                 LIMIT 1
@@ -2830,7 +2911,7 @@ def get_medical_staff_patient_record():
                     "heureDebut": _format_sql_time(rdv.heureDebut),
                     "heureFin": _format_sql_time(rdv.heureFin),
                     "motifConsultation": rdv.motifConsultation,
-                    "statut": rdv.statut,
+                    "statut": "Confirme",
                 }
             )
 
@@ -2844,12 +2925,18 @@ def get_medical_staff_patient_record():
                     "email": patient["email"],
                     "cin": patient["cin"],
                     "statut": 1,
-                    "statut_label": "patient",
+                },
+                "dossier": {
+                    "idfiche": dossier_row["idfiche"] if dossier_row else None,
+                    "idpatient": dossier_row["idpatient"] if dossier_row else None,
+                    "idpersonnel": dossier_row["idpersonnel"] if dossier_row else None,
+                    "nom": dossier_row["nom"] if dossier_row else None,
+                    "prenom": dossier_row["prenom"] if dossier_row else None,
+                    "age": dossier_row["age"] if dossier_row and dossier_row.get("age") is not None else None,
+                    "etat_civil": dossier_row["etat_civil"] if dossier_row else None,
                 },
                 "currentDoctorId": int(personnel["id_personnel"]),
-                "historyCount": len(history),
-                "lastAppointment": history[0] if history else None,
-                "appointments": history,
+                "history": history,
             }
         ), 200
     except Exception as exc:
@@ -2870,7 +2957,7 @@ def get_medical_staff_patient_full_profile():
         with db.engine.connect() as conn:
             personnel_row = conn.exec_driver_sql(
                 """
-                SELECT id_personnel, type_personnel
+                SELECT id_personnel
                 FROM personnel_de_sante
                 WHERE id_personnel = %s
                 LIMIT 1
@@ -2880,12 +2967,10 @@ def get_medical_staff_patient_full_profile():
 
             if not personnel_row:
                 return jsonify({"error": "personnel introuvable"}), 404
-            if personnel_row["type_personnel"] not in ("medecin", "secretaire"):
-                return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
 
             patient_row = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                 FROM patient
                 WHERE id_patient = %s
                 LIMIT 1
@@ -2898,9 +2983,9 @@ def get_medical_staff_patient_full_profile():
 
             dossier_row = conn.exec_driver_sql(
                 """
-                SELECT sexe, date_naissance, historique, allergies, traitements
-                FROM dossier_medical
-                WHERE idPatient = %s
+                SELECT idfiche, idpatient, idpersonnel, nom, prenom, age, etat_civil
+                FROM fiche_patient
+                WHERE idpatient = %s
                 LIMIT 1
                 """,
                 (id_patient,),
@@ -2938,10 +3023,7 @@ def get_medical_staff_patient_full_profile():
                 }
             )
 
-        allergies = _split_health_values(dossier_row["allergies"]) if dossier_row and dossier_row.get("allergies") else []
-        maladies = _split_health_values(dossier_row["traitements"]) if dossier_row and dossier_row.get("traitements") else []
-        date_naissance = dossier_row["date_naissance"] if dossier_row else None
-        age = _compute_age(date_naissance) if date_naissance else None
+        age = dossier_row["age"] if dossier_row and dossier_row.get("age") is not None else None
         nom_complet = f"{(patient_row['prenom'] or '').strip()} {(patient_row['nom'] or '').strip()}".strip()
 
         return jsonify(
@@ -2952,15 +3034,21 @@ def get_medical_staff_patient_full_profile():
                     "prenom": patient_row["prenom"],
                     "nomComplet": nom_complet or f"Patient #{patient_row['id_patient']}",
                     "cin": patient_row["cin"],
-                    "sexe": dossier_row["sexe"] if dossier_row else None,
+                    "sexe": None,
                     "telephone": patient_row["telephone"],
                     "email": patient_row["email"],
                     "statut": 1,
                     "statut_label": "patient",
-                    "dateNaissance": date_naissance.isoformat() if hasattr(date_naissance, "isoformat") else (str(date_naissance) if date_naissance else None),
+                    "dateNaissance": None,
                     "age": age,
-                    "allergies": allergies,
-                    "maladies": maladies,
+                    "allergies": [],
+                    "maladies": [],
+                    "idfiche": dossier_row["idfiche"] if dossier_row else None,
+                    "idpatient": dossier_row["idpatient"] if dossier_row else None,
+                    "idpersonnel": dossier_row["idpersonnel"] if dossier_row else None,
+                    "nomFiche": dossier_row["nom"] if dossier_row else None,
+                    "prenomFiche": dossier_row["prenom"] if dossier_row else None,
+                    "etat_civil": dossier_row["etat_civil"] if dossier_row else None,
                 },
                 "currentDoctorId": id_personnel,
                 "historyCount": len(history),
@@ -2982,7 +3070,7 @@ def get_medical_staff_patients():
         with db.engine.connect() as conn:
             personnel_row = conn.exec_driver_sql(
                 """
-                SELECT id_personnel, type_personnel
+                SELECT id_personnel
                 FROM personnel_de_sante
                 WHERE id_personnel = %s
                 LIMIT 1
@@ -2990,7 +3078,7 @@ def get_medical_staff_patients():
                 (id_personnel,),
             ).mappings().first()
 
-            if not personnel_row or personnel_row.get("type_personnel") not in {"medecin", "secretaire"}:
+            if not personnel_row:
                 app.logger.warning(f"medical staff not found for id_personnel={id_personnel}")
                 return jsonify([]), 200
 
@@ -3086,7 +3174,7 @@ def get_patient_rdvs():
             # Verify patient exists
             patient_row = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin, adresse
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS adresse
                 FROM patient
                 WHERE id_patient = %s
                 LIMIT 1
@@ -3106,7 +3194,6 @@ def get_patient_rdvs():
                     r.heureDebut,
                     r.heureFin,
                     r.motifConsultation,
-                    r.statut,
                     ps.id_personnel,
                     ps.nom AS medecin_nom,
                     ps.prenom AS medecin_prenom,
@@ -3134,7 +3221,7 @@ def get_patient_rdvs():
                 "heureDebut": heure_debut.strftime("%H:%M:%S") if heure_debut else None,
                 "heureFin": heure_fin.strftime("%H:%M:%S") if heure_fin else None,
                 "motifConsultation": rdv["motifConsultation"] or "",
-                "statut": rdv["statut"] or "Confirme",
+                "statut": "Confirme",
                 "medecinNom": (rdv.get('medecin_nom') or None),
                 "medecinPrenom": (rdv.get('medecin_prenom') or None),
                 "medecin": medecin_nom or "Non assigne",
@@ -3172,7 +3259,7 @@ def get_patient_dossier_medical():
             # Get patient info
             patient_row = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                 FROM patient
                 WHERE id_patient = %s
                 LIMIT 1
@@ -3187,25 +3274,21 @@ def get_patient_dossier_medical():
             dossier_row = conn.exec_driver_sql(
                 """
                 SELECT
-                    idPatient,
-                    sexe,
-                    date_naissance,
-                    historique,
-                    allergies,
-                    traitements
-                FROM dossier_medical
-                WHERE idPatient = %s
+                    idfiche,
+                    idpatient,
+                    idpersonnel,
+                    nom,
+                    prenom,
+                    age,
+                    etat_civil
+                FROM fiche_patient
+                WHERE idpatient = %s
                 LIMIT 1
                 """,
                 (patient_id,),
             ).mappings().first()
         
-        date_naissance = dossier_row["date_naissance"] if dossier_row else None
-        age = _compute_age(date_naissance) if date_naissance else None
-        
-        allergies = _split_health_values(dossier_row["allergies"]) if dossier_row and dossier_row.get("allergies") else []
-        traitements = _split_health_values(dossier_row["traitements"]) if dossier_row and dossier_row.get("traitements") else []
-        historique = (dossier_row["historique"] or "").strip() if dossier_row else ""
+        age = dossier_row["age"] if dossier_row and dossier_row.get("age") is not None else None
         
         return jsonify({
             "patient": {
@@ -3217,12 +3300,18 @@ def get_patient_dossier_medical():
                 "cin": patient_row["cin"],
             },
             "dossier": {
-                "sexe": dossier_row["sexe"] if dossier_row else None,
-                "date_naissance": date_naissance.isoformat() if date_naissance else None,
+                "idfiche": dossier_row["idfiche"] if dossier_row else None,
+                "idpatient": dossier_row["idpatient"] if dossier_row else None,
+                "idpersonnel": dossier_row["idpersonnel"] if dossier_row else None,
+                "nom": dossier_row["nom"] if dossier_row else None,
+                "prenom": dossier_row["prenom"] if dossier_row else None,
                 "age": age,
-                "historique": historique,
-                "allergies": allergies,
-                "traitements": traitements,
+                "etat_civil": dossier_row["etat_civil"] if dossier_row else None,
+                "sexe": None,
+                "date_naissance": None,
+                "historique": "",
+                "allergies": [],
+                "traitements": [],
             }
         }), 200
     except Exception as exc:
@@ -3253,7 +3342,7 @@ def get_patient_dashboard():
         with db.engine.connect() as conn:
             patient_row = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                 FROM patient
                 WHERE id_patient = %s
                 LIMIT 1
@@ -3266,9 +3355,9 @@ def get_patient_dashboard():
 
             dossier_row = conn.exec_driver_sql(
                 """
-                SELECT sexe, date_naissance, historique, allergies, traitements
-                FROM dossier_medical
-                WHERE idPatient = %s
+                SELECT idfiche, idpatient, idpersonnel, nom, prenom, age, etat_civil
+                FROM fiche_patient
+                WHERE idpatient = %s
                 LIMIT 1
                 """,
                 (patient_id,),
@@ -3282,7 +3371,6 @@ def get_patient_dashboard():
                     r.heureDebut,
                     r.heureFin,
                     r.motifConsultation,
-                    r.statut,
                     ps.nom AS medecin_nom,
                     ps.prenom AS medecin_prenom,
                     ps.specialite
@@ -3306,7 +3394,7 @@ def get_patient_dashboard():
                     "heureDebut": _format_sql_time(row["heureDebut"]),
                     "heureFin": _format_sql_time(row["heureFin"]),
                     "motifConsultation": row["motifConsultation"] or "",
-                    "statut": row["statut"] or "Confirme",
+                    "statut": "Confirme",
                     "medecin": medecin_full or "Medecin non renseigne",
                     "medecinNom": medecin_nom or None,
                     "medecinPrenom": medecin_prenom or None,
@@ -3314,9 +3402,7 @@ def get_patient_dashboard():
                 }
             )
 
-        date_naissance = dossier_row["date_naissance"] if dossier_row else None
-        allergies = _split_health_values(dossier_row["allergies"]) if dossier_row and dossier_row.get("allergies") else []
-        maladies = _split_health_values(dossier_row["traitements"]) if dossier_row and dossier_row.get("traitements") else []
+        age = dossier_row["age"] if dossier_row and dossier_row.get("age") is not None else None
 
         nom_complet = f"{(patient_row['prenom'] or '').strip()} {(patient_row['nom'] or '').strip()}".strip()
 
@@ -3333,11 +3419,18 @@ def get_patient_dashboard():
                     "adresse": None,
                 },
                 "dossierMedical": {
-                    "sexe": dossier_row["sexe"] if dossier_row else None,
-                    "dateNaissance": date_naissance.isoformat() if date_naissance else None,
-                    "historique": (dossier_row["historique"] or "").strip() if dossier_row else None,
-                    "allergies": allergies,
-                    "maladies": maladies,
+                    "idfiche": dossier_row["idfiche"] if dossier_row else None,
+                    "idpatient": dossier_row["idpatient"] if dossier_row else None,
+                    "idpersonnel": dossier_row["idpersonnel"] if dossier_row else None,
+                    "nom": dossier_row["nom"] if dossier_row else None,
+                    "prenom": dossier_row["prenom"] if dossier_row else None,
+                    "age": age,
+                    "etat_civil": dossier_row["etat_civil"] if dossier_row else None,
+                    "sexe": None,
+                    "dateNaissance": None,
+                    "historique": "",
+                    "allergies": [],
+                    "maladies": [],
                 },
                 "historyCount": len(appointments),
                 "appointments": appointments,
@@ -3372,7 +3465,7 @@ def get_patient_profile():
             # Get patient info
             patient_row = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                 FROM patient
                 WHERE id_patient = %s
                 LIMIT 1
@@ -3387,14 +3480,15 @@ def get_patient_profile():
             dossier_row = conn.exec_driver_sql(
                 """
                 SELECT
-                    idPatient,
-                    sexe,
-                    date_naissance,
-                    historique,
-                    allergies,
-                    traitements
-                FROM dossier_medical
-                WHERE idPatient = %s
+                    idfiche,
+                    idpatient,
+                    idpersonnel,
+                    nom,
+                    prenom,
+                    age,
+                    etat_civil
+                FROM fiche_patient
+                WHERE idpatient = %s
                 LIMIT 1
                 """,
                 (patient_id,),
@@ -3409,7 +3503,6 @@ def get_patient_profile():
                     r.heureDebut,
                     r.heureFin,
                     r.motifConsultation,
-                    r.statut,
                     ps.nom AS medecin_nom,
                     ps.prenom AS medecin_prenom,
                     ps.specialite
@@ -3441,14 +3534,7 @@ def get_patient_profile():
                 "specialite": (row.get("specialite") or "Généraliste")
             })
         
-        # Calculate age
-        date_naissance = dossier_row["date_naissance"] if dossier_row else None
-        age = _compute_age(date_naissance) if date_naissance else None
-        
-        # Parse health arrays
-        allergies = _split_health_values(dossier_row["allergies"]) if dossier_row and dossier_row.get("allergies") else []
-        maladies = _split_health_values(dossier_row["traitements"]) if dossier_row and dossier_row.get("traitements") else []
-        historique_medical = (dossier_row["historique"] or "").strip() if dossier_row else ""
+        age = dossier_row["age"] if dossier_row and dossier_row.get("age") is not None else None
         
         return jsonify({
             "patient": {
@@ -3459,13 +3545,22 @@ def get_patient_profile():
                 "telephone": patient_row["telephone"] or "",
                 "cin": patient_row["cin"] or "",
                 "adresse": patient_row["adresse"] or "",
-                "dateNaissance": date_naissance.isoformat() if date_naissance else None,
+                "dateNaissance": None,
                 "age": age,
-                "sexe": dossier_row["sexe"] if dossier_row else None,
+                "sexe": None,
             },
-            "allergies": allergies,
-            "maladies": maladies,
-            "historiqueMedical": historique_medical,
+            "dossier": {
+                "idfiche": dossier_row["idfiche"] if dossier_row else None,
+                "idpatient": dossier_row["idpatient"] if dossier_row else None,
+                "idpersonnel": dossier_row["idpersonnel"] if dossier_row else None,
+                "nom": dossier_row["nom"] if dossier_row else None,
+                "prenom": dossier_row["prenom"] if dossier_row else None,
+                "age": age,
+                "etat_civil": dossier_row["etat_civil"] if dossier_row else None,
+            },
+            "allergies": [],
+            "maladies": [],
+            "historiqueMedical": "",
             "appointments": appointments,
         }), 200
     except Exception as exc:
@@ -3541,7 +3636,7 @@ def get_patient_travel_notices():
 
             appointments_rows = conn.exec_driver_sql(
                 """
-                SELECT idRDV AS id, dateRDV, heureDebut, heureFin, motifConsultation, statut
+                SELECT idRDV AS id, dateRDV, heureDebut, heureFin, motifConsultation
                 FROM rdv
                 WHERE idPatient = %s
                   AND dateRDV >= CURDATE()
@@ -3731,7 +3826,7 @@ def update_medical_staff_patient_full_profile():
         with db.engine.begin() as conn:
             patient = conn.exec_driver_sql(
                 """
-                SELECT id_patient, nom, prenom, email, telephone, cin
+                SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                 FROM patient
                 WHERE id_patient = %s
                 LIMIT 1
@@ -3892,6 +3987,7 @@ def suggest_available_slots():
                         "heureFin": _to_hhmmss(result["urgent_end"]),
                     },
                     "rescheduledAppointments": result["updated"],
+                    "optimizedPlan": result.get("optimized_plan", []),
                 }
             ), 200
 
@@ -4062,10 +4158,10 @@ def add_rdv():
             print(f"    ERROR: {msg}")
             return jsonify({"error": "idPersonnel et dateRDV sont obligatoires"}), 400
 
-        if not is_urgent and not all([heure_debut, heure_fin, statut]):
-            msg = f"Missing required fields: start={heure_debut}, end={heure_fin}, statut={statut}"
+        if not is_urgent and not all([heure_debut, heure_fin]):
+            msg = f"Missing required fields: start={heure_debut}, end={heure_fin}"
             print(f"    ERROR: {msg}")
-            return jsonify({"error": "idPersonnel, dateRDV, heureDebut, heureFin et statut sont obligatoires"}), 400
+            return jsonify({"error": "idPersonnel, dateRDV, heureDebut et heureFin sont obligatoires"}), 400
 
         if is_urgent:
             statut = RDV_URGENT_STATUT
@@ -4076,9 +4172,8 @@ def add_rdv():
                     urgent_duration = 30
             if urgent_duration <= 0:
                 return jsonify({"error": "slotDuration ou la duree du créneau urgent doit être superieure a 0"}), 400
-        elif statut not in RDV_CREATION_STATUTS:
-            print(f"    ERROR: Invalid statut '{statut}', valid values: {RDV_CREATION_STATUTS}")
-            return jsonify({"error": "statut invalide (consultation, controle)"}), 400
+        else:
+            statut = "Confirme"
 
         _ensure_patient_table_columns()
         
@@ -4087,7 +4182,7 @@ def add_rdv():
             if id_patient and int(id_patient) > 0:
                 patient_row = conn.exec_driver_sql(
                     """
-                    SELECT id_patient, nom, prenom, email, telephone, cin
+                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                     FROM patient
                     WHERE id_patient = %s
                     LIMIT 1
@@ -4118,20 +4213,20 @@ def add_rdv():
                 
                 conn.exec_driver_sql(
                     """
-                    INSERT INTO patient (nom, prenom, telephone, email, password)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO patient (nom, prenom, telephone)
+                    VALUES (%s, %s, %s)
                     """,
-                    (patient_nom, patient_prenom, data.get("telephone") or "", email, ""),
+                    (patient_nom, patient_prenom, data.get("telephone") or ""),
                 )
                 
                 patient_row = conn.exec_driver_sql(
                     """
-                    SELECT id_patient, nom, prenom, email, telephone, cin
+                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                     FROM patient
-                    WHERE LOWER(email) = LOWER(%s)
+                    WHERE telephone = %s
                     LIMIT 1
                     """,
-                    (email,),
+                    (data.get("telephone") or "",),
                 ).mappings().first()
                 
                 if patient_row:
@@ -4141,7 +4236,7 @@ def add_rdv():
                 # Get first patient as fallback
                 fallback_row = conn.exec_driver_sql(
                     """
-                    SELECT id_patient, nom, prenom, email, telephone
+                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
                     FROM patient
                     ORDER BY id_patient ASC
                     LIMIT 1
@@ -4198,66 +4293,167 @@ def add_rdv():
                 }), 400
 
         if is_urgent:
-            window_start, window_end, plannings, used_default_planning = _get_doctor_planning_window(id_personnel, date_rdv)
-            existing_rdvs = [_build_rdv_snapshot(rdv) for rdv in _get_doctor_rdvs_for_day(id_personnel, date_rdv)]
+            print("    URGENT: insertion urgente demandee", flush=True)
+            # Use a single atomic operation to compute and persist the urgent insertion
+            def perform_urgent_planning_and_persist(id_personnel, date_rdv, id_patient, payload, urgent_duration):
+                window_start, window_end, plannings, used_default_planning = _get_doctor_planning_window(id_personnel, date_rdv)
+                existing_rdvs = [_build_rdv_snapshot(rdv) for rdv in _get_doctor_rdvs_for_day(id_personnel, date_rdv)]
 
-            if not existing_rdvs and not plannings and urgent_duration > (window_end - window_start):
-                return jsonify({"error": "Impossible d'inserer l'urgence"}), 200
+                now_reference = None
+                try:
+                    if date_rdv == datetime.now().date():
+                        now_reference = datetime.now().hour * 60 + datetime.now().minute
+                except Exception:
+                    now_reference = None
 
-            result = schedule_with_emergency(
-                existing_rdvs=existing_rdvs,
-                duration=urgent_duration,
-                start_window=window_start,
-                end_window=window_end,
-            )
-
-            if not result:
-                return jsonify({"error": "Impossible d'inserer l'urgence"}), 200
-
-            with db.session.begin():
-                persisted = _apply_rescheduled_appointments(id_personnel, date_rdv, result)
-                if not persisted:
-                    db.session.rollback()
-                    return jsonify({"error": "Impossible de sauvegarder le reordonnancement d'urgence"}), 500
-
-                urgent_rdv = Rdv(
-                    idPatient=id_patient,
-                    idPersonnel=id_personnel,
-                    dateRDV=date_rdv,
-                    heureDebut=persisted["urgent_start"],
-                    heureFin=persisted["urgent_end"],
-                    motifConsultation=data.get("motifConsultation") or "Urgence patient",
-                    statut=RDV_URGENT_STATUT,
+                immediate_result = _find_immediate_urgent_slot(
+                    existing_rdvs=existing_rdvs,
+                    duration=urgent_duration,
+                    start_window=window_start,
+                    end_window=window_end,
+                    reference_minute=now_reference,
                 )
-                db.session.add(urgent_rdv)
-                db.session.flush()
 
-            updated_schedule = _get_doctor_rdvs_for_day(id_personnel, date_rdv)
+                if immediate_result:
+                    print(
+                        f"    URGENT: créneau immédiat trouvé { _to_hhmmss(immediate_result['urgent_start']) } -> { _to_hhmmss(immediate_result['urgent_end']) }",
+                        flush=True,
+                    )
+                    try:
+                        try:
+                            db.session.rollback()
+                        except Exception:
+                            pass
+                        with db.session.begin():
+                            urgent_rdv = Rdv(
+                                idPatient=id_patient,
+                                idPersonnel=id_personnel,
+                                dateRDV=date_rdv,
+                                heureDebut=parse_time(_to_hhmmss(immediate_result["urgent_start"])),
+                                heureFin=parse_time(_to_hhmmss(immediate_result["urgent_end"])),
+                                motifConsultation=payload.get("motifConsultation") or "Urgence patient",
+                            )
+                            db.session.add(urgent_rdv)
+                            db.session.flush()
+
+                            updated_schedule = _get_doctor_rdvs_for_day(id_personnel, date_rdv)
+
+                        print("    URGENT: aucun déplacement effectué", flush=True)
+                        return {
+                            "urgent_rdv": urgent_rdv.to_dict(),
+                            "urgent_start": immediate_result["urgent_start"],
+                            "urgent_end": immediate_result["urgent_end"],
+                            "rescheduledAppointments": [],
+                            "optimizedPlan": immediate_result.get("optimized_plan", []),
+                            "updatedSchedule": [rdv.to_dict() for rdv in updated_schedule],
+                            "planningContext": {
+                                "hasPlanning": not used_default_planning,
+                                "planningSource": "default" if used_default_planning else "planning",
+                                "planningWindows": len(plannings),
+                                "mode": "immediate",
+                            },
+                        }, (window_start, window_end, plannings, used_default_planning)
+                    except Exception as exc:
+                        print(f"    ERROR persisting immediate urgent planning: {exc}", flush=True)
+                        try:
+                            db.session.rollback()
+                        except Exception:
+                            pass
+                        return None, (None, None, plannings, used_default_planning)
+
+                if not existing_rdvs and not plannings and urgent_duration > (window_end - window_start):
+                    return None, (None, None, plannings, used_default_planning)
+
+                result = schedule_with_emergency(
+                    existing_rdvs=existing_rdvs,
+                    duration=urgent_duration,
+                    start_window=window_start,
+                    end_window=window_end,
+                )
+
+                if not result:
+                    return None, (None, None, plannings, used_default_planning)
+
+                print(f"    URGENT: recalcul planning OR-Tools, deplacements={len(result.get('updated', []))}", flush=True)
+
+                # Persist all changes in a single DB transaction. If anything fails, rollback.
+                try:
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                    with db.session.begin():
+                        persisted = _apply_rescheduled_appointments(id_personnel, date_rdv, result)
+                        if not persisted:
+                            # Let the transaction rollback by raising
+                            raise RuntimeError("failed to persist rescheduled appointments")
+
+                        urgent_rdv = Rdv(
+                            idPatient=id_patient,
+                            idPersonnel=id_personnel,
+                            dateRDV=date_rdv,
+                            heureDebut=persisted["urgent_start"],
+                            heureFin=persisted["urgent_end"],
+                            motifConsultation=payload.get("motifConsultation") or "Urgence patient",
+                        )
+                        db.session.add(urgent_rdv)
+                        db.session.flush()
+
+                        # Capture the updated schedule after commit
+                        updated_schedule = _get_doctor_rdvs_for_day(id_personnel, date_rdv)
+
+                    # After successful commit, notify and return persistent results
+                    return {
+                        "urgent_rdv": urgent_rdv.to_dict(),
+                        "urgent_start": persisted["urgent_start"],
+                        "urgent_end": persisted["urgent_end"],
+                        "rescheduledAppointments": result.get("updated", []),
+                        "optimizedPlan": result.get("optimized_plan", []) if isinstance(result, dict) else result.get("optimized_plan", []),
+                        "updatedSchedule": [rdv.to_dict() for rdv in updated_schedule],
+                        "planningContext": {
+                            "hasPlanning": not used_default_planning,
+                            "planningSource": "default" if used_default_planning else "planning",
+                            "planningWindows": len(plannings),
+                            "mode": "recalculated",
+                        },
+                    }, (window_start, window_end, plannings, used_default_planning)
+                except Exception as exc:
+                    print(f"    ERROR persisting urgent planning: {exc}", flush=True)
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                    return None, (None, None, plannings, used_default_planning)
+
+            persisted_result, planning_meta = perform_urgent_planning_and_persist(int(id_personnel), date_rdv, int(id_patient), data, urgent_duration)
+
+            if not persisted_result:
+                return jsonify({"error": "Impossible d'inserer l'urgence ou de sauvegarder le reordonnancement"}), 500
+
+            # Emit socket event after successful commit
             socketio.emit(
                 "doctor_planning_rearranged",
                 {
                     "idPersonnel": int(id_personnel),
                     "dateRDV": date_rdv.isoformat(),
-                    "urgentRdv": urgent_rdv.to_dict(),
-                    "rescheduledAppointments": result["updated"],
+                    "urgentRdv": persisted_result["urgent_rdv"],
+                    "rescheduledAppointments": persisted_result["rescheduledAppointments"],
                 },
             )
 
             return jsonify({
                 "message": "rdv urgent cree avec succes",
                 "type": "urgent_optimized",
-                "rdv": urgent_rdv.to_dict(),
+                "rdv": persisted_result["urgent_rdv"],
                 "urgentSlot": {
-                    "heureDebut": _format_time_for_client(persisted["urgent_start"]),
-                    "heureFin": _format_time_for_client(persisted["urgent_end"]),
+                    "heureDebut": _format_time_for_client(persisted_result["urgent_start"]),
+                    "heureFin": _format_time_for_client(persisted_result["urgent_end"]),
                 },
-                "rescheduledAppointments": result["updated"],
-                "planningContext": {
-                    "hasPlanning": not used_default_planning,
-                    "planningSource": "default" if used_default_planning else "planning",
-                    "planningWindows": len(plannings),
-                },
-                "updatedSchedule": [rdv.to_dict() for rdv in updated_schedule],
+                "rescheduledAppointments": persisted_result["rescheduledAppointments"],
+                "optimizedPlan": persisted_result.get("optimizedPlan", []),
+                "planningContext": persisted_result.get("planningContext", {}),
+                "updatedSchedule": persisted_result.get("updatedSchedule", []),
+                "isUrgent": True,
             }), 201
 
         # Check for appointment conflicts for normal consultations/controls.
@@ -4282,7 +4478,6 @@ def add_rdv():
             heureDebut=heure_debut,
             heureFin=heure_fin,
             motifConsultation=data.get("motifConsultation", ""),
-            statut=statut,
         )
         
         print(f"    Creating RDV...")
@@ -4382,11 +4577,7 @@ def update_rdv(rdv_id):
         effective_start = parsed_start if parsed_start is not None else rdv.heureDebut
         effective_end = parsed_end if parsed_end is not None else rdv.heureFin
 
-        # Determine effective statut (may affect validation for urgences)
-        effective_statut = data.get("statut", rdv.statut)
-        effective_statut = _normalize_status(effective_statut) if effective_statut is not None else rdv.statut
-
-        if effective_start and effective_end and effective_statut != "urgence":
+        if effective_start and effective_end:
             requested_slot_duration = _coerce_minutes_value(data.get("slotDuration") or data.get("duration") or data.get("duree_creneau"))
             if requested_slot_duration is None:
                 requested_slot_duration = _to_minutes(effective_end) - _to_minutes(effective_start)
@@ -4422,12 +4613,6 @@ def update_rdv(rdv_id):
             rdv.heureDebut = parsed_start
         if parsed_end is not None:
             rdv.heureFin = parsed_end
-
-        if "statut" in data:
-            statut = _normalize_status(data["statut"])
-            if statut not in RDV_STATUTS:
-                return jsonify({"error": "statut invalide (urgence, consultation, controle)"}), 400
-            rdv.statut = statut
 
         if "motifConsultation" in data:
             rdv.motifConsultation = data["motifConsultation"]
@@ -4523,6 +4708,36 @@ def get_planning():
 
 
 @app.route("/optimize", methods=["POST"])
+def optimize():
+    try:
+        data = request.get_json(silent=True) or {}
+        patients = data.get("patients", [])
+        doctor_schedule = data.get("doctor_schedule", {})
+
+        app.logger.info(
+            "Optimize request received: patients=%s doctor_schedule=%s",
+            len(patients) if isinstance(patients, list) else "invalid",
+            doctor_schedule,
+        )
+
+        optimized_schedule = optimize_schedule(patients, doctor_schedule)
+        if optimized_schedule is None:
+            app.logger.warning("No feasible optimization solution found")
+            return jsonify({
+                "status": "error",
+                "message": "impossible de trouver un planning compatible avec les contraintes",
+                "data": [],
+            }), 400
+
+        app.logger.info("Optimization success: appointments=%s", len(optimized_schedule))
+        return jsonify({"status": "success", "data": optimized_schedule}), 200
+    except Exception as exc:
+        app.logger.exception("Server error during optimization")
+        return jsonify({
+            "status": "error",
+            "message": f"erreur serveur: {str(exc)}",
+            "data": [],
+        }), 500
 
 
 @app.route("/optimize-day", methods=["POST"])
@@ -4635,10 +4850,7 @@ def handle_cabinet_status_request():
         
         # Get count of current appointments today
         today = datetime.now().date()
-        current_rdvs = db.session.query(Rdv).filter(
-            Rdv.dateRDV == today,
-            Rdv.statut.in_(['Programme', 'Confirme'])
-        ).all()
+        current_rdvs = db.session.query(Rdv).filter(Rdv.dateRDV == today).all()
         
         total_patients = len(current_rdvs)
         

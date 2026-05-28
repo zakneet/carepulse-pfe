@@ -581,6 +581,38 @@
   gap: 0.6rem;
 }
 
+.history-item.cancelled {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.history-item.cancelled strong,
+.history-item.cancelled p,
+.history-item.cancelled span {
+  color: #b91c1c;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-pill.cancelled {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-pill.delayed {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
 @media (max-width: 768px) {
   .top-nav-panel {
     top: 72px;

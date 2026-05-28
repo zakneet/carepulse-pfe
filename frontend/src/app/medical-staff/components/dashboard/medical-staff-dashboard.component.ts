@@ -35,7 +35,6 @@ interface UrgentPatientForm {
   nom: string;
   prenom: string;
   telephone: string;
-  cin: string;
   motif: string;
   duration: number;
 }
@@ -44,7 +43,6 @@ interface UrgentOptimizePatient extends OptimizePatient {
   nom: string;
   prenom: string;
   telephone: string;
-  cin: string;
   motif: string;
 }
 
@@ -447,8 +445,69 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     this.showUrgentForm = false;
     this.urgentFormError = '';
     this.urgentFormLoading = true;
-    this.emergencyNotice = 'Urgence patient saisie: recalcul OR-Tools en cours...';
-    this.loadOptimizedPlanning(true);
+    this.emergencyNotice = 'Urgence patient saisie: insertion en cours...';
+
+    const idPersonnel = this.getCurrentPersonnelId();
+    if (!idPersonnel) {
+      this.urgentFormLoading = false;
+      this.emergencyNotice = 'Utilisateur medical non identifie.';
+      return;
+    }
+
+    const payload: any = {
+      idPatient: 0,
+      idPersonnel,
+      dateRDV: this.selectedDate,
+      isUrgent: true,
+      duration: urgentPatient.duration,
+      heureDebut: `${Math.floor(urgentPatient.start / 60).toString().padStart(2, '0')}:${(urgentPatient.start % 60).toString().padStart(2, '0')}:00`,
+      heureFin: `${Math.floor((urgentPatient.start + urgentPatient.duration) / 60).toString().padStart(2, '0')}:${((urgentPatient.start + urgentPatient.duration) % 60).toString().padStart(2, '0')}:00`,
+      motifConsultation: urgentPatient.motif || 'Urgence patient',
+      statut: 'urgence',
+      nom: urgentPatient.nom,
+      prenom: urgentPatient.prenom,
+      telephone: urgentPatient.telephone,
+    };
+
+    this.rdvService.addRdv(payload).pipe(
+      finalize(() => {
+        this.urgentFormLoading = false;
+      }),
+      catchError((error) => {
+        this.emergencyNotice = this.getReadableHttpError(error, 'Urgence patient: insertion impossible.');
+        this.notifications.error(this.emergencyNotice);
+        return of(null);
+      })
+    ).subscribe((response: any) => {
+      if (!response) {
+        return;
+      }
+
+      const updatedSchedule = Array.isArray(response.updatedSchedule) ? response.updatedSchedule as MedicalPlanningAppointment[] : [];
+      if (updatedSchedule.length > 0) {
+        this.todayPlanning = [...updatedSchedule];
+        this.weekPlanning = this.weekPlanning.map((day) => {
+          if ((day.date || '').slice(0, 10) !== this.selectedDate) {
+            return day;
+          }
+
+          return {
+            ...day,
+            appointments: [...updatedSchedule],
+            count: updatedSchedule.length
+          };
+        });
+        this.applyMetrics();
+        this.changeDetector.markForCheck();
+      }
+
+      this.pendingUrgentPatients = [];
+      this.lastUrgentRecalculation = null;
+      this.optimizerErrorMessage = '';
+      this.emergencyNotice = response.message || 'Urgence patient intégrée au planning.';
+      this.notifications.success(this.emergencyNotice);
+      this.loadDashboardData();
+    });
   }
 
   formatShortDate(value: string | undefined): string {
@@ -539,12 +598,10 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
 
     const patientNom = this.normalize(appointment.patientNom);
     const patientPrenom = this.normalize(appointment.patientPrenom);
-    const patientCin = this.normalize(this.getAppointmentCin(appointment));
-    const patientEmail = this.normalize(this.getAppointmentEmail(appointment));
     const motif = this.normalize(appointment.motifConsultation);
     const status = this.normalize(appointment.statut);
 
-    return [patientNom, patientPrenom, patientCin, patientEmail, motif, status].some((value) => value.includes(query));
+    return [patientNom, patientPrenom, motif, status].some((value) => value.includes(query));
   }
 
   private matchesPatientFilter(appointment: MedicalPlanningAppointment): boolean {
@@ -884,92 +941,67 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     this.applyMetrics();
     this.changeDetector.markForCheck();
 
-    const updateRequests = sourceAppointments.map((appointment) => {
-      const optimized = responseById.get(Number(appointment.id));
-      if (!optimized) {
-        return of(null);
-      }
-
-      return this.rdvService.updateRdv({
-        id: appointment.id,
-        idPatient: appointment.idPatient,
-        idPersonnel: appointment.idPersonnel,
-        dateRDV: appointment.dateRDV,
-        heureDebut: this.minutesToHour(optimized.start),
-        heureFin: this.minutesToHour(optimized.end),
-        motifConsultation: appointment.motifConsultation || 'consultation'
-      }).pipe(catchError(() => of(null)));
-    });
-
-    let urgentRequest: Observable<unknown> = of(null);
+    // Send a single request to the backend to create the urgent RDV and let
+    // the server compute & persist the full rescheduling atomically.
     if (urgentPatient && urgentAppointment && idPersonnel) {
-      urgentRequest = this.rdvService.saveMedicalStaffPatient({
+      const slotDuration = urgentPatient.duration || ((urgentAppointment && urgentAppointment.heureDebut && urgentAppointment.heureFin)
+        ? (this.toMinutes(urgentAppointment.heureFin) - this.toMinutes(urgentAppointment.heureDebut))
+        : 30);
+
+      const payload: any = {
         idPersonnel,
-        patient: {
-          nom: urgentPatient.nom,
-          prenom: urgentPatient.prenom,
-          cin: urgentPatient.cin,
-          telephone: urgentPatient.telephone,
-          email: null,
-        }
-      }).pipe(
-        switchMap((saveResponse) => {
-          const savedPatientId = Number(saveResponse?.patient?.id || 0);
-          return this.rdvService.addRdv({
-            idPatient: savedPatientId,
-            idPersonnel,
-            dateRDV: urgentAppointment.dateRDV,
-            heureDebut: urgentAppointment.heureDebut,
-            heureFin: urgentAppointment.heureFin,
-            motifConsultation: urgentAppointment.motifConsultation || urgentPatient.motif || 'Urgence patient',
-            statut: 'consultation',
-            nom: urgentPatient.nom,
-            prenom: urgentPatient.prenom,
-            telephone: urgentPatient.telephone,
-            isUrgent: true,
-          }).pipe(
-            switchMap((creationResponse) => {
-              const createdId = this.extractCreatedRdvId(creationResponse);
-              if (!createdId) {
-                return of(null);
-              }
+        dateRDV: urgentAppointment.dateRDV,
+        isUrgent: true,
+        slotDuration,
+        nom: urgentPatient.nom,
+        prenom: urgentPatient.prenom,
+        telephone: urgentPatient.telephone,
+        motifConsultation: urgentAppointment.motifConsultation || urgentPatient.motif || 'Urgence patient'
+      };
 
-              return this.rdvService.updateRdv({
-                id: createdId,
-                idPatient: savedPatientId,
-                idPersonnel,
-                dateRDV: urgentAppointment.dateRDV,
-                heureDebut: urgentAppointment.heureDebut,
-                heureFin: urgentAppointment.heureFin,
-                motifConsultation: urgentAppointment.motifConsultation || urgentPatient.motif || 'Urgence patient',
-                statut: 'urgence'
-              }).pipe(catchError(() => of(null)));
-            }),
-            catchError(() => of(null))
-          );
-        }),
-        catchError(() => of(null))
-      );
-    }
-
-    forkJoin([...updateRequests, urgentRequest]).subscribe({
-      next: (results) => {
-        const failed = results.filter((result) => result === null).length;
-        if (failed > 0) {
-          this.emergencyNotice = 'Urgence patient integree localement, mais une partie de la sauvegarde a echoue.';
-        } else {
-          this.emergencyNotice = 'Urgence patient integree au planning et recalcul OR-Tools enregistre.';
+      this.rdvService.addRdv(payload).pipe(
+        catchError((err) => {
+          this.emergencyNotice = this.getReadableHttpError(err, 'Urgence patient integree localement, mais la sauvegarde a echoue.');
+          this.urgentFormLoading = false;
+          return of(null);
+        })
+      ).subscribe((resp: any) => {
+        if (!resp) {
+          return;
         }
 
+        // Backend returns the persisted updatedSchedule and urgent RDV.
+        if (resp && Array.isArray(resp.updatedSchedule) && resp.updatedSchedule.length > 0) {
+          const updated = resp.updatedSchedule as MedicalPlanningAppointment[];
+          this.todayPlanning = [...updated];
+          this.weekPlanning = this.weekPlanning.map((day) => {
+            if ((day.date || '').slice(0, 10) !== this.selectedDate) {
+              return day;
+            }
+
+            return {
+              ...day,
+              appointments: [...updated],
+              count: updated.length
+            };
+          });
+
+          this.applyMetrics();
+          this.changeDetector.markForCheck();
+        }
+
+        this.emergencyNotice = resp.message || 'Urgence patient integree au planning et recalcul OR-Tools enregistre.';
         this.pendingUrgentPatients = [];
         this.urgentFormLoading = false;
+        // refresh to ensure full consistency
         this.loadDashboardData();
-      },
-      error: () => {
-        this.emergencyNotice = 'Urgence patient integree localement, mais la sauvegarde a echoue.';
-        this.urgentFormLoading = false;
-      }
-    });
+      });
+    } else {
+      // No urgent patient to persist, just finalize
+      this.pendingUrgentPatients = [];
+      this.urgentFormLoading = false;
+      this.loadDashboardData();
+    }
   }
 
   private extractCreatedRdvId(response: unknown): number | null {
@@ -1046,7 +1078,6 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
       nom: '',
       prenom: '',
       telephone: '',
-      cin: '',
       motif: 'Urgence patient',
       duration: 30,
     };
@@ -1056,12 +1087,11 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
     const nom = this.urgentPatientForm.nom.trim();
     const prenom = this.urgentPatientForm.prenom.trim();
     const telephone = this.urgentPatientForm.telephone.trim();
-    const cin = this.urgentPatientForm.cin.trim();
     const motif = this.urgentPatientForm.motif.trim() || 'Urgence patient';
     const duration = Math.max(15, Math.floor(Number(this.urgentPatientForm.duration)) || 0);
 
-    if (!nom || !prenom || !telephone || !cin) {
-      this.urgentFormError = 'Veuillez remplir le nom, le prénom, le téléphone et le CIN.';
+    if (!nom || !prenom || !telephone) {
+      this.urgentFormError = 'Veuillez remplir le nom, le prénom et le téléphone.';
       return null;
     }
 
@@ -1077,7 +1107,6 @@ export class MedicalStaffDashboardComponent implements OnInit, OnDestroy {
       nom,
       prenom,
       telephone,
-      cin,
       motif,
       start: 8 * 60,
       end: 18 * 60,

@@ -43,7 +43,6 @@ class RDV(db.Model):
     heureDebut = db.Column(db.Time, nullable=False)
     heureFin = db.Column(db.Time)
     motifConsultation = db.Column(db.String(500))
-    statut = db.Column(db.String(50), default='Confirme')
     agePatient = db.Column(db.Integer)
     isUrgent = db.Column(db.Boolean, default=False)
 
@@ -57,7 +56,7 @@ class RDV(db.Model):
             'heureDebut': self.heureDebut.isoformat() if self.heureDebut else None,
             'heureFin': self.heureFin.isoformat() if self.heureFin else None,
             'motifConsultation': self.motifConsultation,
-            'statut': self.statut,
+            'statut': 'Confirme',
             'agePatient': self.agePatient,
             'isUrgent': self.isUrgent
         }

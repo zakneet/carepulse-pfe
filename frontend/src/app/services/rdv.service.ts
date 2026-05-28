@@ -240,7 +240,7 @@ export interface MedicalStaffPatientSavePayload {
   patient: {
     nom: string;
     prenom: string;
-    cin: string;
+    cin?: string | null;
     telephone?: string | null;
     email?: string | null;
   };
