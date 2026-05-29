@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 import functools
 import os
 import threading
@@ -32,7 +32,7 @@ MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
 MYSQL_PORT = os.getenv("MYSQL_PORT", "3306")
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
-MYSQL_DB = os.getenv("MYSQL_DB", "gestion_des_rendez-vous-3")
+MYSQL_DB = os.getenv("MYSQL_DB", "gestion_des_rendez-vous")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}"
@@ -459,6 +459,7 @@ class PersonnelDeSante(db.Model):
     prenom = db.Column(db.String(100), nullable=False)
     specialite = db.Column(db.String(120), nullable=True)
     disponibilite = db.Column(db.Boolean, nullable=False, default=True)
+    access_code = db.Column(db.String(120), nullable=True, unique=True)
 
 
 def _ensure_personnel_table_columns():
@@ -505,8 +506,13 @@ def _ensure_personnel_table_columns():
                 conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `disponibilite` TINYINT(1) NOT NULL DEFAULT 1")
             except Exception:
                 pass
+        if "access_code" not in existing_columns:
+            try:
+                conn.exec_driver_sql("ALTER TABLE personnel_de_sante ADD COLUMN `access_code` VARCHAR(120) NULL UNIQUE")
+            except Exception:
+                pass
 
-        for legacy_column in ("telephone", "email", "ville", "type_personnel", "password", "access_code"):
+        for legacy_column in ("telephone", "email", "ville", "type_personnel", "password"):
             if legacy_column in existing_columns:
                 try:
                     conn.exec_driver_sql(f"ALTER TABLE personnel_de_sante DROP COLUMN `{legacy_column}`")
@@ -5096,6 +5102,196 @@ def alternative_slot():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+# --- MEDICAL STAFF SECURE ENDPOINTS ---
+from functools import wraps
+
+def doctor_token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if "Authorization" in request.headers:
+            parts = request.headers["Authorization"].split()
+            if len(parts) == 2 and parts[0] == "Bearer":
+                token = parts[1]
+                
+        if not token:
+            return jsonify({"status": "error", "message": "Token manquant"}), 401
+            
+        try:
+            data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            current_user = PersonnelDeSante.query.get(data["id_personnel"])
+            if not current_user:
+                raise Exception("Utilisateur introuvable")
+        except Exception as e:
+            return jsonify({"status": "error", "message": "Token invalide ou expiré"}), 401
+            
+        return f(current_user, *args, **kwargs)
+    return decorated
+
+@app.route("/medical-staff/authenticate", methods=["POST"])
+def medical_staff_authenticate():
+    data = request.get_json() or {}
+    print(f"medical_staff_authenticate received data: {data}")
+    access_code = data.get("access_code", "").strip()
+    print(f"access_code parsed: '{access_code}'")
+    
+    if not access_code:
+        return jsonify({"status": "error", "message": "Code d'accès requis"}), 400
+        
+    doctor = PersonnelDeSante.query.filter_by(access_code=access_code).first()
+    print(f"doctor found: {doctor}")
+    if not doctor:
+        # Check if maybe there's a case sensitivity issue or leading/trailing whitespace in DB
+        all_doctors = PersonnelDeSante.query.all()
+        for d in all_doctors:
+            if d.access_code and d.access_code.strip().upper() == access_code.upper():
+                print(f"Found doctor with case-insensitive match: {d.access_code}")
+                doctor = d
+                break
+                
+    if not doctor:
+        return jsonify({"status": "error", "message": "Code d'accès invalide"}), 401
+        
+    payload = {
+        "id_personnel": doctor.id_personnel,
+        "nom": doctor.nom,
+        "prenom": doctor.prenom,
+        "role": "doctor",
+        "exp": datetime.utcnow() + timedelta(days=7)
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    
+    return jsonify({
+        "status": "success",
+        "token": token,
+        "doctor": {
+            "id_personnel": doctor.id_personnel,
+            "nom": doctor.nom,
+            "prenom": doctor.prenom,
+            "specialite": doctor.specialite
+        }
+    }), 200
+
+@app.route("/medical-staff/doctor/planning", methods=["GET"])
+@doctor_token_required
+def get_doctor_planning(current_user):
+    start_str = request.args.get("start")
+    end_str = request.args.get("end")
+    
+    query = Rdv.query.filter_by(idPersonnel=current_user.id_personnel)
+    
+    if start_str:
+        query = query.filter(Rdv.dateRDV >= start_str)
+    if end_str:
+        query = query.filter(Rdv.dateRDV <= end_str)
+        
+    rdvs = query.order_by(Rdv.dateRDV.asc(), Rdv.heureDebut.asc()).all()
+    
+    results = []
+    for r in rdvs:
+        patient = Patient.query.get(r.idPatient)
+        p_name = f"{patient.prenom} {patient.nom}" if patient else "Inconnu"
+        results.append({
+            "id": r.idRdv,
+            "idPatient": r.idPatient,
+            "patientName": p_name,
+            "dateRDV": r.dateRDV.isoformat(),
+            "heureDebut": _format_sql_time(r.heureDebut),
+            "heureFin": _format_sql_time(r.heureFin),
+            "motifConsultation": r.motifConsultation,
+            "statut": r.statut
+        })
+        
+    return jsonify({
+        "status": "success",
+        "doctor": {
+            "nom": current_user.nom,
+            "prenom": current_user.prenom
+        },
+        "appointments": results
+    }), 200
+
+@app.route("/appointments/emergency", methods=["POST"])
+@doctor_token_required
+def schedule_emergency(current_user):
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+        
+    date_str = data.get("date")
+    duration = data.get("duration", 30)
+    
+    if not date_str:
+        return jsonify({"error": "date is required"}), 400
+        
+    try:
+        from services.smart_scheduling import SmartSchedulingService
+        result = SmartSchedulingService.reoptimize_day_schedule(
+            db, Planning, Rdv, current_user.id_personnel, date_str, emergency_duration=duration
+        )
+        
+        if not result:
+            return jsonify({"error": "Impossible d'insérer une urgence ce jour-là"}), 404
+            
+        # We don't commit the moves automatically here. We just return the plan to the frontend
+        # The frontend can confirm the plan. Or we can just commit it if the request says 'confirm': true
+        if data.get("confirm"):
+            for move in result['moves']:
+                appt = Rdv.query.get(move['id'])
+                if appt:
+                    appt.heureDebut = move['newStart']
+                    appt.heureFin = move['newEnd']
+            db.session.commit()
+            
+        return jsonify({
+            "status": "success",
+            "emergency_slot": result.get('emergency_slot'),
+            "shifts": result['moves']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/appointments/cancel/<int:appointment_id>", methods=["POST"])
+def cancel_appointment(appointment_id):
+    # Depending on auth, might be doctor or patient
+    appt = Rdv.query.get(appointment_id)
+    if not appt:
+        return jsonify({"error": "Rendez-vous introuvable"}), 404
+        
+    data = request.get_json() or {}
+    auto_refill = data.get("autoRefill", True)
+    
+    try:
+        appt_date = appt.dateRDV
+        doctor_id = appt.idPersonnel
+        
+        appt.statut = "Annulé"
+        db.session.commit()
+        
+        result_data = {"status": "success", "message": "Rendez-vous annulé"}
+        
+        if auto_refill:
+            from services.smart_scheduling import SmartSchedulingService
+            reopt = SmartSchedulingService.reoptimize_day_schedule(
+                db, Planning, Rdv, doctor_id, appt_date, cancelled_id=appointment_id
+            )
+            if reopt and reopt.get('moves'):
+                # Apply shifts
+                for move in reopt['moves']:
+                    a = Rdv.query.get(move['id'])
+                    if a and a.statut != "Annulé":
+                        a.heureDebut = move['newStart']
+                        a.heureFin = move['newEnd']
+                db.session.commit()
+                result_data["shifts"] = reopt['moves']
+                
+        return jsonify(result_data), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     start_travel_notice_worker()

@@ -41,6 +41,8 @@ import { AppointmentHistoryComponent } from './patient-dashboard/components/appo
 import { LiveTrackingComponent } from './patient-dashboard/components/live-tracking/live-tracking.component';
 import { WeatherWidgetComponent } from './patient-dashboard/components/weather-widget/weather-widget.component';
 import { TrafficWidgetComponent } from './patient-dashboard/components/traffic-widget/traffic-widget.component';
+import { AuthenticateComponent } from './medical-staff/authenticate/authenticate.component';
+import { PlanningComponent } from './medical-staff/components/planning/planning.component';
 
 @NgModule({
   declarations: [
@@ -71,7 +73,9 @@ import { TrafficWidgetComponent } from './patient-dashboard/components/traffic-w
     AppointmentHistoryComponent,
     LiveTrackingComponent,
     WeatherWidgetComponent,
-    TrafficWidgetComponent
+    TrafficWidgetComponent,
+    AuthenticateComponent,
+    PlanningComponent
   ],
   imports: [
     BrowserModule,

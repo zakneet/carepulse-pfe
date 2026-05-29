@@ -24,9 +24,7 @@ def setup_access_codes():
     
     with app.app_context():
         # Récupérer tous les personnels médicaux
-        staff_members = PersonnelDeSante.query.filter(
-            PersonnelDeSante.type_personnel.in_(['medecin', 'secretaire'])
-        ).all()
+        staff_members = PersonnelDeSante.query.all()
         
         if not staff_members:
             print("❌ Aucun personnel médical trouvé dans la base de données.")
@@ -40,8 +38,7 @@ def setup_access_codes():
         for staff in staff_members:
             print(f"\n👤 {staff.nom.upper()} {staff.prenom}")
             print(f"   ID: {staff.id_personnel}")
-            print(f"   Type: {staff.type_personnel}")
-            print(f"   Email: {staff.email}")
+            print(f"   Specialite: {staff.specialite}")
             
             if staff.access_code:
                 print(f"   ✅ Code existant: {staff.access_code}")

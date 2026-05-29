@@ -45,6 +45,17 @@ export class SocketService {
     return this.cabinetStatusSubject.asObservable();
   }
 
+  onEvent(event: string): Observable<any> {
+    return new Observable(observer => {
+      if (!this.socket) {
+        this.connect();
+      }
+      this.socket?.on(event, (data: any) => {
+        observer.next(data);
+      });
+    });
+  }
+
   requestCabinetStatus(): void {
     if (!this.socket?.connected) {
       return;

@@ -72,3 +72,98 @@ class ORToolsSolver:
             }
         
         return None
+
+    @staticmethod
+    def reoptimize_schedule(planning_windows, appointments, emergency_duration=None):
+        """
+        Re-packs appointments to remove gaps.
+        If emergency_duration is provided, an emergency appointment is added and prioritized 
+        to happen as early as possible.
+        appointments: [{'id': 1, 'duration': 30, 'start': 480}, ...]
+        Returns: {'emergency': start_min, 'moves': {id: new_start_min}}
+        """
+        model = cp_model.CpModel()
+        
+        min_time = min(w['start'] for w in planning_windows) if planning_windows else 8 * 60
+        max_time = max(w['end'] for w in planning_windows) if planning_windows else 18 * 60
+
+        appts_vars = {}
+        intervals = []
+        
+        for appt in appointments:
+            start_var = model.NewIntVar(min_time, max_time - appt['duration'], f"start_{appt['id']}")
+            end_var = model.NewIntVar(min_time + appt['duration'], max_time, f"end_{appt['id']}")
+            model.Add(end_var == start_var + appt['duration'])
+            
+            interval_var = model.NewIntervalVar(start_var, appt['duration'], end_var, f"interval_{appt['id']}")
+            intervals.append(interval_var)
+            
+            appts_vars[appt['id']] = start_var
+            
+            # Must be in one of the windows
+            window_bools = []
+            for i, window in enumerate(planning_windows):
+                b = model.NewBoolVar(f"in_win_{appt['id']}_{i}")
+                window_bools.append(b)
+                model.Add(start_var >= window['start']).OnlyEnforceIf(b)
+                model.Add(end_var <= window['end']).OnlyEnforceIf(b)
+            if window_bools:
+                model.AddExactlyOne(window_bools)
+
+        em_start = None
+        if emergency_duration:
+            em_start = model.NewIntVar(min_time, max_time - emergency_duration, "em_start")
+            em_end = model.NewIntVar(min_time + emergency_duration, max_time, "em_end")
+            model.Add(em_end == em_start + emergency_duration)
+            em_interval = model.NewIntervalVar(em_start, emergency_duration, em_end, "em_interval")
+            intervals.append(em_interval)
+            
+            window_bools = []
+            for i, window in enumerate(planning_windows):
+                b = model.NewBoolVar(f"em_in_win_{i}")
+                window_bools.append(b)
+                model.Add(em_start >= window['start']).OnlyEnforceIf(b)
+                model.Add(em_end <= window['end']).OnlyEnforceIf(b)
+            if window_bools:
+                model.AddExactlyOne(window_bools)
+
+        # No overlapping
+        model.AddNoOverlap(intervals)
+
+        # Objective: Pack as early as possible. 
+        # Emergency (if exists) has a huge weight to be earliest.
+        # Other appointments prefer their original time, or as early as possible.
+        objective_terms = []
+        for appt in appointments:
+            # Shift penalty: (start_var - original_start)^2 or just absolute diff
+            # To keep it linear, use absolute difference
+            diff = model.NewIntVar(0, max_time, f"diff_{appt['id']}")
+            model.Add(diff >= start_var - appt['start'])
+            model.Add(diff >= appt['start'] - start_var)
+            
+            # Prefer keeping original time, but also pulling earlier if there are gaps (cancel)
+            # We want to pull earlier if there is a gap.
+            objective_terms.append(diff * 10)
+            objective_terms.append(start_var * 1) # Slight pressure to pack early
+            
+        if em_start is not None:
+            objective_terms.append(em_start * 1000) # Emergency MUST be earliest
+            
+        model.Minimize(sum(objective_terms))
+
+        solver = cp_model.CpSolver()
+        status = solver.Solve(model)
+
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            moves = {}
+            for aid, var in appts_vars.items():
+                if solver.Value(var) != [a['start'] for a in appointments if a['id'] == aid][0]:
+                    moves[aid] = solver.Value(var)
+                    
+            res = {'moves': moves}
+            if em_start is not None:
+                res['emergency'] = solver.Value(em_start)
+            return res
+            
+        return None
+

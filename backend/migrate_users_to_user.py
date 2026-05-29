@@ -1,6 +1,6 @@
 import mysql.connector
 
-DB_NAME = "gestion_des_rendez-vous-3"
+DB_NAME = "gestion_des_rendez-vous"
 
 conn = mysql.connector.connect(
     host="localhost",

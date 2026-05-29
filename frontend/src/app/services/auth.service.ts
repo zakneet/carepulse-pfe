@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
-import { AuthUser, AuthState, LoginRequest, LoginResponse, UserRole } from '../models/auth.model';
+import { AuthUser, AuthState, LoginRequest, LoginResponse, UserRole, UserType } from '../models/auth.model';
 
 @Injectable({
   providedIn: 'root'
@@ -23,11 +23,20 @@ export class AuthService {
   }
 
   /**
-   * Charger l'état d'authentification depuis localStorage
+   * Charger l'état d'authentification depuis le stockage
+   * Medical staff: sessionStorage (expire à la fermeture de l'onglet)
+   * Patients: localStorage (persistant)
    */
   private loadAuthState(): void {
-    const storedToken = localStorage.getItem('authToken');
-    const storedUser = localStorage.getItem('authUser');
+    // Try sessionStorage first (medical staff)
+    let storedToken = sessionStorage.getItem('medAuthToken');
+    let storedUser = sessionStorage.getItem('medAuthUser');
+    
+    // Fallback to localStorage (patients)
+    if (!storedToken || !storedUser) {
+      storedToken = localStorage.getItem('authToken');
+      storedUser = localStorage.getItem('authUser');
+    }
 
     if (storedToken && storedUser) {
       try {
@@ -49,21 +58,63 @@ export class AuthService {
    * Connexion utilisateur
    */
   login(credentials: LoginRequest): Observable<AuthUser> {
-    return this.http.post<LoginResponse>(`${environment.apiUrl}/login`, credentials).pipe(
+    const url = credentials.userType === UserType.MEDICAL_STAFF 
+      ? `${environment.apiUrl}/medical-staff/authenticate` 
+      : `${environment.apiUrl}/login`;
+      
+    const payload: any = { ...credentials };
+    if (payload.accessCode) {
+      payload.access_code = payload.accessCode;
+    }
+      
+    return this.http.post<LoginResponse>(url, payload).pipe(
       tap((response: LoginResponse) => {
-        // Stocker le token et l'utilisateur
-        localStorage.setItem('authToken', response.token);
-        localStorage.setItem('authUser', JSON.stringify(response.user));
+        console.log('[AuthService] Login response:', response);
+        // Handle custom format for medical-staff authenticate endpoint
+        const token = response.token || (response as any).token;
+        const user = response.user || (response as any).doctor;
+        
+        if (user && !user.role) {
+            user.role = UserRole.MEDICAL_STAFF;
+            user.staffCategory = 'doctor';
+        }
+        
+        if (user && (user as any).id_personnel && !user.id) {
+            user.id = (user as any).id_personnel;
+        }
+
+        console.log('[AuthService] Mapped user:', user);
+
+        const isMedicalStaff = credentials.userType === UserType.MEDICAL_STAFF;
+
+        if (isMedicalStaff) {
+          // Medical staff: sessionStorage only (clears on tab close → forces re-auth)
+          sessionStorage.setItem('medAuthToken', token);
+          sessionStorage.setItem('medAuthUser', JSON.stringify(user));
+          // Also clear any old localStorage keys
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('authUser');
+        } else {
+          // Patients: localStorage (persistent)
+          localStorage.setItem('authToken', token);
+          localStorage.setItem('authUser', JSON.stringify(user));
+        }
 
         // Mettre à jour l'état
         this.authState.next({
           isAuthenticated: true,
-          user: response.user,
-          token: response.token,
-          userRole: response.user.role
+          user: user as AuthUser,
+          token: token,
+          userRole: user.role
         });
       }),
-      map((response: LoginResponse) => response.user)
+      map((response: LoginResponse) => {
+        const user = response.user || (response as any).doctor;
+        if (user && (user as any).id_personnel && !user.id) {
+            user.id = (user as any).id_personnel;
+        }
+        return user as AuthUser;
+      })
     );
   }
 
@@ -73,7 +124,10 @@ export class AuthService {
   logout(): void {
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
-    localStorage.removeItem('patientProfile'); // Nettoyer aussi les anciens données
+    localStorage.removeItem('patientProfile');
+    // Clear medical staff session
+    sessionStorage.removeItem('medAuthToken');
+    sessionStorage.removeItem('medAuthUser');
 
     this.authState.next({
       isAuthenticated: false,

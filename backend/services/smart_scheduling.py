@@ -83,3 +83,89 @@ class SmartSchedulingService:
             if len(parts) >= 2:
                 return int(parts[0]) * 60 + int(parts[1])
         return 0
+
+    @staticmethod
+    def reoptimize_day_schedule(db, planning_model, rdv_model, doctor_id, date_str, emergency_duration=None, cancelled_id=None):
+        try:
+            doctor_id = int(doctor_id)
+        except (TypeError, ValueError):
+            return None
+
+        if isinstance(date_str, date):
+            target_date = date_str
+        else:
+            try:
+                target_date = datetime.fromisoformat(str(date_str)).date()
+            except (TypeError, ValueError):
+                try:
+                    target_date = datetime.strptime(str(date_str), "%Y-%m-%d").date()
+                except (TypeError, ValueError):
+                    return None
+
+        # Fetch planning windows
+        plannings = planning_model.query.filter_by(idPersonnel=doctor_id, date=target_date).all()
+        windows = []
+        if plannings:
+            for p in plannings:
+                start = SmartSchedulingService._to_minutes(p.heure_debut)
+                end = SmartSchedulingService._to_minutes(p.heure_fin)
+                windows.append({'start': start, 'end': end})
+        else:
+            windows = [{'start': 8 * 60, 'end': 18 * 60}]
+            
+        # Fetch existing appointments
+        appointments_db = rdv_model.query.filter_by(idPersonnel=doctor_id, dateRDV=target_date).all()
+        appointments = []
+        for a in appointments_db:
+            if cancelled_id and a.idRdv == cancelled_id:
+                continue
+            if a.heureDebut and a.heureFin:
+                s = SmartSchedulingService._to_minutes(a.heureDebut)
+                e = SmartSchedulingService._to_minutes(a.heureFin)
+                appointments.append({
+                    'id': a.idRdv,
+                    'start': s,
+                    'duration': max(15, e - s) # Default minimum duration 15m
+                })
+                
+        # Run optimization
+        result = ORToolsSolver.reoptimize_schedule(windows, appointments, emergency_duration)
+        if not result:
+            return None
+            
+        # Format output
+        moves_info = []
+        for appt_id, new_start in result.get('moves', {}).items():
+            appt = next((a for a in appointments_db if a.idRdv == appt_id), None)
+            if not appt: continue
+            
+            old_start_str = str(appt.heureDebut)[:5]
+            old_end_str = str(appt.heureFin)[:5]
+            
+            dur = next(a['duration'] for a in appointments if a['id'] == appt_id)
+            new_h = new_start // 60
+            new_m = new_start % 60
+            new_e_m = (new_start + dur) % 60
+            new_e_h = (new_start + dur) // 60
+            
+            new_start_str = f"{new_h:02d}:{new_m:02d}:00"
+            new_end_str = f"{new_e_h:02d}:{new_e_m:02d}:00"
+            
+            moves_info.append({
+                'id': appt_id,
+                'oldStart': old_start_str,
+                'oldEnd': old_end_str,
+                'newStart': new_start_str,
+                'newEnd': new_end_str
+            })
+            
+        final_result = {'moves': moves_info}
+        if 'emergency' in result:
+            e_s = result['emergency']
+            e_e = e_s + emergency_duration
+            final_result['emergency_slot'] = {
+                'start': f"{e_s//60:02d}:{e_s%60:02d}:00",
+                'end': f"{e_e//60:02d}:{e_e%60:02d}:00"
+            }
+            
+        return final_result

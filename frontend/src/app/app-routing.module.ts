@@ -14,21 +14,26 @@ import { MedicalStaffFormComponent } from './medical-staff/components/form/medic
 import { MedicalStaffPatientProfileComponent } from './medical-staff/components/patient-profile/medical-staff-patient-profile.component';
 import { DoctorsComponent } from './doctors/doctors.component';
 import { BookingComponent } from './booking/booking.component';
+import { AuthenticateComponent } from './medical-staff/authenticate/authenticate.component';
+import { AuthGuard } from './guards/auth.guard';
+import { PlanningComponent } from './medical-staff/components/planning/planning.component';
 
 const medicalStaffChildren: Routes = [
-  { path: '', redirectTo: 'doctor/planning', pathMatch: 'full' },
-  { path: 'doctor', redirectTo: 'doctor/planning', pathMatch: 'full' },
+  { path: '', redirectTo: 'doctor/dashboard', pathMatch: 'full' },
+  { path: 'doctor', redirectTo: 'doctor/dashboard', pathMatch: 'full' },
   { path: 'doctor/form', component: MedicalStaffFormComponent, data: { staffView: 'doctor' } },
-  { path: 'doctor/planning', component: MedicalStaffDashboardComponent, data: { staffView: 'doctor' } },
+  { path: 'doctor/planning', component: PlanningComponent, data: { staffView: 'doctor' } },
+  { path: 'doctor/planning-full', component: PlanningComponent, data: { staffView: 'doctor' } },
   { path: 'doctor/optimized-calendar', redirectTo: 'doctor/planning', pathMatch: 'full' },
   { path: 'doctor/dashboard', component: MedicalStaffDashboardComponent, data: { staffView: 'doctor' } },
   { path: 'doctor/appointments', component: MedicalStaffAppointmentsComponent, data: { staffView: 'doctor' } },
   { path: 'doctor/patients', component: MedicalStaffPatientsComponent, data: { staffView: 'doctor' } },
   { path: 'doctor/patient-profile/:idPatient', component: MedicalStaffPatientProfileComponent, data: { staffView: 'doctor', profileEditable: true } },
 
-  { path: 'nurse', redirectTo: 'nurse/planning', pathMatch: 'full' },
+  { path: 'nurse', redirectTo: 'nurse/dashboard', pathMatch: 'full' },
   { path: 'nurse/form', component: MedicalStaffFormComponent, data: { staffView: 'nurse' } },
-  { path: 'nurse/planning', component: MedicalStaffDashboardComponent, data: { staffView: 'nurse' } },
+  { path: 'nurse/planning', component: PlanningComponent, data: { staffView: 'nurse' } },
+  { path: 'nurse/planning-full', component: PlanningComponent, data: { staffView: 'nurse' } },
   { path: 'nurse/dashboard', component: MedicalStaffDashboardComponent, data: { staffView: 'nurse' } },
   { path: 'nurse/appointments', component: MedicalStaffAppointmentsComponent, data: { staffView: 'nurse' } },
   { path: 'nurse/patients', component: MedicalStaffPatientsComponent, data: { staffView: 'nurse' } },
@@ -58,7 +63,8 @@ const routes: Routes = [
   { path: 'register', redirectTo: '/home', pathMatch: 'full' },
 
   { path: 'medicalstuff', redirectTo: '/medical-staff', pathMatch: 'prefix' },
-  { path: 'medical-staff', children: medicalStaffChildren },
+  { path: 'medical-staff/authenticate', component: AuthenticateComponent },
+  { path: 'medical-staff', children: medicalStaffChildren, canActivate: [AuthGuard] },
 
   // Route par défaut
   {

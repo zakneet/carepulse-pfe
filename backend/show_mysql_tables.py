@@ -5,7 +5,7 @@ try:
         host='localhost',
         user='root',
         password='',
-        database='gestion_des_rendez-vous-3'
+        database='gestion_des_rendez-vous'
     )
     cursor = conn.cursor()
     
@@ -14,7 +14,7 @@ try:
     tables = cursor.fetchall()
     
     print('='*60)
-    print('TABLES EXISTANTES - Base MySQL: gestion_des_rendez-vous-3')
+    print('TABLES EXISTANTES - Base MySQL: gestion_des_rendez-vous')
     print('='*60)
     
     for (table,) in tables:
