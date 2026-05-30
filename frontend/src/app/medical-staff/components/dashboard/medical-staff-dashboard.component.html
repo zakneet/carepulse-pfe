@@ -1,177 +1,163 @@
 <!-- =====================================================================
      OPTICLINIC HEALTHCARE OS — DASHBOARD
-     Matching the Lovable prototype exactly
      ===================================================================== -->
-<div class="h-full flex flex-col gap-6 pb-6">
+<div class="dash-wrap">
 
   <!-- ── HERO BANNER ──────────────────────────────────────────────────── -->
-  <div class="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#e0f7ff] via-[#f0fbff] to-white border border-[#bae6fd]/60 p-8 shadow-sm">
-    <!-- Decorative blobs -->
-    <div class="absolute top-0 right-0 w-72 h-72 bg-[#38bdf8]/15 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none"></div>
-    <div class="absolute bottom-0 left-40 w-48 h-48 bg-[#06b6d4]/10 rounded-full blur-2xl pointer-events-none"></div>
+  <div class="dash-hero">
+    <div class="dash-hero-blob1"></div>
+    <div class="dash-hero-blob2"></div>
 
     <!-- AI badge -->
-    <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-[#0284c7] border border-[#bae6fd] shadow-sm mb-5">
-      <span class="w-2 h-2 rounded-full bg-[#06b6d4] animate-pulse"></span>
-      Moteur IA · En direct
+    <div class="dash-ai-badge">
+      <span class="dash-ai-dot"></span>
+      AI engine · Live
     </div>
 
-    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
+    <div class="dash-hero-body">
       <!-- Left: greeting -->
-      <div class="flex-1">
-        <h1 class="text-4xl font-black text-slate-900 mb-2 leading-tight">
-          Bonjour,
-          <span class="text-[#0284c7]"> Dr. {{ currentUser?.prenom || 'Léa' }} {{ currentUser?.nom || 'Moreau' }}</span>
+      <div class="dash-hero-left">
+        <h1 class="dash-greeting">
+          Good morning,
+          <span class="dash-greeting-name">Dr. {{ currentUser?.prenom || 'Léa' }} {{ currentUser?.nom || 'Moreau' }}</span>
         </h1>
-        <p class="text-slate-500 font-medium text-base mb-6 max-w-xl">
-          Vous avez <strong class="text-slate-800">{{ stats.appointments }} rendez-vous</strong> aujourd'hui,
-          dont <strong class="text-red-500">{{ stats.urgencies }} urgences</strong>.
-          OptiClinic a déjà optimisé votre journée - l'efficacité a augmenté de
-          <strong class="text-emerald-600">+{{ stats.optimizationDelta }}%</strong>.
+        <p class="dash-greeting-sub">
+          You have <strong>{{ stats.appointments }} appointments</strong> today,
+          including <strong class="dash-emerg-count">{{ stats.urgencies }} emergencies</strong>.
+          OptiClinic has already optimized your day — efficiency is up
+          <strong class="dash-opt-count">+{{ stats.optimizationDelta }}%</strong>.
         </p>
-        <div class="flex flex-wrap gap-3">
-          <button (click)="openPlanning()"
-            class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0284c7] hover:bg-[#0369a1] text-white text-sm font-bold rounded-full shadow-lg shadow-[#0284c7]/25 transition-all hover:scale-105 active:scale-95">
+        <div class="dash-hero-actions">
+          <button (click)="openPlanning()" class="btn-primary">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-            Ouvrir le planning du jour →
+            Open today's planning →
           </button>
-          <button (click)="openEmergency()"
-            class="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-red-50 text-red-600 border border-red-200 text-sm font-bold rounded-full shadow-sm transition-all">
+          <button (click)="openEmergency()" class="btn-danger-outline">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-            Déclarer une urgence
+            Declare emergency
           </button>
         </div>
       </div>
 
       <!-- Right: mini stats -->
-      <div class="grid grid-cols-2 gap-3 shrink-0">
-        <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 shadow-sm text-center min-w-[110px]">
-          <div class="w-10 h-10 rounded-full bg-red-50 text-red-400 flex items-center justify-center mx-auto mb-2">
+      <div class="dash-hero-stats">
+        <div class="dash-mini-stat dash-mini-stat--red">
+          <div class="dash-mini-stat-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           </div>
-          <div class="text-2xl font-black text-slate-900">72</div>
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">BPM moyen</div>
+          <div class="dash-mini-stat-value">72</div>
+          <div class="dash-mini-stat-label">BPM AVG</div>
         </div>
-        <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 shadow-sm text-center min-w-[110px]">
-          <div class="w-10 h-10 rounded-full bg-[#e0f2fe] text-[#0284c7] flex items-center justify-center mx-auto mb-2">
+        <div class="dash-mini-stat dash-mini-stat--blue">
+          <div class="dash-mini-stat-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
           </div>
-          <div class="text-2xl font-black text-slate-900">184</div>
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Décisions IA</div>
+          <div class="dash-mini-stat-value">184</div>
+          <div class="dash-mini-stat-label">AI DECISIONS</div>
         </div>
-        <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 shadow-sm text-center min-w-[110px]">
-          <div class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-2">
+        <div class="dash-mini-stat dash-mini-stat--green">
+          <div class="dash-mini-stat-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           </div>
-          <div class="text-2xl font-black text-slate-900">98%</div>
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">À l'heure</div>
+          <div class="dash-mini-stat-value">98%</div>
+          <div class="dash-mini-stat-label">ON-TIME</div>
         </div>
-        <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 shadow-sm text-center min-w-[110px]">
-          <div class="w-10 h-10 rounded-full bg-violet-50 text-violet-500 flex items-center justify-center mx-auto mb-2">
+        <div class="dash-mini-stat dash-mini-stat--violet">
+          <div class="dash-mini-stat-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
-          <div class="text-2xl font-black text-slate-900">{{ stats.timeSaved }}</div>
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Heures gagnées</div>
+          <div class="dash-mini-stat-value">{{ stats.timeSaved }}</div>
+          <div class="dash-mini-stat-label">SAVED HOURS</div>
         </div>
       </div>
     </div>
   </div>
 
   <!-- ── KPI STRIP ─────────────────────────────────────────────────────── -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <div class="dash-kpi-grid">
 
-    <!-- Today's Appointments -->
-    <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-      <div class="flex items-start justify-between mb-3">
-        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Rendez-vous du jour</span>
-        <div class="w-9 h-9 rounded-xl bg-[#e0f2fe] text-[#0284c7] flex items-center justify-center">
+    <div class="dash-kpi-card">
+      <div class="dash-kpi-top">
+        <span class="dash-kpi-label">TODAY'S APPOINTMENTS</span>
+        <div class="dash-kpi-icon dash-kpi-icon--blue">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
         </div>
       </div>
-      <div class="text-3xl font-black text-slate-900 mb-1">{{ stats.appointments }}</div>
-      <div class="text-xs text-slate-400 mb-2">{{ stats.urgencies }} dans l'heure</div>
-      <div class="text-[11px] font-bold text-emerald-600">↑ +{{ stats.optimizationDelta }}% vs la semaine dernière</div>
+      <div class="dash-kpi-value">{{ stats.appointments }}</div>
+      <div class="dash-kpi-sub">{{ stats.urgencies }} next hour</div>
+      <div class="dash-kpi-trend dash-kpi-trend--up">↑ +{{ stats.optimizationDelta }}% vs last week</div>
     </div>
 
-    <!-- Emergencies -->
-    <div class="bg-white rounded-2xl p-5 border border-red-100 shadow-sm hover:shadow-md transition-shadow">
-      <div class="flex items-start justify-between mb-3">
-        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Urgences</span>
-        <div class="w-9 h-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center">
+    <div class="dash-kpi-card dash-kpi-card--danger">
+      <div class="dash-kpi-top">
+        <span class="dash-kpi-label">EMERGENCIES</span>
+        <div class="dash-kpi-icon dash-kpi-icon--red">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
         </div>
       </div>
-      <div class="text-3xl font-black text-slate-900 mb-1">{{ stats.urgencies }}</div>
-      <div class="text-xs text-slate-400 mb-2">1 critique</div>
-      <div class="text-[11px] font-bold text-red-500">↓ -15% vs la semaine dernière</div>
+      <div class="dash-kpi-value">{{ stats.urgencies }}</div>
+      <div class="dash-kpi-sub">1 critical</div>
+      <div class="dash-kpi-trend dash-kpi-trend--down">↓ -15% vs last week</div>
     </div>
 
-    <!-- Optimization Score -->
-    <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-      <div class="flex items-start justify-between mb-3">
-        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Score d'optimisation</span>
-        <div class="w-9 h-9 rounded-xl bg-violet-50 text-violet-500 flex items-center justify-center">
+    <div class="dash-kpi-card">
+      <div class="dash-kpi-top">
+        <span class="dash-kpi-label">OPTIMIZATION SCORE</span>
+        <div class="dash-kpi-icon dash-kpi-icon--violet">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
         </div>
       </div>
-      <div class="text-3xl font-black text-slate-900 mb-1">{{ stats.optimizationRate }}%</div>
-      <div class="text-xs text-slate-400 mb-2">Top 5% des cliniques</div>
-      <div class="text-[11px] font-bold text-emerald-600">↑ +{{ stats.optimizationDelta }}% vs la semaine dernière</div>
+      <div class="dash-kpi-value">{{ stats.optimizationRate }}%</div>
+      <div class="dash-kpi-sub">Top 5% of clinics</div>
+      <div class="dash-kpi-trend dash-kpi-trend--up">↑ +{{ stats.optimizationDelta }}% vs last week</div>
     </div>
 
-    <!-- Waiting List -->
-    <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-      <div class="flex items-start justify-between mb-3">
-        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Liste d'attente</span>
-        <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
+    <div class="dash-kpi-card">
+      <div class="dash-kpi-top">
+        <span class="dash-kpi-label">WAITING LIST</span>
+        <div class="dash-kpi-icon dash-kpi-icon--amber">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
       </div>
-      <div class="text-3xl font-black text-slate-900 mb-1">12</div>
-      <div class="text-xs text-slate-400 mb-2">4 priorité haute</div>
-      <div class="text-[11px] font-bold text-red-500">↓ -22% vs la semaine dernière</div>
+      <div class="dash-kpi-value">12</div>
+      <div class="dash-kpi-sub">4 high priority</div>
+      <div class="dash-kpi-trend dash-kpi-trend--down">↓ -22% vs last week</div>
     </div>
 
   </div>
 
   <!-- ── MAIN GRID ─────────────────────────────────────────────────────── -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="dash-main-grid">
 
     <!-- Today's Appointments List -->
-    <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+    <div class="dash-card">
+      <div class="dash-card-header">
         <div>
-          <h2 class="text-base font-bold text-slate-900">Rendez-vous du jour</h2>
-          <p class="text-xs text-slate-400 font-medium mt-0.5">En direct · {{ stats.appointments }} patients planifiés</p>
+          <h2 class="dash-card-title">Today's appointments</h2>
+          <p class="dash-card-sub">Live · {{ stats.appointments }} patients scheduled</p>
         </div>
-        <button (click)="openPlanning()" class="text-sm font-bold text-[#0284c7] hover:underline">Voir le planning →</button>
+        <button (click)="openPlanning()" class="dash-link-btn">View planning →</button>
       </div>
-      <div class="divide-y divide-slate-50">
-        <div *ngFor="let apt of nextAppointments"
-          class="px-6 py-4 flex items-center gap-4 hover:bg-slate-50/50 transition-colors cursor-pointer">
+      <div class="dash-appt-list">
+        <div *ngFor="let apt of nextAppointments" class="dash-appt-row">
           <!-- Time -->
-          <div class="shrink-0 w-14 text-center">
-            <div class="text-sm font-black text-slate-800">{{ apt.time }}</div>
-          </div>
+          <div class="dash-appt-time">{{ apt.time }}</div>
           <!-- Avatar -->
-          <div class="shrink-0">
-            <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-sm"
-              [ngStyle]="{'background': getAvatarGradient(apt.statusColor)}">
-              {{ apt.patient.charAt(0) }}
-            </div>
+          <div class="dash-appt-avatar" [ngStyle]="{'background': getAvatarGradient(apt.statusColor)}">
+            {{ apt.patient.charAt(0) }}
           </div>
           <!-- Info -->
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-bold text-slate-900 truncate">{{ apt.patient }}</div>
-            <div class="text-xs text-slate-400 font-medium truncate">{{ apt.motif }}</div>
+          <div class="dash-appt-info">
+            <div class="dash-appt-name">{{ apt.patient }}</div>
+            <div class="dash-appt-motif">{{ apt.motif }}</div>
           </div>
-          <!-- Badge -->
-          <span class="shrink-0 px-3 py-1 rounded-full text-xs font-bold"
+          <!-- Status Badge -->
+          <span class="dash-status-badge"
             [ngClass]="{
-              'bg-emerald-50 text-emerald-600': apt.statusColor === 'emerald',
-              'bg-[#e0f2fe] text-[#0284c7]': apt.statusColor === 'blue',
-              'bg-red-50 text-red-600': apt.statusColor === 'red',
-              'bg-amber-50 text-amber-600': apt.statusColor === 'amber'
+              'dash-status-badge--green':  apt.statusColor === 'emerald',
+              'dash-status-badge--blue':   apt.statusColor === 'blue',
+              'dash-status-badge--red':    apt.statusColor === 'red',
+              'dash-status-badge--amber':  apt.statusColor === 'amber'
             }">
             {{ apt.status }}
           </span>
@@ -179,48 +165,101 @@
       </div>
     </div>
 
-    <!-- Optimization Panel -->
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-      <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-        <h2 class="text-base font-bold text-slate-900">Optimisation</h2>
-        <button class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 1.52 13.83"/><path d="M4.93 4.93a10 10 0 0 0-1.52 13.83"/></svg>
-        </button>
-      </div>
-      <div class="flex-1 flex flex-col items-center justify-center p-8">
-        <!-- Donut chart (SVG) -->
-        <div class="relative w-36 h-36 mb-6">
-          <svg viewBox="0 0 36 36" class="w-full h-full -rotate-90">
-            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" stroke-width="3"/>
-            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#06b6d4" stroke-width="3"
-              [attr.stroke-dasharray]="stats.optimizationRate + ', 100'"
-              stroke-linecap="round"/>
-          </svg>
-          <div class="absolute inset-0 flex flex-col items-center justify-center">
-            <span class="text-3xl font-black text-slate-900">{{ stats.optimizationRate }}%</span>
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SCORE</span>
-          </div>
-        </div>
-        <div class="text-sm font-bold text-slate-700 mb-1">Efficacité de planification</div>
-        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-3">
-          <div class="bg-gradient-to-r from-[#0284c7] to-[#06b6d4] h-full rounded-full transition-all"
-            [style.width]="stats.optimizationRate + '%'"></div>
-        </div>
-        <div class="text-xs text-slate-400 text-center">OR-Tools a rééquilibré <strong class="text-slate-700">142 créneaux</strong> cette semaine</div>
-        <div class="mt-4 flex gap-3">
-          <div class="text-center">
-            <div class="text-lg font-black text-emerald-600">+{{ stats.optimizationDelta }}%</div>
-            <div class="text-[10px] text-slate-400 font-bold">vs la semaine dernière</div>
-          </div>
-          <div class="w-px bg-slate-100"></div>
-          <div class="text-center">
-            <div class="text-lg font-black text-slate-900">{{ stats.timeSaved }}</div>
-            <div class="text-[10px] text-slate-400 font-bold">heures gagnées</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Right column: Optimization + Emergency Alerts -->
+    <div class="dash-right-col">
 
-  </div>
+      <!-- Optimization Card -->
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <h2 class="dash-card-title">Optimization</h2>
+          <button class="dash-icon-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 1.52 13.83"/><path d="M4.93 4.93a10 10 0 0 0-1.52 13.83"/></svg>
+          </button>
+        </div>
+
+        <!-- Donut -->
+        <div class="dash-donut-wrap">
+          <svg viewBox="0 0 36 36" class="dash-donut">
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="url(#donutGrad)" stroke-width="3"
+              [attr.stroke-dasharray]="stats.optimizationRate + ' 100'"
+              stroke-linecap="round" class="dash-donut-arc"/>
+            <defs>
+              <linearGradient id="donutGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#0284c7"/>
+                <stop offset="100%" stop-color="#06b6d4"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="dash-donut-center">
+            <span class="dash-donut-pct">{{ stats.optimizationRate }}%</span>
+            <span class="dash-donut-label">SCORE</span>
+          </div>
+        </div>
+
+        <!-- Metrics list -->
+        <div class="dash-opt-metrics">
+          <div class="dash-opt-metric">
+            <span class="dash-opt-metric-name">Scheduling efficiency</span>
+            <span class="dash-opt-metric-value dash-opt-metric-value--green">92%</span>
+          </div>
+          <div class="dash-opt-metric">
+            <span class="dash-opt-metric-name">Slot utilization</span>
+            <span class="dash-opt-metric-value dash-opt-metric-value--green">88%</span>
+          </div>
+          <div class="dash-opt-metric">
+            <span class="dash-opt-metric-name">Patient wait time</span>
+            <span class="dash-opt-metric-value dash-opt-metric-value--red">-32%</span>
+          </div>
+          <div class="dash-opt-metric">
+            <span class="dash-opt-metric-name">Auto-replacements</span>
+            <span class="dash-opt-metric-value dash-opt-metric-value--blue">4 today</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emergency Alerts Card -->
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <h2 class="dash-card-title">Emergency alerts</h2>
+        </div>
+        <div class="dash-alerts-list">
+
+          <div class="dash-alert dash-alert--red">
+            <div class="dash-alert-icon dash-alert-icon--red">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+            </div>
+            <div class="dash-alert-body">
+              <div class="dash-alert-title">Critical: M. Dubois</div>
+              <div class="dash-alert-sub">Acute chest pain — slot moved to 09:45</div>
+            </div>
+          </div>
+
+          <div class="dash-alert dash-alert--orange">
+            <div class="dash-alert-icon dash-alert-icon--orange">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+            </div>
+            <div class="dash-alert-body">
+              <div class="dash-alert-title">High: E. Chevalier</div>
+              <div class="dash-alert-sub">Severe palpitations — Friday 09:00</div>
+            </div>
+          </div>
+
+          <div class="dash-alert dash-alert--blue">
+            <div class="dash-alert-icon dash-alert-icon--blue">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="dash-alert-body">
+              <div class="dash-alert-title">Waiting list match</div>
+              <div class="dash-alert-sub">2 patients fit the freed 14:00 slot</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /right col -->
+
+  </div><!-- /main grid -->
 
 </div>

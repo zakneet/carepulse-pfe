@@ -17,34 +17,54 @@ import { BookingComponent } from './booking/booking.component';
 import { AuthenticateComponent } from './medical-staff/authenticate/authenticate.component';
 import { AuthGuard } from './guards/auth.guard';
 import { PlanningComponent } from './medical-staff/components/planning/planning.component';
+import { WaitingListComponent } from './medical-staff/components/waiting-list/waiting-list.component';
+import { OptimizationComponent } from './medical-staff/components/optimization/optimization.component';
+import { AnalyticsComponent } from './medical-staff/components/analytics/analytics.component';
+import { NotificationsComponent } from './medical-staff/components/notifications/notifications.component';
+import { SettingsComponent } from './medical-staff/components/settings/settings.component';
 
 const medicalStaffChildren: Routes = [
+  // ── REDIRECTS (no canActivate — Angular forbids it on redirectTo) ─────────────
+  // The PARENT route has canActivate:[AuthGuard] which fires before any child resolves.
   { path: '', redirectTo: 'doctor/dashboard', pathMatch: 'full' },
   { path: 'doctor', redirectTo: 'doctor/dashboard', pathMatch: 'full' },
-  { path: 'doctor/form', component: MedicalStaffFormComponent, data: { staffView: 'doctor' } },
-  { path: 'doctor/planning', component: PlanningComponent, data: { staffView: 'doctor' } },
-  { path: 'doctor/planning-full', component: PlanningComponent, data: { staffView: 'doctor' } },
   { path: 'doctor/optimized-calendar', redirectTo: 'doctor/planning', pathMatch: 'full' },
-  { path: 'doctor/dashboard', component: MedicalStaffDashboardComponent, data: { staffView: 'doctor' } },
-  { path: 'doctor/appointments', component: MedicalStaffAppointmentsComponent, data: { staffView: 'doctor' } },
-  { path: 'doctor/patients', component: MedicalStaffPatientsComponent, data: { staffView: 'doctor' } },
-  { path: 'doctor/patient-profile/:idPatient', component: MedicalStaffPatientProfileComponent, data: { staffView: 'doctor', profileEditable: true } },
-
   { path: 'nurse', redirectTo: 'nurse/dashboard', pathMatch: 'full' },
-  { path: 'nurse/form', component: MedicalStaffFormComponent, data: { staffView: 'nurse' } },
-  { path: 'nurse/planning', component: PlanningComponent, data: { staffView: 'nurse' } },
-  { path: 'nurse/planning-full', component: PlanningComponent, data: { staffView: 'nurse' } },
-  { path: 'nurse/dashboard', component: MedicalStaffDashboardComponent, data: { staffView: 'nurse' } },
-  { path: 'nurse/appointments', component: MedicalStaffAppointmentsComponent, data: { staffView: 'nurse' } },
-  { path: 'nurse/patients', component: MedicalStaffPatientsComponent, data: { staffView: 'nurse' } },
-  { path: 'nurse/patient-profile/:idPatient', component: MedicalStaffPatientProfileComponent, data: { staffView: 'nurse', profileEditable: false } },
 
-  // Routes heritagees (compatibilite)
-  { path: 'form', redirectTo: 'doctor/form', pathMatch: 'full' },
-  { path: 'planning', redirectTo: 'doctor/planning', pathMatch: 'full' },
-  { path: 'dashboard', redirectTo: 'doctor/dashboard', pathMatch: 'full' },
-  { path: 'appointments', redirectTo: 'doctor/appointments', pathMatch: 'full' },
-  { path: 'patients', redirectTo: 'doctor/patients', pathMatch: 'full' },
+  // ── DOCTOR routes ─────────────────────────────────────────────────────────────
+  { path: 'doctor/planning',          component: PlanningComponent,                  data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/planning-full',     component: PlanningComponent,                  data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/dashboard',         component: MedicalStaffDashboardComponent,     data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/appointments',      component: MedicalStaffAppointmentsComponent,  data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/patients',          component: MedicalStaffPatientsComponent,      data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/form',              component: MedicalStaffFormComponent,          data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/patient-profile/:idPatient', component: MedicalStaffPatientProfileComponent, data: { staffView: 'doctor', profileEditable: true }, canActivate: [AuthGuard] },
+  { path: 'doctor/waiting-list',      component: WaitingListComponent,               data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/optimization',      component: OptimizationComponent,              data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/analytics',         component: AnalyticsComponent,                 data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/notifications',     component: NotificationsComponent,             data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+  { path: 'doctor/settings',          component: SettingsComponent,                  data: { staffView: 'doctor' }, canActivate: [AuthGuard] },
+
+  // ── NURSE routes ──────────────────────────────────────────────────────────────
+  { path: 'nurse/planning',           component: PlanningComponent,                  data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/planning-full',      component: PlanningComponent,                  data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/dashboard',          component: MedicalStaffDashboardComponent,     data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/appointments',       component: MedicalStaffAppointmentsComponent,  data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/patients',           component: MedicalStaffPatientsComponent,      data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/form',               component: MedicalStaffFormComponent,          data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/patient-profile/:idPatient', component: MedicalStaffPatientProfileComponent, data: { staffView: 'nurse', profileEditable: false }, canActivate: [AuthGuard] },
+  { path: 'nurse/waiting-list',       component: WaitingListComponent,               data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/optimization',       component: OptimizationComponent,              data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/analytics',          component: AnalyticsComponent,                 data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/notifications',      component: NotificationsComponent,             data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+  { path: 'nurse/settings',           component: SettingsComponent,                  data: { staffView: 'nurse' }, canActivate: [AuthGuard] },
+
+  // ── Legacy alias redirects (target routes are already protected) ──────────────
+  { path: 'form',        redirectTo: 'doctor/form',        pathMatch: 'full' },
+  { path: 'planning',    redirectTo: 'doctor/planning',    pathMatch: 'full' },
+  { path: 'dashboard',   redirectTo: 'doctor/dashboard',   pathMatch: 'full' },
+  { path: 'appointments',redirectTo: 'doctor/appointments',pathMatch: 'full' },
+  { path: 'patients',    redirectTo: 'doctor/patients',    pathMatch: 'full' },
   { path: 'patient-profile/:idPatient', redirectTo: 'doctor/patient-profile/:idPatient', pathMatch: 'full' }
 ];
 

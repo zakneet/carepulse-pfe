@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 import functools
 import os
 import threading
@@ -1763,12 +1763,30 @@ def _build_available_slots_for_doctor(id_personnel, date_rdv, slot_duration=30, 
         planning_ranges = [(9 * 60, 17 * 60)]
         used_default_planning = True
 
+    # ── Past-slot guard: when booking for today, never generate slots in the past ──
+    today_floor_minutes = None
+    try:
+        if date_rdv == datetime.now().date():
+            now = datetime.now()
+            current_min = now.hour * 60 + now.minute + 5  # +5 min safety buffer
+            remainder = current_min % slot_duration
+            if remainder:
+                current_min += (slot_duration - remainder)
+            today_floor_minutes = current_min
+    except Exception:
+        today_floor_minutes = None
+
     suggested_slots = []
     for start_min, end_min in planning_ranges:
         if end_min <= start_min:
             continue
 
-        cursor = start_min
+        # Respect today's floor if applicable
+        effective_start = start_min
+        if today_floor_minutes is not None:
+            effective_start = max(start_min, today_floor_minutes)
+
+        cursor = effective_start
         while cursor + slot_duration <= end_min:
             slot_start = cursor
             slot_end = cursor + slot_duration
@@ -1776,6 +1794,7 @@ def _build_available_slots_for_doctor(id_personnel, date_rdv, slot_duration=30, 
             if not overlaps:
                 suggested_slots.append({"heureDebut": _to_hhmmss(slot_start), "heureFin": _to_hhmmss(slot_end)})
             cursor += slot_duration
+
 
     optimized_suggested_slots = None
     try:
@@ -4255,12 +4274,18 @@ def add_rdv():
         id_patient = data.get("idPatient")
         patient_nom = (data.get("nom") or data.get("patientNom") or "").strip()
         patient_prenom = (data.get("prenom") or data.get("patientPrenom") or "").strip()
-        id_personnel = data.get("idPersonnel")
+        # Always coerce id_personnel to int — frontend may send a string
+        try:
+            id_personnel = int(data.get("idPersonnel") or 0) or None
+        except (TypeError, ValueError):
+            id_personnel = None
         date_rdv = parse_date(data.get("dateRDV"))
         heure_debut = parse_time(data.get("heureDebut"))
         heure_fin = parse_time(data.get("heureFin"))
         statut = data.get("statut") or data.get("motifConsultation")
         is_urgent = bool(data.get("isUrgent", False))
+        # fromSmartBooking=True means OR-Tools already ran server-side; skip double validation
+        from_smart_booking = bool(data.get("fromSmartBooking", False))
         urgent_duration = _coerce_minutes_value(
             data.get("slotDuration") or data.get("duration") or data.get("duree_creneau")
         )
@@ -4273,6 +4298,30 @@ def add_rdv():
             msg = f"Missing required fields: personnel={id_personnel}, date={date_rdv}"
             print(f"    ERROR: {msg}")
             return jsonify({"error": "idPersonnel et dateRDV sont obligatoires"}), 400
+
+        # ── Hard constraint: never accept past appointment times ──────────────
+        if not is_urgent and heure_debut and date_rdv:
+            try:
+                now = datetime.now()
+                # Reconstruct the full appointment datetime
+                if hasattr(heure_debut, 'seconds'):
+                    # timedelta from DB
+                    total_sec = int(heure_debut.total_seconds())
+                    appt_h, appt_m = divmod(total_sec // 60, 60)
+                else:
+                    appt_h = heure_debut.hour
+                    appt_m = heure_debut.minute
+                appt_dt = datetime(date_rdv.year, date_rdv.month, date_rdv.day, appt_h, appt_m)
+                if appt_dt <= now:
+                    slot_label = f"{appt_h:02d}:{appt_m:02d} le {date_rdv.strftime('%d/%m/%Y')}"
+                    print(f"    ERROR: Rejected past appointment: {slot_label} (now={now.strftime('%H:%M')})")
+                    return jsonify({
+                        "success": False,
+                        "error": f"Impossible de créer un rendez-vous dans le passé ({slot_label}). Veuillez choisir un créneau futur."
+                    }), 400
+            except Exception as e:
+                print(f"    WARN: past-check failed ({e}), continuing")
+
 
         if not is_urgent and not all([heure_debut, heure_fin]):
             msg = f"Missing required fields: start={heure_debut}, end={heure_fin}"
@@ -4360,8 +4409,8 @@ def add_rdv():
             return jsonify({"error": "patient introuvable"}), 404
 
         if not is_medical_staff(id_personnel):
-            print(f"    ERROR: Personnel is not medical staff")
-            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
+            print(f"    ERROR: Personnel ID {id_personnel} is not medical staff")
+            return jsonify({"error": f"idPersonnel ({id_personnel}) ne correspond pas a un personnel medical connu"}), 400
 
         if not is_urgent:
             requested_slot_duration = _coerce_minutes_value(
@@ -4371,30 +4420,35 @@ def add_rdv():
                 requested_slot_duration = _to_minutes(heure_fin) - _to_minutes(heure_debut)
 
             if requested_slot_duration is None or requested_slot_duration <= 0:
-                return jsonify({"error": "duree de creneau invalide"}), 400
+                return jsonify({"error": f"duree de creneau invalide (heureDebut={data.get('heureDebut')}, heureFin={data.get('heureFin')})"}), 400
 
-            slot_payload = _build_available_slots_for_doctor(int(id_personnel), date_rdv, requested_slot_duration)
-            allowed_slots = slot_payload.get("optimizedSuggestedSlots") or slot_payload.get("suggestedSlots") or []
-            allowed_pairs = {
-                (
-                    _format_sql_time(parse_time(slot.get("heureDebut")), "%H:%M:%S"),
-                    _format_sql_time(parse_time(slot.get("heureFin")), "%H:%M:%S"),
+            # When request comes from smart-booking, OR-Tools already validated the slot
+            # server-side — skip the whitelist check to avoid double-validation mismatch.
+            if not from_smart_booking:
+                slot_payload = _build_available_slots_for_doctor(int(id_personnel), date_rdv, requested_slot_duration)
+                allowed_slots = slot_payload.get("optimizedSuggestedSlots") or slot_payload.get("suggestedSlots") or []
+                allowed_pairs = {
+                    (
+                        _format_sql_time(parse_time(slot.get("heureDebut")), "%H:%M:%S"),
+                        _format_sql_time(parse_time(slot.get("heureFin")), "%H:%M:%S"),
+                    )
+                    for slot in allowed_slots
+                    if slot.get("heureDebut") and slot.get("heureFin")
+                }
+
+                requested_pair = (
+                    _format_sql_time(heure_debut, "%H:%M:%S"),
+                    _format_sql_time(heure_fin, "%H:%M:%S"),
                 )
-                for slot in allowed_slots
-                if slot.get("heureDebut") and slot.get("heureFin")
-            }
 
-            requested_pair = (
-                _format_sql_time(heure_debut, "%H:%M:%S"),
-                _format_sql_time(heure_fin, "%H:%M:%S"),
-            )
-
-            if requested_pair not in allowed_pairs:
-                print(f"    ERROR: Requested slot {requested_pair} is not among OR-Tools proposed slots")
-                return jsonify({
-                    "error": "Veuillez choisir un creneau propose par OR-Tools",
-                    "allowedSlots": allowed_slots,
-                }), 400
+                if requested_pair not in allowed_pairs:
+                    print(f"    ERROR: Requested slot {requested_pair} not in OR-Tools slots")
+                    return jsonify({
+                        "error": "Veuillez choisir un creneau propose par OR-Tools",
+                        "allowedSlots": allowed_slots,
+                    }), 400
+            else:
+                print(f"    Skipping OR-Tools whitelist check (fromSmartBooking=True)")
 
         if is_urgent:
             print("    URGENT: insertion urgente demandee", flush=True)
@@ -5107,6 +5161,7 @@ def smart_booking():
     date_str = data.get("date")
     rejected_slots = data.get("rejectedSlots", [])
     specialite = data.get("specialite")
+    time_preference = data.get("timePreference", "peu-importe")
     
     if not date_str:
         return jsonify({"error": "date is required"}), 400
@@ -5122,16 +5177,18 @@ def smart_booking():
             
             for doc in doctors:
                 doctor_id = doc.id_personnel
-                result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots)
+                result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots, time_preference=time_preference)
                 if result:
                     break
                     
             if not result:
-                return jsonify({"error": "Aucun créneau disponible pour cette date dans cette spécialité"}), 404
+                pref_label = {'matin': 'le matin', 'apres-midi': "l'après-midi"}.get(time_preference, 'cette date')
+                return jsonify({"error": f"Aucun créneau disponible {pref_label} dans cette spécialité"}), 404
         else:
-            result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots)
+            result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots, time_preference=time_preference)
             if not result:
-                return jsonify({"error": "Aucun créneau disponible pour cette date"}), 404
+                pref_label = {'matin': 'le matin', 'apres-midi': "l'après-midi"}.get(time_preference, 'cette date')
+                return jsonify({"error": f"Aucun créneau disponible {pref_label}"}), 404
             
         # Get doctor details for the frontend
         doc = PersonnelDeSante.query.get(doctor_id)
@@ -5164,6 +5221,7 @@ def alternative_slot():
     date_str = data.get("date")
     rejected_slots = data.get("rejectedSlots", [])
     specialite = data.get("specialite")
+    time_preference = data.get("timePreference", "peu-importe")
     
     if not date_str:
         return jsonify({"error": "date is required"}), 400
@@ -5179,14 +5237,14 @@ def alternative_slot():
             
             for doc in doctors:
                 doctor_id = doc.id_personnel
-                result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots)
+                result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots, time_preference=time_preference)
                 if result:
                     break
                     
             if not result:
                 return jsonify({"error": "Aucune alternative disponible dans cette spécialité"}), 404
         else:
-            result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots)
+            result = SmartSchedulingService.suggest_optimal_slot(db, Planning, Rdv, doctor_id, date_str, duration=30, rejected_slots=rejected_slots, time_preference=time_preference)
             if not result:
                 return jsonify({"error": "Aucune alternative disponible"}), 404
             

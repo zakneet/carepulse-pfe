@@ -1,0 +1,93 @@
+<!-- =====================================================================
+     OPTICLINIC — WAITING LIST / SMART MATCHES
+     ===================================================================== -->
+<div class="wl-wrap">
+
+  <!-- Header -->
+  <div class="wl-header">
+    <div>
+      <p class="wl-eyebrow">WAITING LIST</p>
+      <h1 class="wl-title">Smart Matches</h1>
+      <p class="wl-subtitle">AI suggests which waiting patients fit your freed slots.</p>
+    </div>
+    <button class="wl-autofill-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+      Auto-Fill Available Slots
+    </button>
+  </div>
+
+  <!-- AI Match Chips -->
+  <div class="wl-ai-bar">
+    <div class="wl-ai-badge">
+      <span class="wl-ai-dot"></span>
+      AI Matching Engine · Live
+    </div>
+    <span class="wl-ai-stat">{{ matches.length }} patients matched · {{ freedSlots }} slots freed today</span>
+  </div>
+
+  <!-- Match Cards Grid -->
+  <div class="wl-cards-grid">
+    <div *ngFor="let match of matches" class="wl-card">
+
+      <!-- Card Top -->
+      <div class="wl-card-top">
+        <div class="wl-card-avatar" [ngStyle]="{'background': match.avatarColor}">
+          {{ match.initials }}
+        </div>
+        <div class="wl-card-info">
+          <div class="wl-card-name">{{ match.name }}</div>
+          <div class="wl-card-type">{{ match.consultationType }}</div>
+        </div>
+        <div class="wl-match-score-ring">
+          <svg viewBox="0 0 36 36" class="wl-ring-svg">
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#0284c7" stroke-width="3"
+              [attr.stroke-dasharray]="match.matchPct + ' 100'" stroke-linecap="round"/>
+          </svg>
+          <span class="wl-ring-pct">{{ match.matchPct }}%</span>
+        </div>
+      </div>
+
+      <!-- Waiting duration -->
+      <div class="wl-card-wait">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Waiting {{ match.waitDuration }}
+      </div>
+
+      <!-- Progress bar -->
+      <div class="wl-progress-track">
+        <div class="wl-progress-fill" [style.width]="match.matchPct + '%'"></div>
+      </div>
+      <div class="wl-progress-labels">
+        <span>AI match score</span><span class="wl-progress-pct">{{ match.matchPct }}%</span>
+      </div>
+
+      <!-- Priority badge + freed slot -->
+      <div class="wl-card-meta">
+        <span class="wl-priority" [ngClass]="getPriorityClass(match.priority)">{{ match.priority }}</span>
+        <span class="wl-freed-slot">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          Freed slot: {{ match.freedSlot }}
+        </span>
+      </div>
+
+      <!-- Actions -->
+      <div class="wl-card-actions">
+        <button class="wl-action-btn wl-action-btn--call">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 9.9 19.79 19.79 0 0 1 1.04 1.26 2 2 0 0 1 3 .04h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></svg>
+          Call
+        </button>
+        <button class="wl-action-btn wl-action-btn--msg">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Message
+        </button>
+        <button class="wl-action-btn wl-action-btn--schedule">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          Schedule
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+</div>

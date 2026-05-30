@@ -1,0 +1,23 @@
+.set-wrap{display:flex;flex-direction:column;gap:22px;padding-bottom:32px;animation:fadeSlideIn .3s ease-out both}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.set-header{display:flex;justify-content:space-between;align-items:flex-start}
+.set-eyebrow{font-size:11px;font-weight:700;color:#0284c7;text-transform:uppercase;letter-spacing:.12em;margin:0 0 4px}
+.set-title{font-size:28px;font-weight:900;color:#0f172a;margin:0 0 4px}
+.set-subtitle{font-size:13px;color:#94a3b8;font-weight:500;margin:0}
+.set-card{background:#fff;border:1px solid #f1f5f9;border-radius:20px;padding:22px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
+.set-card-title{font-size:15px;font-weight:800;color:#0f172a;margin:0 0 16px}
+.set-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid #f8fafc}
+.set-toggle-row:last-child{border-bottom:none}
+.set-toggle-label{font-size:14px;font-weight:700;color:#0f172a}
+.set-toggle-sub{font-size:12px;font-weight:500;color:#94a3b8;margin-top:2px}
+.set-toggle-btn{min-width:60px;height:30px;border-radius:999px;border:none;font-size:12px;font-weight:800;cursor:pointer;transition:all .2s;background:#e2e8f0;color:#94a3b8}
+.set-toggle-btn--on{background:linear-gradient(135deg,#0284c7,#06b6d4);color:#fff;box-shadow:0 3px 10px rgba(2,132,199,.3)}
+.set-sections-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.set-section-card{display:flex;align-items:center;gap:14px;padding:16px 20px;background:#fff;border:1px solid #f1f5f9;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.03);cursor:pointer;transition:all .18s}
+.set-section-card:hover{box-shadow:0 6px 20px rgba(2,132,199,.08);transform:translateY(-1px)}
+.set-section-icon{font-size:22px;flex-shrink:0}
+.set-section-body{flex:1}
+.set-section-title{font-size:14px;font-weight:800;color:#0f172a}
+.set-section-desc{font-size:12px;font-weight:500;color:#94a3b8;margin-top:2px}
+.set-section-badge{padding:2px 8px;background:#e0f2fe;color:#0284c7;border-radius:6px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0}
+@media(max-width:640px){.set-sections-grid{grid-template-columns:1fr}}

@@ -3,8 +3,63 @@ from .scoring_engine import SlotScoringEngine
 from datetime import datetime, date, time, timedelta
 
 class SmartSchedulingService:
+    # Time preference bounds (in minutes from midnight)
+    TIME_PREFERENCE_BOUNDS = {
+        'matin':      {'start': 8 * 60,       'end': 12 * 60},       # 08:00 – 12:00
+        'apres-midi': {'start': 13 * 60,      'end': 17 * 60 + 30},  # 13:00 – 17:30
+        'peu-importe': None,  # no restriction
+    }
+
     @staticmethod
-    def suggest_optimal_slot(db, planning_model, rdv_model, doctor_id, date_str, duration=30, rejected_slots=None):
+    def _get_today_floor_minutes(slot_duration: int = 30) -> int:
+        """Return the earliest valid slot-start in minutes-from-midnight for today.
+
+        The result is rounded UP to the next multiple of slot_duration so that we
+        never propose a slot that would already have started by the time the patient
+        sees the result.  A 5-minute safety buffer is added on top.
+        """
+        now = datetime.now()
+        current_minutes = now.hour * 60 + now.minute + 5   # +5 min safety buffer
+        # Round up to the next slot boundary
+        remainder = current_minutes % slot_duration
+        if remainder:
+            current_minutes += (slot_duration - remainder)
+        return current_minutes
+
+    @staticmethod
+    def _clip_windows_to_future(windows, target_date, slot_duration: int = 30):
+        """If target_date is today, remove any window time that is already in the past."""
+        today = date.today()
+        if target_date != today:
+            return windows   # future date → nothing to filter
+
+        floor = SmartSchedulingService._get_today_floor_minutes(slot_duration)
+        clipped = []
+        for w in windows:
+            new_start = max(w['start'], floor)
+            if new_start < w['end']:
+                clipped.append({'start': new_start, 'end': w['end']})
+        return clipped
+
+    @staticmethod
+    def _apply_time_preference(windows, time_preference):
+        """Clamp planning windows to the requested time preference bounds."""
+        bounds = SmartSchedulingService.TIME_PREFERENCE_BOUNDS.get(time_preference)
+        if not bounds:
+            return windows  # 'peu-importe' or unknown → use full windows
+
+        pref_start = bounds['start']
+        pref_end   = bounds['end']
+        clipped = []
+        for w in windows:
+            w_start = max(w['start'], pref_start)
+            w_end   = min(w['end'],   pref_end)
+            if w_end > w_start:
+                clipped.append({'start': w_start, 'end': w_end})
+        return clipped
+
+    @staticmethod
+    def suggest_optimal_slot(db, planning_model, rdv_model, doctor_id, date_str, duration=30, rejected_slots=None, time_preference='peu-importe'):
         """
         Fetches DB constraints, calls OR-Tools, scores the result.
         Returns dict with optimal slot, doctor info, score, explanation.
@@ -32,13 +87,22 @@ class SmartSchedulingService:
         windows = []
         if plannings:
             for p in plannings:
-                # Assuming heure_debut and heure_fin are strings 'HH:MM' or timedelta
                 start = SmartSchedulingService._to_minutes(p.heure_debut)
                 end = SmartSchedulingService._to_minutes(p.heure_fin)
                 windows.append({'start': start, 'end': end})
         else:
             windows = [{'start': 8 * 60, 'end': 18 * 60}]
-            
+
+        # ── KEY FIX: strip past times when booking for today ──────────────────
+        windows = SmartSchedulingService._clip_windows_to_future(windows, target_date, duration)
+        if not windows:
+            return None  # All slots are already in the past for today
+
+        # Apply time-of-day preference: clip windows to morning / afternoon / any
+        windows = SmartSchedulingService._apply_time_preference(windows, time_preference)
+        if not windows:
+            return None  # No slots exist in the requested time period
+
         # Fetch existing appointments
         appointments_db = rdv_model.query.filter_by(idPersonnel=doctor_id, dateRDV=target_date).all()
         appointments = []
@@ -48,7 +112,7 @@ class SmartSchedulingService:
                     'start': SmartSchedulingService._to_minutes(a.heureDebut),
                     'end': SmartSchedulingService._to_minutes(a.heureFin)
                 })
-                
+
         # Call OR-Tools solver
         optimal_slot = ORToolsSolver.find_optimal_slot(windows, appointments, duration, rejected_slots)
         

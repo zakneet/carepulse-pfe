@@ -582,6 +582,82 @@ export class PlanningComponent implements OnInit, OnDestroy {
     return rows;
   }
 
+  // ── NEW: Vertical calendar slots (08:00–18:00, every 30 min) ──────────
+  get calendarSlots(): Array<{ label: string; apiLabel: string; isFullHour: boolean }> {
+    const slots: Array<{ label: string; apiLabel: string; isFullHour: boolean }> = [];
+    for (let h = 8; h < 18; h++) {
+      slots.push({ label: `${h.toString().padStart(2,'0')}:00`, apiLabel: `${h.toString().padStart(2,'0')}:00`, isFullHour: true });
+      slots.push({ label: `${h.toString().padStart(2,'0')}:30`, apiLabel: `${h.toString().padStart(2,'0')}:30`, isFullHour: false });
+    }
+    return slots;
+  }
+
+  // ── NEW: Week day columns for vertical calendar ─────────────────────────
+  get weekDays(): Array<{ date: string; abbr: string; num: string }> {
+    const abbrs = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+    const base = this.weekStart || this.selectedDate || this.getTodayLocalISO();
+    const start = new Date(`${base}T00:00:00`);
+    if (Number.isNaN(start.getTime())) return [];
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return {
+        date: this.formatDateLocal(d),
+        abbr: abbrs[i],
+        num: d.getDate().toString()
+      };
+    });
+  }
+
+  isToday(dateStr: string): boolean {
+    return dateStr === this.getTodayLocalISO();
+  }
+
+  prevWeek(): void {
+    const base = this.weekStart || this.selectedDate || this.getTodayLocalISO();
+    const d = new Date(`${base}T00:00:00`);
+    d.setDate(d.getDate() - 7);
+    this.selectedDate = this.formatDateLocal(d);
+    this.loadDashboardData();
+  }
+
+  nextWeek(): void {
+    const base = this.weekStart || this.selectedDate || this.getTodayLocalISO();
+    const d = new Date(`${base}T00:00:00`);
+    d.setDate(d.getDate() + 7);
+    this.selectedDate = this.formatDateLocal(d);
+    this.loadDashboardData();
+  }
+
+  getAppointmentClass(appt: MedicalPlanningAppointment): string {
+    const statut = (appt.statut || '').toLowerCase();
+    if (statut.includes('urgent') || statut.includes('emergency')) return 'plan-appt-card--emergency';
+    if (statut.includes('replanif') || statut.includes('rescheduled') || statut.includes('reprogramme')) return 'plan-appt-card--rescheduled';
+    if (statut.includes('remplace') || statut.includes('replaced') || statut.includes('auto')) return 'plan-appt-card--auto-replaced';
+    if (statut.includes('alternat')) return 'plan-appt-card--alternative';
+    if (statut.includes('optim')) return 'plan-appt-card--optimized';
+    return 'plan-appt-card--optimized';
+  }
+
+  getStatusPillClass(appt: MedicalPlanningAppointment): string {
+    const statut = (appt.statut || '').toLowerCase();
+    if (statut.includes('urgent') || statut.includes('emergency')) return 'plan-appt-status-pill--emergency';
+    if (statut.includes('replanif') || statut.includes('rescheduled') || statut.includes('reprogramme')) return 'plan-appt-status-pill--rescheduled';
+    if (statut.includes('remplace') || statut.includes('replaced') || statut.includes('auto')) return 'plan-appt-status-pill--auto-replaced';
+    if (statut.includes('alternat')) return 'plan-appt-status-pill--alternative';
+    return 'plan-appt-status-pill--optimized';
+  }
+
+  getStatusLabel(appt: MedicalPlanningAppointment): string {
+    const statut = (appt.statut || '').toLowerCase();
+    if (statut.includes('urgent') || statut.includes('emergency')) return 'EMERGENCY';
+    if (statut.includes('replanif') || statut.includes('rescheduled') || statut.includes('reprogramme')) return 'RESCHEDULED';
+    if (statut.includes('remplace') || statut.includes('replaced') || statut.includes('auto')) return 'AUTO-REPLACED';
+    if (statut.includes('alternat')) return 'ALTERNATIVE';
+    return 'OPTIMIZED';
+  }
+
   getAppointmentForSlot(dayDate: string, slot: string): MedicalPlanningAppointment | null {
     const day = this.weekPlanning.find((d) => (d.date || '').slice(0, 10) === dayDate);
     if (!day || !day.appointments || day.appointments.length === 0) {

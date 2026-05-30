@@ -1,0 +1,23 @@
+.ana-wrap{display:flex;flex-direction:column;gap:22px;padding-bottom:32px;animation:fadeSlideIn .3s ease-out both}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.ana-header{display:flex;justify-content:space-between;align-items:flex-start}
+.ana-eyebrow{font-size:11px;font-weight:700;color:#0284c7;text-transform:uppercase;letter-spacing:.12em;margin:0 0 4px}
+.ana-title{font-size:28px;font-weight:900;color:#0f172a;margin:0 0 4px}
+.ana-subtitle{font-size:13px;color:#94a3b8;font-weight:500;margin:0}
+.ana-export-btn{height:38px;padding:0 18px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;font-size:13px;font-weight:700;color:#0284c7;cursor:pointer;transition:all .18s;flex-shrink:0}
+.ana-export-btn:hover{background:#f0f9ff}
+.ana-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.ana-kpi-card{background:#fff;border:1px solid #f1f5f9;border-radius:18px;padding:18px 20px;box-shadow:0 2px 12px rgba(0,0,0,.04);transition:all .2s}
+.ana-kpi-card:hover{box-shadow:0 6px 20px rgba(2,132,199,.09);transform:translateY(-2px)}
+.ana-kpi-label{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.ana-kpi-value{font-size:28px;font-weight:900;color:#0f172a;margin-bottom:4px}
+.ana-kpi-trend{font-size:11px;font-weight:700}
+.ana-trend--blue{color:#0284c7}.ana-trend--green{color:#16a34a}.ana-trend--cyan{color:#06b6d4}.ana-trend--violet{color:#7c3aed}
+.ana-card{background:#fff;border:1px solid #f1f5f9;border-radius:20px;padding:22px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
+.ana-card-title{font-size:15px;font-weight:800;color:#0f172a;margin:0 0 20px}
+.ana-bar-chart{display:flex;align-items:flex-end;gap:10px;height:160px;padding-bottom:24px;position:relative}
+.ana-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;position:relative}
+.ana-bar-fill{width:100%;max-width:36px;background:linear-gradient(to top,#0284c7,#38bdf8);border-radius:6px 6px 0 0;margin-top:auto;transition:height 1s ease;animation:growBar .8s ease-out both}
+@keyframes growBar{from{height:0}}
+.ana-bar-label{position:absolute;bottom:-20px;font-size:10px;font-weight:600;color:#94a3b8;white-space:nowrap}
+@media(max-width:768px){.ana-kpi-grid{grid-template-columns:1fr 1fr}}

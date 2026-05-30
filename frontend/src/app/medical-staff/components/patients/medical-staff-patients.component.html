@@ -1,110 +1,105 @@
-<div class="flex flex-col gap-6">
+<!-- =====================================================================
+     OPTICLINIC — PATIENTS / ACTIVE CARE DIRECTORY
+     ===================================================================== -->
+<div class="pts-wrap">
 
   <!-- Header -->
-  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden">
-    <!-- Decorative background -->
-    <div class="absolute -right-20 -top-20 w-64 h-64 bg-[#f0f9ff] rounded-full blur-3xl opacity-50 pointer-events-none"></div>
-    
-    <div class="flex items-center gap-4 relative z-10">
-      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0284c7] to-[#38bdf8] text-white flex items-center justify-center text-xl shadow-sm shrink-0">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
-      </div>
-      <div>
-        <h2 class="text-2xl font-extrabold text-slate-900 mb-1">Patients suivis</h2>
-        <p class="text-slate-500 font-medium" *ngIf="!loading && !errorMessage">
-          {{ filteredPatients.length }} patient(s) affiché(s) sur {{ patients.length }}
-        </p>
-      </div>
+  <div class="pts-header">
+    <div class="pts-header-left">
+      <p class="pts-eyebrow">PATIENTS</p>
+      <h1 class="pts-title">Active care directory</h1>
+      <p class="pts-subtitle" *ngIf="!loading && !errorMessage">
+        {{ patients.length.toLocaleString() }} patients · {{ newThisMonth }} new this month
+      </p>
     </div>
-    
-    <div class="relative w-full md:w-auto md:min-w-[320px] z-10" *ngIf="!loading && !errorMessage && patients.length > 0">
-      <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <div class="pts-header-right">
+      <div class="pts-search-wrap" *ngIf="!loading && !errorMessage && patients.length > 0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="pts-search-icon"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search patient..." class="pts-search-input"
+          [value]="searchTerm" (input)="onSearchTermChange($event)">
       </div>
-      <input
-        type="text"
-        class="w-full h-12 pl-11 pr-4 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#0284c7] transition-all text-slate-900 placeholder:text-slate-400 font-medium shadow-sm"
-        [value]="searchTerm"
-        (input)="onSearchTermChange($event)"
-        placeholder="Rechercher par nom, email, téléphone..."
-        aria-label="Rechercher dans la liste des patients"
-      />
+      <button class="pts-filter-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filters
+      </button>
+      <button class="pts-add-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+        Add patient
+      </button>
     </div>
   </div>
 
   <!-- Status Messages -->
-  <div *ngIf="loading" class="flex items-center gap-3 text-slate-500 font-bold bg-slate-50 px-5 py-4 rounded-2xl border border-slate-100">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="animate-spin text-[#0284c7]"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-    Chargement des patients...
+  <div *ngIf="loading" class="pts-notice pts-notice--loading">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pts-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+    Loading patients...
   </div>
-  
-  <div *ngIf="errorMessage" class="bg-red-50 text-red-600 px-5 py-4 rounded-2xl text-sm font-bold border border-red-100 flex items-center gap-3">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-    {{ errorMessage }}
-  </div>
+  <div *ngIf="errorMessage" class="pts-notice pts-notice--error">{{ errorMessage }}</div>
 
-  <!-- Empty States -->
-  <div *ngIf="!loading && !errorMessage && patients.length === 0" class="bg-white p-12 rounded-3xl border border-slate-200/60 shadow-sm text-center">
-    <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+  <!-- Empty states -->
+  <div *ngIf="!loading && !errorMessage && patients.length === 0" class="pts-empty">
+    <div class="pts-empty-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
     </div>
-    <h3 class="text-xl font-bold text-slate-800 mb-2">Aucun patient suivi</h3>
-    <p class="text-slate-500">Vous n'avez pas encore de patients dans votre liste.</p>
+    <h3>No patients yet</h3>
+    <p>Your active care directory is empty.</p>
   </div>
-  
-  <div *ngIf="!loading && !errorMessage && patients.length > 0 && filteredPatients.length === 0" class="bg-white p-12 rounded-3xl border border-slate-200/60 shadow-sm text-center">
-    <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+  <div *ngIf="!loading && !errorMessage && patients.length > 0 && filteredPatients.length === 0" class="pts-empty">
+    <div class="pts-empty-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
     </div>
-    <h3 class="text-xl font-bold text-slate-800 mb-2">Aucun résultat</h3>
-    <p class="text-slate-500">Aucun patient ne correspond à votre recherche "{{ searchTerm }}".</p>
+    <h3>No results</h3>
+    <p>No patient matches "{{ searchTerm }}".</p>
   </div>
 
-  <!-- Data Table -->
-  <div *ngIf="!loading && !errorMessage && filteredPatients.length > 0" class="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col overflow-x-auto">
-    <div class="min-w-[700px]">
-      <!-- Table Header -->
-      <div class="grid grid-cols-[2fr_2fr_1fr_auto] gap-4 p-5 bg-slate-50/80 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider items-center">
-        <div>Patient</div>
-        <div>Contact</div>
-        <div class="text-center">Rendez-vous</div>
-        <div class="text-right w-32">Action</div>
-      </div>
-      
-      <!-- Table Body -->
-      <div class="flex flex-col divide-y divide-slate-100">
-        <div class="grid grid-cols-[2fr_2fr_1fr_auto] gap-4 p-5 items-center hover:bg-slate-50/50 transition-colors" *ngFor="let p of filteredPatients">
-          <!-- Patient Info -->
-          <div class="flex items-center gap-4">
-            <div class="w-10 h-10 rounded-full bg-[#f0f9ff] text-[#0284c7] flex items-center justify-center font-bold text-lg shrink-0">
-              {{ p.prenom.charAt(0).toUpperCase() }}
-            </div>
-            <div>
-              <h4 class="font-bold text-slate-900 leading-tight mb-0.5">{{ p.prenom }} {{ p.nom }}</h4>
-              <p class="text-slate-400 text-xs font-medium">ID: {{ p.id }}</p>
-            </div>
-          </div>
+  <!-- Patient Table -->
+  <div *ngIf="!loading && !errorMessage && filteredPatients.length > 0" class="pts-table-card">
+    <!-- Table header -->
+    <div class="pts-table-row pts-table-row--header">
+      <div class="pts-col pts-col--patient">PATIENT</div>
+      <div class="pts-col pts-col--condition">CONDITION</div>
+      <div class="pts-col pts-col--date">LAST VISIT</div>
+      <div class="pts-col pts-col--date">NEXT</div>
+      <div class="pts-col pts-col--risk">RISK</div>
+      <div class="pts-col pts-col--action"></div>
+    </div>
 
-          <!-- Contact -->
-          <div>
-            <p class="text-slate-800 font-medium text-sm mb-0.5 truncate" [title]="p.email">{{ p.email || '-' }}</p>
-            <p class="text-slate-500 text-xs">{{ p.telephone || '-' }}</p>
-          </div>
-
-          <!-- RDV Count -->
-          <div class="text-center">
-            <span class="inline-flex items-center justify-center min-w-[2rem] h-8 px-2 bg-[#e0f2fe] text-[#0284c7] rounded-xl font-bold border border-[#bae6fd]">
-              {{ p.rdvCount }}
-            </span>
-          </div>
-
-          <!-- Action -->
-          <div class="text-right w-32 flex justify-end">
-            <button type="button" class="px-4 py-2 bg-white hover:bg-slate-50 text-[#0284c7] font-bold text-sm rounded-xl border border-slate-200 transition-colors shadow-sm" (click)="openPatientProfile(p.id)">
-              Voir profil
-            </button>
-          </div>
+    <!-- Table body -->
+    <div *ngFor="let p of filteredPatients; let i = index" class="pts-table-row" (click)="openPatientProfile(p.id)">
+      <!-- Patient -->
+      <div class="pts-col pts-col--patient">
+        <div class="pts-avatar" [ngStyle]="{'background': getAvatarColor(i)}">
+          {{ p.prenom.charAt(0).toUpperCase() }}{{ p.nom.charAt(0).toUpperCase() }}
         </div>
+        <div>
+          <div class="pts-patient-name">{{ p.prenom }} {{ p.nom }}</div>
+          <div class="pts-patient-age">{{ getAge(p) }} yrs</div>
+        </div>
+      </div>
+      <!-- Condition -->
+      <div class="pts-col pts-col--condition">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span class="pts-condition">{{ p.condition || '—' }}</span>
+      </div>
+      <!-- Last Visit -->
+      <div class="pts-col pts-col--date">
+        <span class="pts-date">{{ p.lastVisit || '—' }}</span>
+      </div>
+      <!-- Next -->
+      <div class="pts-col pts-col--date">
+        <div *ngIf="p.nextVisit" class="pts-date-next">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          {{ p.nextVisit }}
+        </div>
+        <span *ngIf="!p.nextVisit" class="pts-date">—</span>
+      </div>
+      <!-- Risk -->
+      <div class="pts-col pts-col--risk">
+        <span class="pts-risk-badge" [ngClass]="getRiskClass(p.risk)">{{ p.risk || 'LOW' }}</span>
+      </div>
+      <!-- Action -->
+      <div class="pts-col pts-col--action">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
     </div>
   </div>

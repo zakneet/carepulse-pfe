@@ -1,72 +1,480 @@
-.staff-shell {
-  display: grid;
-  grid-template-columns: 250px 1fr;
-  min-height: calc(100vh - 70px);
+/* ================================================================
+   OPTICLINIC HEALTHCARE OS — SHELL STYLES
+   ================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* ── Base layout ─────────────────────────────────────────────── */
+.oc-layout {
+  display: flex;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0fbff 0%, #f8fffe 40%, #ffffff 100%);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  position: relative;
 }
 
-.staff-sidebar {
-  border-right: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.94);
-  padding: 1.5rem;
+/* Medical grid pattern background */
+.oc-layout::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(2, 132, 199, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(2, 132, 199, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+.oc-sidebar {
+  width: 220px;
+  min-width: 220px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(186, 230, 253, 0.4);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 30;
+  box-shadow: 4px 0 24px rgba(2, 132, 199, 0.06);
 }
 
-.staff-sidebar h2 {
-  margin: 0;
-  font-size: 1.2rem;
+/* ── Logo ────────────────────────────────────────────────────── */
+.oc-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid rgba(186, 230, 253, 0.3);
 }
 
-.muted {
+.oc-logo-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0284c7, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+  flex-shrink: 0;
+}
+
+.oc-logo-name {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.oc-logo-sub {
+  font-size: 8px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-top: 2px;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────── */
+.oc-nav {
+  flex: 1;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.oc-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
   color: #64748b;
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.staff-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.staff-nav a {
   text-decoration: none;
-  color: #334155;
-  padding: 0.65rem 0.8rem;
-  border-radius: 10px;
-  transition: 0.2s ease;
-}
-
-.staff-nav a:hover,
-.staff-nav a.active {
-  background: rgba(42, 127, 255, 0.12);
-  color: #1d4ed8;
-}
-
-.logout-btn {
-  margin-top: auto;
-  border: 1px solid rgba(42, 127, 255, 0.2);
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-radius: 10px;
-  padding: 0.65rem 0.8rem;
+  transition: all 0.18s ease;
+  position: relative;
   cursor: pointer;
 }
 
-.staff-main {
-  padding: 1.25rem;
-  background: linear-gradient(180deg, rgba(247, 251, 255, 0.8), rgba(255, 255, 255, 1));
+.oc-nav-item:hover {
+  background: rgba(241, 245, 249, 0.8);
+  color: #0f172a;
 }
 
-@media (max-width: 900px) {
-  .staff-shell {
-    grid-template-columns: 1fr;
-  }
+.oc-nav-item svg {
+  flex-shrink: 0;
+  transition: color 0.18s ease;
+}
 
-  .staff-sidebar {
-    border-right: none;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-  }
+/* Active state — cyan gradient pill with glow */
+.oc-nav-active {
+  background: linear-gradient(135deg, #0284c7 0%, #06b6d4 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.38), 0 0 0 1px rgba(2, 132, 199, 0.2) !important;
+}
+
+.oc-nav-active svg {
+  color: #ffffff !important;
+}
+
+/* Notification badges */
+.oc-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 0 5px;
+}
+
+.oc-badge-red {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.oc-badge-cyan {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.oc-nav-active .oc-badge-cyan {
+  background: rgba(255,255,255,0.25);
+  color: #ffffff;
+}
+
+.oc-nav-active .oc-badge-red {
+  background: rgba(255,255,255,0.25);
+  color: #ffffff;
+}
+
+/* Logout item */
+.oc-nav-logout:hover {
+  background: rgba(254, 242, 242, 0.8) !important;
+  color: #ef4444 !important;
+}
+
+/* ── Sidebar bottom section ──────────────────────────────────── */
+.oc-sidebar-bottom {
+  padding: 10px 10px 14px;
+  border-top: 1px solid rgba(186, 230, 253, 0.3);
+}
+
+/* AI Engine widget */
+.oc-ai-widget {
+  background: linear-gradient(135deg, #f0f9ff, #e0f7fe);
+  border: 1px solid rgba(186, 230, 253, 0.6);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 6px;
+}
+
+.oc-ai-widget-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.oc-ai-widget-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.oc-ai-widget-desc {
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.oc-ai-bar-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.oc-ai-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7, #06b6d4);
+  border-radius: 99px;
+  animation: growBar 1.2s ease-out both;
+}
+
+.oc-ai-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.oc-ai-bar-value {
+  color: #0f172a;
+}
+
+@keyframes growBar {
+  from { width: 0 !important; }
+  to   { /* final width set via inline style */ }
+}
+
+/* ── Topbar ──────────────────────────────────────────────────── */
+.oc-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.oc-topbar {
+  height: 60px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(186, 230, 253, 0.35);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 20;
+  box-shadow: 0 2px 16px rgba(2, 132, 199, 0.05);
+}
+
+.oc-topbar-left {
+  width: 160px;
+  flex-shrink: 0;
+}
+
+/* Search */
+.oc-search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 360px;
+}
+
+.oc-search-icon {
+  position: absolute;
+  inset-y: 0;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  color: #94a3b8;
+}
+
+.oc-search-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 44px 0 36px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  color: #0f172a;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.oc-search-input::placeholder { color: #94a3b8; }
+
+.oc-search-input:focus {
+  background: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+.oc-search-kbd {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  font-family: inherit;
+}
+
+/* Right cluster */
+.oc-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Status pill */
+.oc-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  color: #16a34a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.oc-status-dot {
+  width: 7px;
+  height: 7px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.7; transform: scale(1.2); }
+}
+
+/* Icon buttons */
+.oc-icon-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.oc-icon-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.oc-icon-btn-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  padding: 0 3px;
+}
+
+.oc-icon-btn-badge--orange { background: #f97316; color: #fff; }
+.oc-icon-btn-badge--blue   { background: #0284c7; color: #fff; }
+
+.oc-divider {
+  width: 1px;
+  height: 20px;
+  background: #e2e8f0;
+}
+
+/* Doctor chip */
+.oc-doctor-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: box-shadow 0.18s ease;
+}
+
+.oc-doctor-chip:hover {
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.15);
+}
+
+.oc-doctor-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0284c7, #06b6d4);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.oc-doctor-info { display: flex; flex-direction: column; }
+
+.oc-doctor-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.oc-doctor-sub {
+  font-size: 10px;
+  font-weight: 500;
+  color: #94a3b8;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+/* ── Page content ─────────────────────────────────────────────── */
+.oc-page-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  animation: fadeSlideIn 0.3s ease-out both;
+}
+
+.oc-page-content::-webkit-scrollbar { width: 6px; }
+.oc-page-content::-webkit-scrollbar-track { background: transparent; }
+.oc-page-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .oc-sidebar { display: none; }
+  .oc-topbar-left { display: none; }
+  .oc-status-pill { display: none; }
+  .oc-doctor-info { display: none; }
 }

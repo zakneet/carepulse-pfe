@@ -1,0 +1,71 @@
+<div class="opt-wrap">
+  <!-- Header -->
+  <div class="opt-header">
+    <div>
+      <p class="opt-eyebrow">OPTIMIZATION</p>
+      <h1 class="opt-title">Optimization Center</h1>
+      <p class="opt-subtitle">AI-powered scheduling intelligence — real-time OR-Tools engine.</p>
+    </div>
+    <button class="opt-run-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+      Run Optimization
+    </button>
+  </div>
+
+  <!-- Score + Metrics row -->
+  <div class="opt-main-grid">
+
+    <!-- Donut score -->
+    <div class="opt-card opt-card--score">
+      <h2 class="opt-card-title">Overall Score</h2>
+      <div class="opt-donut-wrap">
+        <svg viewBox="0 0 36 36" class="opt-donut">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" stroke-width="3"/>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="url(#optGrad)" stroke-width="3"
+            [attr.stroke-dasharray]="score + ' 100'" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="optGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#0284c7"/>
+              <stop offset="100%" stop-color="#06b6d4"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="opt-donut-center">
+          <span class="opt-donut-pct">{{ score }}%</span>
+          <span class="opt-donut-label">SCORE</span>
+        </div>
+      </div>
+      <p class="opt-score-note">Top 5% of clinics · 142 slots optimized this week</p>
+    </div>
+
+    <!-- Metrics -->
+    <div class="opt-metrics-grid">
+      <div *ngFor="let m of metrics" class="opt-metric-card">
+        <div class="opt-metric-label">{{ m.label }}</div>
+        <div class="opt-metric-value">{{ m.value }}<span class="opt-metric-unit">{{ m.unit }}</span></div>
+        <div class="opt-metric-bar-track">
+          <div class="opt-metric-bar-fill" [style.width]="m.value + '%'"
+               [ngClass]="'opt-bar--' + m.color"></div>
+        </div>
+        <div class="opt-metric-trend" [ngClass]="'opt-trend--' + m.color">{{ m.trend }}</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- AI Recommendations -->
+  <div class="opt-section">
+    <h2 class="opt-section-title">AI Recommendations</h2>
+    <div class="opt-recs-grid">
+      <div *ngFor="let rec of recommendations" class="opt-rec-card">
+        <div class="opt-rec-icon">{{ rec.icon }}</div>
+        <div class="opt-rec-body">
+          <div class="opt-rec-title">{{ rec.title }}</div>
+          <div class="opt-rec-desc">{{ rec.desc }}</div>
+        </div>
+        <button class="opt-rec-action">{{ rec.action }}</button>
+      </div>
+    </div>
+  </div>
+
+</div>

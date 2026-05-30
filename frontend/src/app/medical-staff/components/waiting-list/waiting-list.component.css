@@ -1,0 +1,77 @@
+/* ================================================================
+   OPTICLINIC — WAITING LIST / SMART MATCHES
+   ================================================================ */
+
+.wl-wrap { display:flex; flex-direction:column; gap:22px; padding-bottom:32px; animation:fadeSlideIn .3s ease-out both; }
+@keyframes fadeSlideIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* Header */
+.wl-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.wl-eyebrow  { font-size:11px;font-weight:700;color:#0284c7;text-transform:uppercase;letter-spacing:.12em;margin:0 0 4px; }
+.wl-title    { font-size:28px;font-weight:900;color:#0f172a;margin:0 0 4px; }
+.wl-subtitle { font-size:13px;color:#94a3b8;font-weight:500;margin:0; }
+
+.wl-autofill-btn {
+  display:flex;align-items:center;gap:7px;
+  height:40px;padding:0 20px;
+  background:linear-gradient(135deg,#0284c7,#06b6d4);border:none;border-radius:10px;
+  font-size:13px;font-weight:700;color:#fff;cursor:pointer;
+  box-shadow:0 3px 14px rgba(2,132,199,.3);transition:all .2s;flex-shrink:0;
+}
+.wl-autofill-btn:hover { transform:scale(1.03);box-shadow:0 5px 18px rgba(2,132,199,.4); }
+
+/* AI bar */
+.wl-ai-bar { display:flex;align-items:center;gap:14px;padding:10px 16px;background:rgba(240,249,255,.7);border:1px solid rgba(186,230,253,.5);border-radius:14px; }
+.wl-ai-badge { display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#0284c7; }
+.wl-ai-dot { width:7px;height:7px;background:#06b6d4;border-radius:50%;animation:pulseDot 1.8s ease-in-out infinite; }
+@keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.3)} }
+.wl-ai-stat { font-size:12px;font-weight:600;color:#64748b; }
+
+/* Cards grid */
+.wl-cards-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px; }
+
+/* Card */
+.wl-card {
+  background:#fff;border:1px solid #f1f5f9;border-radius:20px;padding:20px;
+  box-shadow:0 2px 16px rgba(0,0,0,.04);transition:all .2s ease;display:flex;flex-direction:column;gap:14px;
+}
+.wl-card:hover { box-shadow:0 6px 28px rgba(2,132,199,.1);transform:translateY(-2px); }
+
+/* Card top */
+.wl-card-top { display:flex;align-items:center;gap:12px; }
+.wl-card-avatar { width:44px;height:44px;border-radius:50%;color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+.wl-card-info  { flex:1;min-width:0; }
+.wl-card-name  { font-size:15px;font-weight:800;color:#0f172a; }
+.wl-card-type  { font-size:12px;font-weight:500;color:#94a3b8;margin-top:2px; }
+
+/* Match ring */
+.wl-match-score-ring { position:relative;width:52px;height:52px;flex-shrink:0; }
+.wl-ring-svg { width:100%;height:100%;transform:rotate(-90deg); }
+.wl-ring-pct { position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#0284c7; }
+
+/* Wait */
+.wl-card-wait { display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#94a3b8; }
+
+/* Progress */
+.wl-progress-track { width:100%;height:6px;background:#f1f5f9;border-radius:999px;overflow:hidden; }
+.wl-progress-fill  { height:100%;background:linear-gradient(90deg,#0284c7,#06b6d4);border-radius:999px;transition:width 1s cubic-bezier(.4,0,.2,1); }
+.wl-progress-labels { display:flex;justify-content:space-between;font-size:10px;font-weight:600;color:#94a3b8; }
+.wl-progress-pct   { color:#0284c7;font-weight:800; }
+
+/* Meta row */
+.wl-card-meta { display:flex;align-items:center;justify-content:space-between; }
+.wl-priority { font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em; }
+.wl-priority--high     { background:#fff1f2;color:#ef4444; }
+.wl-priority--moderate { background:#fffbeb;color:#d97706; }
+.wl-priority--low      { background:#f0fdf4;color:#16a34a; }
+.wl-freed-slot { display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#64748b; }
+
+/* Actions */
+.wl-card-actions { display:flex;gap:8px; }
+.wl-action-btn { flex:1;height:34px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .18s; }
+.wl-action-btn--call     { background:#fff;color:#64748b; }
+.wl-action-btn--call:hover { background:#f8fafc; }
+.wl-action-btn--msg      { background:#fff;color:#64748b; }
+.wl-action-btn--msg:hover { background:#f8fafc; }
+.wl-action-btn--schedule { background:#0284c7;color:#fff;border-color:#0284c7;box-shadow:0 2px 8px rgba(2,132,199,.25); }
+.wl-action-btn--schedule:hover { background:#0369a1; }

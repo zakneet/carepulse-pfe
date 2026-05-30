@@ -1,0 +1,33 @@
+<div class="set-wrap">
+  <div class="set-header">
+    <div><p class="set-eyebrow">SETTINGS</p><h1 class="set-title">Preferences</h1><p class="set-subtitle">Manage your account, AI engine and notification rules.</p></div>
+  </div>
+  <!-- AI Toggles -->
+  <div class="set-card">
+    <h2 class="set-card-title">Quick toggles</h2>
+    <div class="set-toggle-row">
+      <div><div class="set-toggle-label">AI Optimization Engine</div><div class="set-toggle-sub">Let the AI automatically optimize your schedule</div></div>
+      <button class="set-toggle-btn" [class.set-toggle-btn--on]="aiEnabled" (click)="aiEnabled=!aiEnabled">{{ aiEnabled ? 'ON' : 'OFF' }}</button>
+    </div>
+    <div class="set-toggle-row">
+      <div><div class="set-toggle-label">Auto-Fill waiting list</div><div class="set-toggle-sub">Automatically notify matched waiting patients</div></div>
+      <button class="set-toggle-btn" [class.set-toggle-btn--on]="autoFill" (click)="autoFill=!autoFill">{{ autoFill ? 'ON' : 'OFF' }}</button>
+    </div>
+    <div class="set-toggle-row">
+      <div><div class="set-toggle-label">Real-time alerts</div><div class="set-toggle-sub">Push notifications for emergencies and matches</div></div>
+      <button class="set-toggle-btn" [class.set-toggle-btn--on]="realTimeAlerts" (click)="realTimeAlerts=!realTimeAlerts">{{ realTimeAlerts ? 'ON' : 'OFF' }}</button>
+    </div>
+  </div>
+  <!-- Sections grid -->
+  <div class="set-sections-grid">
+    <div *ngFor="let s of sections" class="set-section-card">
+      <div class="set-section-icon">{{ s.icon }}</div>
+      <div class="set-section-body">
+        <div class="set-section-title">{{ s.title }}</div>
+        <div class="set-section-desc">{{ s.desc }}</div>
+      </div>
+      <div *ngIf="s.badge" class="set-section-badge">{{ s.badge }}</div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  </div>
+</div>

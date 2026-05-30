@@ -18,7 +18,8 @@ export class BookingComponent implements OnInit {
     age: '',
     telephone: '',
     specialite: '',
-    date: ''
+    date: '',
+    timePreference: 'peu-importe' as 'matin' | 'apres-midi' | 'peu-importe'
   };
 
   step: 'form' | 'loading' | 'result' = 'form';
@@ -107,6 +108,7 @@ export class BookingComponent implements OnInit {
       ...this.formData,
       age: Number(this.formData.age),
       idPersonnel: this.doctorId,
+      timePreference: this.formData.timePreference,
       rejectedSlots: [] // For alternative proposals
     };
 
@@ -129,7 +131,8 @@ export class BookingComponent implements OnInit {
     const payload = {
       ...this.formData,
       idPersonnel: this.doctorId,
-      rejectedSlots: [this.optimizationResult.slot] 
+      timePreference: this.formData.timePreference,
+      rejectedSlots: [this.optimizationResult.slot]
       // If we had a list of rejected slots, we'd append it
     };
 
@@ -148,10 +151,15 @@ export class BookingComponent implements OnInit {
   }
 
   confirmAppointment(): void {
-    const selectedDoctorId = Number(this.doctorId || this.optimizationResult?.doctor?.id || this.optimizationResult?.doctor?.id_personnel || 0);
+    const selectedDoctorId = Number(
+      this.doctorId
+      || this.optimizationResult?.doctor?.id
+      || this.optimizationResult?.doctor?.id_personnel
+      || 0
+    );
 
     if (!this.optimizationResult?.slot || !selectedDoctorId) {
-      this.errorMessage = 'Aucun rendez-vous a confirmer.';
+      this.errorMessage = 'Aucun rendez-vous à confirmer.';
       return;
     }
 
@@ -159,30 +167,49 @@ export class BookingComponent implements OnInit {
     this.successMessage = '';
     this.isConfirming = true;
 
-    const payload = {
-      nom: this.formData.nom,
-      prenom: this.formData.prenom,
-      telephone: this.formData.telephone,
-      agePatient: Number(this.formData.age),
+    const slotStart = this.formatTime(this.optimizationResult.slot.start);
+    const slotEnd   = this.formatTime(this.optimizationResult.slot.end);
+    const slotDuration = (this.optimizationResult.slot.end - this.optimizationResult.slot.start) || 30;
+
+    console.log('[Booking] confirmAppointment payload preview:', {
       idPersonnel: selectedDoctorId,
       dateRDV: this.formData.date,
-      heureDebut: this.formatTime(this.optimizationResult.slot.start),
-      heureFin: this.formatTime(this.optimizationResult.slot.end),
+      heureDebut: slotStart,
+      heureFin: slotEnd,
+      slotDuration,
+      fromSmartBooking: true
+    });
+
+    const payload = {
+      nom:               this.formData.nom,
+      prenom:            this.formData.prenom,
+      telephone:         this.formData.telephone,
+      agePatient:        Number(this.formData.age),
+      idPersonnel:       selectedDoctorId,
+      dateRDV:           this.formData.date,
+      heureDebut:        slotStart,
+      heureFin:          slotEnd,
+      slotDuration:      slotDuration,
       motifConsultation: 'consultation',
-      statut: 'consultation'
+      statut:            'consultation',
+      // Tells the backend that OR-Tools already validated this slot server-side
+      // → skips the redundant whitelist check that was causing HTTP 400
+      fromSmartBooking:  true
     };
 
     this.http.post<any>('http://localhost:5000/add_rdv', payload).subscribe({
-      next: () => {
-        this.successMessage = 'Rendez-vous confirmé.';
+      next: (res) => {
         this.isConfirming = false;
-        setTimeout(() => {
-          this.router.navigate(['/home']);
-        }, 1200);
+        this.successMessage = '✓ Rendez-vous confirmé avec succès !';
+        setTimeout(() => this.router.navigate(['/home']), 1500);
       },
       error: (err) => {
         this.isConfirming = false;
-        this.errorMessage = err.error?.error || 'Impossible de confirmer le rendez-vous.';
+        const backendMsg = err.error?.error || err.error?.message || null;
+        this.errorMessage = backendMsg
+          ? `Impossible de confirmer le rendez-vous : ${backendMsg}`
+          : 'Erreur lors de la confirmation. Veuillez réessayer.';
+        console.error('[Booking] /add_rdv error:', err.status, err.error);
       }
     });
   }
