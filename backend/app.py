@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
 import functools
 import os
 import threading
@@ -20,19 +20,14 @@ except Exception:
     _HAS_PYWEBPUSH = False
 app = Flask(__name__)
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-prod")
-
-# Enable CORS for Angular frontend.
-CORS(app, resources={r"/*": {"origins": "*"}})
-
-# Enable Socket.IO with CORS for Angular frontend.
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+app.secret_key = SECRET_KEY
 
 # MySQL configuration.
 MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
 MYSQL_PORT = os.getenv("MYSQL_PORT", "3306")
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
-MYSQL_DB = os.getenv("MYSQL_DB", "gestion_des_rendez-vous")
+MYSQL_DB = os.getenv("MYSQL_DB", "gestion_des-rendez-vous5")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}"
@@ -78,6 +73,16 @@ except Exception:
 
 DEFAULT_CLINIC_ADDRESS = os.getenv("CLINIC_ADDRESS", "Clinique OptiClinic, Tunis, Tunisie")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:4200")
+ALLOWED_FRONTEND_ORIGINS = [
+    FRONTEND_URL,
+    "http://localhost:4200",
+    "http://127.0.0.1:4200",
+]
+# Enable CORS for Angular frontend and keep booking-session cookies available.
+CORS(app, resources={r"/*": {"origins": ALLOWED_FRONTEND_ORIGINS}}, supports_credentials=True)
+
+# Enable Socket.IO with CORS for Angular frontend.
+socketio = SocketIO(app, cors_allowed_origins=ALLOWED_FRONTEND_ORIGINS, async_mode="threading")
 # SMTP notification configuration (optional). If not set, emails will be skipped and logged.
 NOTIF_SMTP_HOST = os.getenv("NOTIF_SMTP_HOST")
 NOTIF_SMTP_PORT = int(os.getenv("NOTIF_SMTP_PORT", "0")) if os.getenv("NOTIF_SMTP_PORT") else None
@@ -86,6 +91,8 @@ NOTIF_SMTP_PASS = os.getenv("NOTIF_SMTP_PASS")
 NOTIF_FROM_EMAIL = os.getenv("NOTIF_FROM_EMAIL", "no-reply@gestion-rdv.local")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
 VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", f"mailto:{NOTIF_FROM_EMAIL}")
+ALTERNATIVE_PROPOSAL_GAP_MINUTES = 30
+ALTERNATIVE_PROPOSAL_SESSION_KEY = "booking_slot_proposals"
 
 def _send_email(to_email: str, subject: str, body: str) -> bool:
     """Send a plain-text email using configured SMTP server. Returns True on success."""
@@ -116,6 +123,83 @@ def _send_email(to_email: str, subject: str, body: str) -> bool:
 
 def _get_booking_link(appointment_id):
     return f"{os.getenv('PUBLIC_BOOKING_URL_BASE', FRONTEND_URL).rstrip('/')}/booking/{appointment_id}"
+
+
+def _proposal_scope_key(id_personnel, date_rdv, slot_duration, is_urgent=False):
+    """Group proposal history by doctor, date and slot duration so separate flows do not collide."""
+    return f"{int(id_personnel)}:{date_rdv.isoformat()}:{int(slot_duration)}:{1 if is_urgent else 0}"
+
+
+def _slot_signature(slot):
+    return f"{slot.get('heureDebut')}|{slot.get('heureFin')}"
+
+
+def _extract_slot_start_minutes(slot):
+    return _to_minutes(slot.get("heureDebut"))
+
+
+def _select_next_alternative_slot(candidate_slots, proposal_history, proposal_index):
+    """Pick the next visible slot while enforcing a 30-minute minimum jump after the last proposal.
+
+    The history is stored per booking flow so a patient cannot see the same slot twice during
+    the same reservation sequence, even when multiple clients are using the application.
+    """
+    ordered_slots = [slot for slot in candidate_slots if slot.get("heureDebut") and slot.get("heureFin")]
+    ordered_slots.sort(key=lambda slot: (_extract_slot_start_minutes(slot), _to_minutes(slot.get("heureFin"))))
+
+    if not ordered_slots:
+        return None
+
+    seen_signatures = {
+        str(entry.get("signature"))
+        for entry in proposal_history
+        if isinstance(entry, dict) and entry.get("signature")
+    }
+
+    floor_start = None
+    if proposal_history:
+        last_entry = proposal_history[-1] if isinstance(proposal_history[-1], dict) else {}
+        last_start = last_entry.get("startMinutes")
+        if last_start is not None:
+            floor_start = int(last_start) + ALTERNATIVE_PROPOSAL_GAP_MINUTES
+    elif proposal_index and proposal_index > 0:
+        # Fallback for clients that do not preserve the session cookie: advance by 30 minutes
+        # from the first proposal so the existing frontend flow keeps behaving monotonically.
+        first_start = _extract_slot_start_minutes(ordered_slots[0])
+        if first_start is not None:
+            floor_start = first_start + (int(proposal_index) * ALTERNATIVE_PROPOSAL_GAP_MINUTES)
+
+    filtered_slots = []
+    for slot in ordered_slots:
+        start_minutes = _extract_slot_start_minutes(slot)
+        if start_minutes is None:
+            continue
+        if floor_start is not None and start_minutes < floor_start:
+            continue
+        signature = _slot_signature(slot)
+        if signature in seen_signatures:
+            continue
+        filtered_slots.append(slot)
+
+    if not filtered_slots:
+        return None
+
+    return filtered_slots[0]
+
+
+def _load_proposal_history(scope_key):
+    proposal_state = session.get(ALTERNATIVE_PROPOSAL_SESSION_KEY, {})
+    history = proposal_state.get(scope_key, [])
+    if not isinstance(history, list):
+        return []
+    return history
+
+
+def _save_proposal_history(scope_key, history):
+    proposal_state = session.get(ALTERNATIVE_PROPOSAL_SESSION_KEY, {})
+    proposal_state[scope_key] = history
+    session[ALTERNATIVE_PROPOSAL_SESSION_KEY] = proposal_state
+    session.modified = True
 
 
 def _trigger_booking_confirmation_sms(patient_row, rdv_id):
@@ -3920,6 +4004,13 @@ def suggest_available_slots():
         if proposal_index < 0:
             proposal_index = 0
 
+        proposal_scope = _proposal_scope_key(id_personnel, date_rdv, slot_duration, is_urgent)
+        if proposal_index == 0:
+            # A new first proposal starts a fresh reservation sequence for this doctor/date.
+            _save_proposal_history(proposal_scope, [])
+
+        proposal_history = _load_proposal_history(proposal_scope)
+
         with db.engine.connect() as conn:
             personnel_row = conn.exec_driver_sql(
                 """
@@ -4098,8 +4189,19 @@ def suggest_available_slots():
             optimized_appointments = None
 
         candidate_slots = optimized_suggested_slots or suggested_slots
-        if candidate_slots:
-            selected_slot = candidate_slots[proposal_index % len(candidate_slots)]
+        selected_slot = _select_next_alternative_slot(candidate_slots, proposal_history, proposal_index)
+        if selected_slot:
+            # Store the chosen slot so the next click on "Proposer un autre créneau" jumps forward
+            # by at least 30 minutes and never shows the same slot twice in the same flow.
+            proposal_history.append(
+                {
+                    "signature": _slot_signature(selected_slot),
+                    "startMinutes": _extract_slot_start_minutes(selected_slot),
+                    "heureDebut": selected_slot.get("heureDebut"),
+                    "heureFin": selected_slot.get("heureFin"),
+                }
+            )
+            _save_proposal_history(proposal_scope, proposal_history)
             suggested_slots = [selected_slot]
             optimized_suggested_slots = [selected_slot] if optimized_suggested_slots else None
 

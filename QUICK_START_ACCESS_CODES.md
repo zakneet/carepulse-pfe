@@ -226,7 +226,7 @@ python setup_access_codes.py  # Reconfigurer si nécessaire
 
 2. MySQL accessible
    ```bash
-   mysql -u root gestion_des_rendez-vous-3
+   mysql -u root gestion_des-rendez-vous5
    ```
 
 3. Code d'accès dans la base

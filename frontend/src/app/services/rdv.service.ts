@@ -426,7 +426,9 @@ export class RdvService {
   }
 
   suggestAvailableSlots(payload: SlotSuggestionRequest): Observable<SlotSuggestionResponse> {
-    return this.http.post<SlotSuggestionResponse>(`${this.apiUrl}/suggest-available-slots`, payload);
+    return this.http.post<SlotSuggestionResponse>(`${this.apiUrl}/suggest-available-slots`, payload, {
+      withCredentials: true,
+    });
   }
 
   optimizeAndPersistDoctorPlanning(idPersonnel: number, dateRDV: string): Observable<OptimizePlanningResponse> {

@@ -51,7 +51,7 @@ L'application couvre les besoins suivants :
 - Serveur MySQL en cours d'exécution
 
 ### Configuration de la base de données
-Assurez-vous d'avoir une base de données nommée `gestion_des_rendez-vous-3`. Le backend créera les tables automatiquement au démarrage.
+Assurez-vous d'avoir une base de données nommée `gestion_des-rendez-vous5`. Le backend créera les tables automatiquement au démarrage.
 Identifiants par défaut (modifiables via variables d'environnement) :
 `Host: localhost`, `Port: 3306`, `User: root`, `Password: (vide)`
 

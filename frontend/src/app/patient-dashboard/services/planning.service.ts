@@ -18,6 +18,8 @@ export class PlanningService {
       slotDuration,
       proposalIndex,
       isUrgent: false,
+    }, {
+      withCredentials: true,
     }).pipe(
       map((response) => ({
         ...response,

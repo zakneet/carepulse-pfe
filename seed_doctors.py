@@ -31,7 +31,7 @@ try:
         host='localhost',
         user='root',
         password='',
-        database='gestion_des_rendez-vous-3',
+        database='gestion_des-rendez-vous5',
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor
     )

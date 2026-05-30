@@ -4,7 +4,7 @@ connection = pymysql.connect(
     host='localhost',
     user='root',
     password='',
-    database='gestion_des_rendez-vous',
+    database='gestion_des-rendez-vous5',
     cursorclass=pymysql.cursors.DictCursor
 )
 

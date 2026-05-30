@@ -25,22 +25,22 @@ export class MedicalStaffDashboardComponent implements OnInit {
     {
       time: '09:00',
       patient: 'Sophie Laurent',
-      motif: 'Cardiology follow-up',
-      status: 'Optimized',
+      motif: 'Suivi de cardiologie',
+      status: 'Optimisé',
       statusColor: 'blue'
     },
     {
       time: '09:45',
       patient: 'Marc Dubois',
-      motif: 'Acute chest pain',
-      status: 'Emergency',
+      motif: 'Douleur thoracique aiguë',
+      status: 'Urgence',
       statusColor: 'red'
     },
     {
       time: '10:30',
       patient: 'Anna Petit',
-      motif: 'Annual check-up',
-      status: 'Optimized',
+      motif: 'Bilan annuel',
+      status: 'Optimisé',
       statusColor: 'blue'
     },
     {
