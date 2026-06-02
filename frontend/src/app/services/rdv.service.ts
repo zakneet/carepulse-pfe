@@ -407,6 +407,24 @@ export class RdvService {
     return this.http.post(`${this.apiUrl}/add_rdv`, payload);
   }
 
+  confirmAppointmentByDoctor(rdvId: number, idPersonnel?: number): Observable<{
+    success: boolean;
+    message: string;
+    rdv?: Rdv;
+    portalUrl?: string;
+    emailSent?: boolean;
+    emailMessage?: string;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      message: string;
+      rdv?: Rdv;
+      portalUrl?: string;
+      emailSent?: boolean;
+      emailMessage?: string;
+    }>(`${this.apiUrl}/appointments/confirm`, { rdvId, idPersonnel });
+  }
+
   getMedicalStaff(): Observable<MedicalStaff[]> {
     return this.http.get<MedicalStaff[]>(`${this.apiUrl}/medical-staff`).pipe(
       catchError(() =>

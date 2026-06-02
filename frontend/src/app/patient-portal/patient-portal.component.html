@@ -1,0 +1,194 @@
+<div class="pp-layout" *ngIf="!loading && data">
+
+  <!-- Sidebar -->
+  <aside class="pp-sidebar">
+    <div class="pp-logo">
+      <app-logo size="sm"></app-logo>
+      <span class="pp-logo-sub">ESPACE PATIENT</span>
+    </div>
+    <nav class="pp-nav">
+      <button type="button" [class.active]="activeSection==='dashboard'" (click)="activeSection='dashboard'">
+        Tableau de bord
+      </button>
+      <button type="button" [class.active]="activeSection==='appointments'" (click)="activeSection='appointments'">
+        Mes rendez-vous
+      </button>
+      <button type="button" [class.active]="activeSection==='documents'" (click)="activeSection='documents'">
+        Mes documents
+      </button>
+      <button type="button" [class.active]="activeSection==='notifications'" (click)="activeSection='notifications'">
+        Notifications
+        <span *ngIf="unreadNotifications" class="pp-badge">{{ unreadNotifications }}</span>
+      </button>
+    </nav>
+    <div class="pp-help">
+      <p>Besoin d'aide ?</p>
+      <a href="tel:+21671000000" class="pp-help-btn">Nous contacter</a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="pp-main">
+    <header class="pp-topbar">
+      <div class="pp-user">
+        <div class="pp-avatar">{{ data.patient.fullName.charAt(0) }}</div>
+        <div>
+          <strong>{{ data.patient.fullName }}</strong>
+          <span>Espace sécurisé</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Dashboard -->
+    <div class="pp-content" *ngIf="activeSection==='dashboard'">
+      <div class="pp-grid">
+
+        <!-- Doctor card -->
+        <div class="pp-card pp-doctor-card" *ngIf="data.doctor as doc">
+          <p class="pp-card-label">Votre médecin de suivi</p>
+          <div class="pp-doctor-row">
+            <div class="pp-doctor-avatar">{{ doc.name.charAt(3) || 'M' }}</div>
+            <div>
+              <h2>{{ doc.name }}</h2>
+              <p>{{ doc.specialite }} · {{ doc.clinicName }}</p>
+              <span class="pp-status" [class.pp-status--ok]="doc.available">
+                {{ doc.available ? 'Disponible' : 'En consultation' }}
+              </span>
+            </div>
+          </div>
+          <div class="pp-doctor-meta">
+            <div><span>Adresse</span>{{ doc.address }}</div>
+            <div><span>Téléphone</span>{{ doc.phone }}</div>
+            <div><span>Horaires</span>{{ doc.hours }}</div>
+          </div>
+        </div>
+
+        <!-- Weather -->
+        <div class="pp-card pp-weather-card">
+          <p class="pp-card-label">Météo à {{ weather?.city || 'Tunis' }}</p>
+          <div class="pp-weather-temp">{{ weather?.temp ?? '—' }}°C</div>
+          <p>{{ weather?.description || 'Chargement…' }}</p>
+        </div>
+
+        <!-- Clinic map -->
+        <div class="pp-card pp-clinic-card">
+          <p class="pp-card-label">Cabinet médical</p>
+          <p class="pp-clinic-name">{{ data.clinic.name }}</p>
+          <p class="pp-clinic-addr">{{ data.clinic.address }}</p>
+          <a [href]="mapUrl" target="_blank" rel="noopener" class="pp-map-btn">Voir sur la carte</a>
+        </div>
+
+        <!-- Next appointment -->
+        <div class="pp-card pp-next-appt" *ngIf="data.upcomingAppointments[0] as next">
+          <p class="pp-card-label">Prochain rendez-vous</p>
+          <div class="pp-next-date">{{ next.dateRDV | date:'d MMM yyyy':'':'fr' }}</div>
+          <strong>{{ next.heureDebut }} · {{ next.doctorName }}</strong>
+          <p>{{ next.motifConsultation }}</p>
+          <span class="pp-status pp-status--ok">{{ next.statut }}</span>
+        </div>
+
+        <!-- Documents preview -->
+        <div class="pp-card">
+          <p class="pp-card-label">Documents récents</p>
+          <div *ngIf="!data.documents.length" class="pp-empty">Aucun document pour le moment.</div>
+          <button type="button" class="pp-doc-row" *ngFor="let doc of data.documents | slice:0:4" (click)="openDocument(doc)">
+            <span class="pp-doc-icon">PDF</span>
+            <span>{{ doc.title }}</span>
+          </button>
+        </div>
+
+        <!-- Notifications preview -->
+        <div class="pp-card">
+          <p class="pp-card-label">Rappels santé</p>
+          <ul class="pp-reminders">
+            <li *ngFor="let n of data.notifications | slice:0:3">{{ n.title }} — {{ n.body }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pp-banner">
+        <div>
+          <strong>Votre santé, notre priorité</strong>
+          <p>Contactez le cabinet pour toute question sur votre suivi.</p>
+        </div>
+        <a href="tel:+21671000000" class="pp-banner-btn">Contacter le cabinet</a>
+      </div>
+    </div>
+
+    <!-- Appointments -->
+    <div class="pp-content" *ngIf="activeSection==='appointments'">
+      <h2 class="pp-section-title">Mes rendez-vous</h2>
+      <h3>À venir</h3>
+      <div *ngIf="!data.upcomingAppointments.length" class="pp-empty">Aucun rendez-vous à venir.</div>
+      <div class="pp-appt-list">
+        <div class="pp-appt-item" *ngFor="let a of data.upcomingAppointments">
+          <div class="pp-appt-date">{{ a.dateRDV | date:'d MMM yyyy':'':'fr' }}</div>
+          <div>
+            <strong>{{ a.heureDebut }} — {{ a.doctorName }}</strong>
+            <p>{{ a.motifConsultation }}</p>
+          </div>
+          <span class="pp-status pp-status--ok">{{ a.statut }}</span>
+        </div>
+      </div>
+      <h3>Historique</h3>
+      <div class="pp-appt-list">
+        <div class="pp-appt-item" *ngFor="let a of data.appointmentHistory">
+          <div class="pp-appt-date">{{ a.dateRDV | date:'d MMM yyyy':'':'fr' }}</div>
+          <div>
+            <strong>{{ a.heureDebut }} — {{ a.doctorName }}</strong>
+            <p>{{ a.motifConsultation }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Documents -->
+    <div class="pp-content" *ngIf="activeSection==='documents'">
+      <h2 class="pp-section-title">Mes documents médicaux</h2>
+      <div *ngIf="!data.documents.length" class="pp-empty">Aucun document disponible.</div>
+      <div class="pp-doc-grid">
+        <button type="button" class="pp-doc-card" *ngFor="let doc of data.documents" (click)="openDocument(doc)">
+          <span class="pp-doc-icon pp-doc-icon--lg">PDF</span>
+          <strong>{{ doc.title }}</strong>
+          <span>{{ doc.type }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="pp-content" *ngIf="activeSection==='notifications'">
+      <h2 class="pp-section-title">Notifications</h2>
+      <div *ngIf="!data.notifications.length" class="pp-empty">Aucune notification.</div>
+      <div class="pp-notif-list">
+        <div class="pp-notif-item" *ngFor="let n of data.notifications" [class.unread]="!n.read">
+          <strong>{{ n.title }}</strong>
+          <p>{{ n.body }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div class="pp-loading" *ngIf="loading">
+  <div class="pp-spinner"></div>
+  <p>Chargement de votre espace patient…</p>
+</div>
+
+<!-- Error -->
+<div class="pp-error" *ngIf="!loading && errorMessage">
+  <h2>Accès refusé</h2>
+  <p>{{ errorMessage }}</p>
+</div>
+
+<!-- Document modal -->
+<div class="pp-modal-backdrop" *ngIf="selectedDoc" (click)="closeDocument()">
+  <div class="pp-modal" (click)="$event.stopPropagation()">
+    <h3>{{ selectedDoc.title }}</h3>
+    <pre class="pp-doc-content">{{ selectedDoc.content }}</pre>
+    <div class="pp-modal-actions">
+      <button type="button" (click)="downloadDocument()">Télécharger</button>
+      <button type="button" class="secondary" (click)="closeDocument()">Fermer</button>
+    </div>
+  </div>
+</div>

@@ -3,6 +3,12 @@ import functools
 import os
 import threading
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from flask import Flask, jsonify, request, render_template, session, abort, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
@@ -70,6 +76,38 @@ try:
 except Exception:
     def send_booking_confirmation_sms_async(*args, **kwargs):
         print("[sms] notification service unavailable, SMS skipped", flush=True)
+
+try:
+    from services.email_service import send_transactional_email, build_appointment_confirmation_email
+except Exception:
+    def send_transactional_email(*args, **kwargs):
+        return {"success": False, "message": "email service unavailable"}
+
+    def build_appointment_confirmation_email(*args, **kwargs):
+        return ("Confirmation OptiClinic", "Votre rendez-vous est confirmé.", None)
+
+try:
+    from services.patient_portal_service import (
+        ensure_portal_tables,
+        is_pending_motif,
+        derive_rdv_statut,
+        confirm_motif,
+        create_portal_token,
+        resolve_token,
+        generate_patient_documents,
+        PENDING_PREFIX,
+    )
+except Exception:
+    def is_pending_motif(m):
+        return (m or "").lower().startswith("en attente")
+
+    def derive_rdv_statut(m):
+        return "En attente" if is_pending_motif(m) else "Confirme"
+
+    def confirm_motif(m):
+        return "Consultation confirmée"
+
+    PENDING_PREFIX = "En attente - "
 
 DEFAULT_CLINIC_ADDRESS = os.getenv("CLINIC_ADDRESS", "Clinique OptiClinic, Tunis, Tunisie")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:4200")
@@ -659,7 +697,7 @@ class Rdv(db.Model):
             "heureDebut": _format_sql_time(self.heureDebut),
             "heureFin": _format_sql_time(self.heureFin),
             "motifConsultation": self.motifConsultation,
-            "statut": "Confirme",
+            "statut": derive_rdv_statut(self.motifConsultation),
         }
 
 
@@ -767,9 +805,23 @@ def _ensure_patient_table_columns():
             ) ENGINE=InnoDB
             """
         )
-        for column_name in ("email", "adresse", "cin", "password"):
+        for column_name in ("adresse", "cin", "password"):
             try:
                 conn.exec_driver_sql(f"ALTER TABLE patient DROP COLUMN IF EXISTS `{column_name}`")
+            except Exception:
+                pass
+        existing = {
+            row[0]
+            for row in conn.exec_driver_sql(
+                """
+                SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient'
+                """
+            ).fetchall()
+        }
+        if "email" not in existing:
+            try:
+                conn.exec_driver_sql("ALTER TABLE patient ADD COLUMN email VARCHAR(255) NULL")
             except Exception:
                 pass
     _ensure_rdv_table_columns()
@@ -2784,12 +2836,7 @@ def get_medical_staff_planning():
         for rdv in rdvs:
             day_key = rdv["dateRDV"].isoformat() if hasattr(rdv["dateRDV"], "isoformat") else str(rdv["dateRDV"])
             motif = rdv["motifConsultation"] or ""
-            statut = "Confirme"
-            lowered = motif.lower()
-            if "urgence" in lowered or "urgent" in lowered:
-                statut = "Urgence"
-            elif any(t in lowered for t in ("replac", "replanif", "deplace", "optimis")):
-                statut = "Optimise"
+            statut = derive_rdv_statut(motif)
             grouped.setdefault(day_key, []).append(
                 {
                     "id": rdv["id"],
@@ -4855,6 +4902,116 @@ def suggest_available_slots():
         return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
 
 
+def _extract_booking_patient_fields(data):
+    """Normalize patient identity from booking payload (French + English keys)."""
+    nom = (
+        data.get("lastName")
+        or data.get("nom")
+        or data.get("patientNom")
+        or ""
+    )
+    prenom = (
+        data.get("firstName")
+        or data.get("prenom")
+        or data.get("patientPrenom")
+        or ""
+    )
+    telephone = (
+        data.get("phone")
+        or data.get("telephone")
+        or ""
+    )
+    email = (data.get("email") or "").strip().lower()
+    return str(nom).strip(), str(prenom).strip(), str(telephone).strip(), email
+
+
+def _resolve_booking_patient(conn, data):
+    """
+    Resolve or create a patient for appointment booking.
+    Public bookings never reuse idPatient from payload or match by phone alone.
+    Each distinct (nom, prenom, telephone) identity gets its own patient row.
+    """
+    patient_nom, patient_prenom, telephone, patient_email = _extract_booking_patient_fields(data)
+    from_public_booking = bool(data.get("fromSmartBooking") or data.get("fromPublicBooking"))
+    id_patient = data.get("idPatient")
+
+    if from_public_booking:
+        id_patient = None
+
+    if id_patient and int(id_patient) > 0 and not from_public_booking:
+        patient_row = conn.exec_driver_sql(
+            """
+            SELECT id_patient, nom, prenom, telephone, email, NULL AS cin, NULL AS password
+            FROM patient
+            WHERE id_patient = %s
+            LIMIT 1
+            """,
+            (int(id_patient),),
+        ).mappings().first()
+        if patient_row:
+            print(f"    Using authenticated patient ID {id_patient}")
+            return patient_row, int(id_patient), None
+        return None, None, "patient introuvable"
+
+    if not patient_nom or not patient_prenom:
+        return None, None, "nom et prenom sont obligatoires"
+
+    patient_row = conn.exec_driver_sql(
+        """
+        SELECT id_patient, nom, prenom, telephone, email, NULL AS cin, NULL AS password
+        FROM patient
+        WHERE nom = %s AND prenom = %s AND COALESCE(telephone, '') = %s
+        LIMIT 1
+        """,
+        (patient_nom, patient_prenom, telephone),
+    ).mappings().first()
+
+    if patient_row:
+        id_patient = int(patient_row["id_patient"])
+        if patient_email:
+            conn.exec_driver_sql(
+                "UPDATE patient SET email = %s WHERE id_patient = %s",
+                (patient_email, id_patient),
+            )
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, telephone, email, NULL AS cin, NULL AS password
+                FROM patient WHERE id_patient = %s LIMIT 1
+                """,
+                (id_patient,),
+            ).mappings().first()
+        print(f"    Matched patient ID {id_patient}: {patient_prenom} {patient_nom}")
+        return patient_row, id_patient, None
+
+    insert_result = conn.exec_driver_sql(
+        """
+        INSERT INTO patient (nom, prenom, telephone, email)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (patient_nom, patient_prenom, telephone or None, patient_email or None),
+    )
+    new_id = insert_result.lastrowid
+    if not new_id:
+        new_id_row = conn.exec_driver_sql("SELECT LAST_INSERT_ID() AS id").mappings().first()
+        new_id = int((new_id_row or {}).get("id") or 0)
+
+    patient_row = conn.exec_driver_sql(
+        """
+        SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
+        FROM patient
+        WHERE id_patient = %s
+        LIMIT 1
+        """,
+        (int(new_id),),
+    ).mappings().first()
+    if not patient_row:
+        return None, None, "impossible de creer le patient"
+
+    id_patient = int(patient_row["id_patient"])
+    print(f"    Created new patient ID {id_patient}: {patient_prenom} {patient_nom}")
+    return patient_row, id_patient, None
+
+
 @app.route("/add_rdv", methods=["POST"])
 def add_rdv():
     try:
@@ -4863,9 +5020,7 @@ def add_rdv():
         print(f"\n>>> /add_rdv - Received request")
         print(f"    Raw data: {data}")
 
-        id_patient = data.get("idPatient")
-        patient_nom = (data.get("nom") or data.get("patientNom") or "").strip()
-        patient_prenom = (data.get("prenom") or data.get("patientPrenom") or "").strip()
+        patient_nom, patient_prenom, _telephone, _patient_email = _extract_booking_patient_fields(data)
         # Always coerce id_personnel to int — frontend may send a string
         try:
             id_personnel = int(data.get("idPersonnel") or 0) or None
@@ -4933,87 +5088,14 @@ def add_rdv():
             statut = "Confirme"
 
         _ensure_patient_table_columns()
-        
+
+        id_patient = None
         patient_row = None
         with db.engine.begin() as conn:
-            if id_patient and int(id_patient) > 0:
-                patient_row = conn.exec_driver_sql(
-                    """
-                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
-                    FROM patient
-                    WHERE id_patient = %s
-                    LIMIT 1
-                    """,
-                    (int(id_patient),),
-                ).mappings().first()
-                if patient_row:
-                    print(f"    Using existing patient ID {id_patient}")
-                else:
-                    print(f"    ERROR: Patient ID {id_patient} not found in patient table")
-                    return jsonify({"error": "patient introuvable"}), 404
-            elif patient_nom and patient_prenom:
-                telephone = (data.get("telephone") or "").strip()
-                patient_row = None
-
-                if telephone:
-                    patient_row = conn.exec_driver_sql(
-                        """
-                        SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
-                        FROM patient
-                        WHERE telephone = %s
-                        LIMIT 1
-                        """,
-                        (telephone,),
-                    ).mappings().first()
-
-                if patient_row:
-                    conn.exec_driver_sql(
-                        """
-                        UPDATE patient
-                        SET nom = %s, prenom = %s
-                        WHERE id_patient = %s
-                        """,
-                        (patient_nom, patient_prenom, int(patient_row["id_patient"])),
-                    )
-                    patient_row = conn.exec_driver_sql(
-                        """
-                        SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
-                        FROM patient
-                        WHERE id_patient = %s
-                        LIMIT 1
-                        """,
-                        (int(patient_row["id_patient"]),),
-                    ).mappings().first()
-                    id_patient = patient_row["id_patient"]
-                    print(f"    Updated existing patient ID {id_patient}: {patient_nom} {patient_prenom}")
-                else:
-                    insert_result = conn.exec_driver_sql(
-                        """
-                        INSERT INTO patient (nom, prenom, telephone)
-                        VALUES (%s, %s, %s)
-                        """,
-                        (patient_nom, patient_prenom, telephone),
-                    )
-                    new_id = insert_result.lastrowid
-                    if not new_id:
-                        new_id_row = conn.exec_driver_sql("SELECT LAST_INSERT_ID() AS id").mappings().first()
-                        new_id = int((new_id_row or {}).get("id") or 0)
-
-                    patient_row = conn.exec_driver_sql(
-                        """
-                        SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
-                        FROM patient
-                        WHERE id_patient = %s
-                        LIMIT 1
-                        """,
-                        (int(new_id),),
-                    ).mappings().first()
-                    if patient_row:
-                        id_patient = patient_row["id_patient"]
-                        print(f"    Created new patient ID {id_patient}: {patient_nom} {patient_prenom}")
-            else:
-                print(f"    ERROR: nom et prenom sont obligatoires pour un RDV public")
-                return jsonify({"error": "nom et prenom sont obligatoires"}), 400
+            patient_row, id_patient, patient_error = _resolve_booking_patient(conn, data)
+            if patient_error:
+                print(f"    ERROR: {patient_error}")
+                return jsonify({"error": patient_error}), 400
 
         if not patient_row:
             print(f"    ERROR: Patient not found")
@@ -5245,13 +5327,20 @@ def add_rdv():
                 "conflictingAppointment": conflict_info
             }), 409
 
+        from_public_booking = bool(data.get("fromPublicBooking") or data.get("fromSmartBooking"))
+        motif_raw = (data.get("motifConsultation") or "consultation").strip()
+        if from_public_booking and not is_urgent and not is_pending_motif(motif_raw):
+            motif_final = f"{PENDING_PREFIX}{motif_raw}"
+        else:
+            motif_final = motif_raw
+
         rdv = Rdv(
             idPatient=id_patient,
             idPersonnel=id_personnel,
             dateRDV=date_rdv,
             heureDebut=heure_debut,
             heureFin=heure_fin,
-            motifConsultation=data.get("motifConsultation", ""),
+            motifConsultation=motif_final,
         )
         
         print(f"    Creating RDV...")
@@ -5259,10 +5348,13 @@ def add_rdv():
         db.session.add(rdv)
         db.session.commit()
 
-        try:
-            _trigger_booking_confirmation_sms(patient_row, rdv.idRdv or rdv.id)
-        except Exception as exc:
-            print(f"[sms] normal confirmation SMS fallback failed: {exc}", flush=True)
+        if not is_pending_motif(rdv.motifConsultation):
+            try:
+                _trigger_booking_confirmation_sms(patient_row, rdv.idRdv or rdv.id)
+            except Exception as exc:
+                print(f"[sms] normal confirmation SMS fallback failed: {exc}", flush=True)
+        else:
+            print(f"    RDV pending — SMS/email deferred until doctor confirmation")
         
         print(f"    SUCCESS: RDV #{rdv.idRdv} created")
         print(f"<<< /add_rdv - Response: 201\n")
@@ -5750,6 +5842,298 @@ def optimize_and_persist_planning():
         traceback.print_exc()
         return jsonify({"error": f"erreur serveur: {str(exc)}"}), 500
 
+
+def _resolve_doctor_from_request(data=None):
+    """Return (id_personnel, error_response) from JWT or payload."""
+    data = data or {}
+    id_personnel = data.get("idPersonnel")
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            token_id = int(payload.get("id_personnel") or 0)
+            if token_id:
+                if id_personnel and int(id_personnel) != token_id:
+                    return None, (jsonify({"error": "Accès refusé"}), 403)
+                id_personnel = token_id
+        except Exception:
+            return None, (jsonify({"error": "Token invalide"}), 401)
+    if not id_personnel:
+        return None, (jsonify({"error": "idPersonnel requis"}), 400)
+    if not is_medical_staff(int(id_personnel)):
+        return None, (jsonify({"error": "Personnel médical invalide"}), 403)
+    return int(id_personnel), None
+
+
+def _build_patient_portal_payload(conn, token_row):
+    id_patient = int(token_row["id_patient"])
+    patient = conn.exec_driver_sql(
+        """
+        SELECT id_patient, nom, prenom, telephone, email
+        FROM patient WHERE id_patient = %s LIMIT 1
+        """,
+        (id_patient,),
+    ).mappings().first()
+    if not patient:
+        return None
+
+    rdvs = conn.exec_driver_sql(
+        """
+        SELECT r.idRDV AS id, r.dateRDV, r.heureDebut, r.heureFin, r.motifConsultation,
+               ps.nom AS medecinNom, ps.prenom AS medecinPrenom, ps.specialite,
+               ps.region, ps.disponibilite
+        FROM rdv r
+        INNER JOIN personnel_de_sante ps ON ps.id_personnel = r.idPersonnel
+        WHERE r.idPatient = %s
+          AND LOWER(COALESCE(r.motifConsultation, '')) NOT LIKE 'annule%%'
+        ORDER BY r.dateRDV DESC, r.heureDebut DESC
+        LIMIT 50
+        """,
+        (id_patient,),
+    ).mappings().all()
+
+    ensure_portal_tables(conn)
+    documents = conn.exec_driver_sql(
+        """
+        SELECT id, doc_type AS type, title, created_at AS createdAt
+        FROM patient_document
+        WHERE id_patient = %s
+        ORDER BY created_at DESC
+        LIMIT 20
+        """,
+        (id_patient,),
+    ).mappings().all()
+
+    upcoming = []
+    history = []
+    today = datetime.utcnow().date()
+    primary_doctor = None
+
+    for rdv in rdvs:
+        motif = rdv["motifConsultation"] or ""
+        statut = derive_rdv_statut(motif)
+        item = {
+            "id": rdv["id"],
+            "dateRDV": rdv["dateRDV"].isoformat() if hasattr(rdv["dateRDV"], "isoformat") else str(rdv["dateRDV"]),
+            "heureDebut": _format_sql_time(rdv["heureDebut"])[:5],
+            "heureFin": _format_sql_time(rdv["heureFin"])[:5],
+            "motifConsultation": motif,
+            "statut": statut,
+            "doctorName": f"Dr. {(rdv['medecinPrenom'] or '').strip()} {(rdv['medecinNom'] or '').strip()}".strip(),
+            "specialite": rdv["specialite"] or "",
+        }
+        rdv_date = rdv["dateRDV"]
+        if isinstance(rdv_date, str):
+            rdv_date = parse_date(rdv_date) or today
+        if rdv_date >= today:
+            upcoming.append(item)
+        elif rdv_date < today:
+            history.append(item)
+        else:
+            history.append(item)
+        if not primary_doctor and statut == "Confirme":
+            primary_doctor = {
+                "name": item["doctorName"],
+                "specialite": rdv["specialite"] or "Médecine générale",
+                "clinicName": "Cabinet OptiClinic",
+                "address": rdv.get("region") or DEFAULT_CLINIC_ADDRESS,
+                "phone": "+216 71 000 000",
+                "hours": "Lun–Ven 08:00–17:30 · Sam 08:00–12:00",
+                "available": bool(rdv.get("disponibilite")),
+                "rating": None,
+                "reviewsCount": None,
+            }
+
+    if not primary_doctor and rdvs:
+        rdv0 = rdvs[0]
+        primary_doctor = {
+            "name": f"Dr. {(rdv0['medecinPrenom'] or '').strip()} {(rdv0['medecinNom'] or '').strip()}".strip(),
+            "specialite": rdv0["specialite"] or "Médecine générale",
+            "clinicName": "Cabinet OptiClinic",
+            "address": rdv0.get("region") or DEFAULT_CLINIC_ADDRESS,
+            "phone": "+216 71 000 000",
+            "hours": "Lun–Ven 08:00–17:30 · Sam 08:00–12:00",
+            "available": bool(rdv0.get("disponibilite")),
+            "rating": None,
+            "reviewsCount": None,
+        }
+
+    notifications = []
+    if upcoming:
+        nxt = upcoming[0]
+        notifications.append({
+            "type": "appointment",
+            "title": "Prochain rendez-vous",
+            "body": f"{nxt['dateRDV']} à {nxt['heureDebut']} — {nxt['doctorName']}",
+            "read": False,
+        })
+    for doc in documents[:3]:
+        notifications.append({
+            "type": "document",
+            "title": doc["title"],
+            "body": "Document disponible dans votre espace",
+            "read": True,
+        })
+
+    return {
+        "token": token_row["token"],
+        "patient": {
+            "id": int(patient["id_patient"]),
+            "nom": patient["nom"],
+            "prenom": patient["prenom"],
+            "fullName": f"{(patient['prenom'] or '').strip()} {(patient['nom'] or '').strip()}".strip(),
+            "telephone": patient.get("telephone") or "",
+            "email": patient.get("email") or "",
+        },
+        "doctor": primary_doctor,
+        "upcomingAppointments": upcoming[:10],
+        "appointmentHistory": history[:20],
+        "documents": [dict(d) for d in documents],
+        "prescriptions": [dict(d) for d in documents if d.get("type") == "prescription"],
+        "notifications": notifications,
+        "clinic": {
+            "name": "Cabinet OptiClinic",
+            "address": (primary_doctor or {}).get("address") or DEFAULT_CLINIC_ADDRESS,
+            "mapQuery": (primary_doctor or {}).get("address") or DEFAULT_CLINIC_ADDRESS,
+        },
+    }
+
+
+@app.route("/appointments/confirm", methods=["POST"])
+@debug_route
+def confirm_appointment():
+    try:
+        data = request.get_json() or {}
+        id_personnel, auth_error = _resolve_doctor_from_request(data)
+        if auth_error:
+            return auth_error
+
+        rdv_id = data.get("rdvId") or data.get("idRdv") or data.get("id")
+        if not rdv_id:
+            return jsonify({"error": "rdvId est obligatoire"}), 400
+
+        rdv = Rdv.query.get(int(rdv_id))
+        if not rdv:
+            return jsonify({"error": "Rendez-vous introuvable"}), 404
+        if int(rdv.idPersonnel) != int(id_personnel):
+            return jsonify({"error": "Accès refusé pour ce rendez-vous"}), 403
+        if not is_pending_motif(rdv.motifConsultation):
+            return jsonify({"error": "Ce rendez-vous est déjà confirmé", "rdv": rdv.to_dict()}), 400
+
+        rdv.motifConsultation = confirm_motif(rdv.motifConsultation)
+        db.session.commit()
+
+        _ensure_patient_table_columns()
+        with db.engine.begin() as conn:
+            patient_row = conn.exec_driver_sql(
+                """
+                SELECT id_patient, nom, prenom, telephone, email
+                FROM patient WHERE id_patient = %s LIMIT 1
+                """,
+                (int(rdv.idPatient),),
+            ).mappings().first()
+            if not patient_row:
+                return jsonify({"error": "Patient introuvable"}), 404
+
+            portal_token = create_portal_token(conn, int(rdv.idPatient), int(rdv.idRdv))
+            patient_name = f"{(patient_row['prenom'] or '').strip()} {(patient_row['nom'] or '').strip()}".strip()
+            doctor = PersonnelDeSante.query.get(int(rdv.idPersonnel))
+            doctor_name = f"Dr. {(doctor.prenom if doctor else '')} {(doctor.nom if doctor else '')}".strip()
+            speciality = (doctor.specialite if doctor else "") or "Médecine générale"
+            date_label = rdv.dateRDV.strftime("%d/%m/%Y") if rdv.dateRDV else ""
+            time_label = (_format_sql_time(rdv.heureDebut) or "")[:5]
+
+            generate_patient_documents(
+                conn, int(rdv.idPatient), int(rdv.idRdv),
+                patient_name, doctor_name.replace("Dr. ", ""), date_label,
+            )
+
+        portal_url = f"{FRONTEND_URL.rstrip('/')}/patient/portal/{portal_token}"
+        patient_email = (patient_row.get("email") or "").strip()
+        email_result = {"success": False, "message": "Aucune adresse email patient"}
+
+        if patient_email:
+            subject, text_body, html_body = build_appointment_confirmation_email(
+                patient_name=patient_name,
+                doctor_name=doctor_name,
+                speciality=speciality,
+                appointment_date=date_label,
+                appointment_time=time_label,
+                clinic_name="Cabinet OptiClinic",
+                portal_url=portal_url,
+            )
+            email_result = send_transactional_email(patient_email, subject, text_body, html_body)
+
+        try:
+            _trigger_booking_confirmation_sms(patient_row, rdv.idRdv)
+        except Exception as exc:
+            print(f"[sms] confirm SMS failed: {exc}", flush=True)
+
+        socketio.emit(
+            "doctor_planning_rearranged",
+            {"idPersonnel": int(id_personnel), "dateRDV": rdv.dateRDV.isoformat(), "confirmedRdvId": int(rdv.idRdv)},
+        )
+
+        return jsonify({
+            "success": True,
+            "message": "Rendez-vous confirmé",
+            "rdv": rdv.to_dict(),
+            "portalUrl": portal_url,
+            "emailSent": bool(email_result.get("success")),
+            "emailMessage": email_result.get("message"),
+        }), 200
+    except Exception as exc:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/patient/portal/<token>", methods=["GET"])
+@debug_route
+def get_patient_portal(token):
+    try:
+        _ensure_patient_table_columns()
+        with db.engine.connect() as conn:
+            token_row = resolve_token(conn, token)
+            if not token_row:
+                return jsonify({"error": "Lien expiré ou invalide"}), 404
+            payload = _build_patient_portal_payload(conn, token_row)
+            if not payload:
+                return jsonify({"error": "Espace patient introuvable"}), 404
+            return jsonify(payload), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/patient/portal/<token>/documents/<int:doc_id>", methods=["GET"])
+@debug_route
+def get_patient_portal_document(token, doc_id):
+    try:
+        with db.engine.connect() as conn:
+            token_row = resolve_token(conn, token)
+            if not token_row:
+                return jsonify({"error": "Lien expiré ou invalide"}), 404
+            doc = conn.exec_driver_sql(
+                """
+                SELECT id, title, content, doc_type
+                FROM patient_document
+                WHERE id = %s AND id_patient = %s
+                LIMIT 1
+                """,
+                (int(doc_id), int(token_row["id_patient"])),
+            ).mappings().first()
+            if not doc:
+                return jsonify({"error": "Document introuvable"}), 404
+            return jsonify({
+                "id": doc["id"],
+                "title": doc["title"],
+                "type": doc["doc_type"],
+                "content": doc["content"],
+            }), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 # ==============================================================================

@@ -2,6 +2,17 @@ import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 
+interface BookingFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  age: string;
+  phone: string;
+  specialite: string;
+  date: string;
+  timePreference: 'matin' | 'apres-midi' | 'peu-importe';
+}
+
 @Component({
   selector: 'app-booking',
   templateUrl: './booking.component.html',
@@ -11,15 +22,16 @@ export class BookingComponent implements OnInit {
   doctorId: string | null = null;
   doctorDetails: any = null;
   doctors: any[] = [];
-  
-  formData = {
-    nom: '',
-    prenom: '',
+
+  formData: BookingFormData = {
+    firstName: '',
+    lastName: '',
+    email: '',
     age: '',
-    telephone: '',
+    phone: '',
     specialite: '',
     date: '',
-    timePreference: 'peu-importe' as 'matin' | 'apres-midi' | 'peu-importe'
+    timePreference: 'peu-importe'
   };
 
   step: 'form' | 'loading' | 'result' = 'form';
@@ -69,10 +81,6 @@ export class BookingComponent implements OnInit {
     });
   }
 
-  fetchDoctorDetails() {
-    this.syncSelectedDoctor();
-  }
-
   onDoctorChange(): void {
     this.syncSelectedDoctor();
   }
@@ -90,35 +98,72 @@ export class BookingComponent implements OnInit {
     }
   }
 
-  submitSmartBooking() {
-    if (!this.formData.nom || !this.formData.prenom || !this.formData.age || !this.formData.telephone || !this.formData.date) {
-      this.errorMessage = 'Veuillez remplir tous les champs obligatoires.';
+  /** Build patient identity from form — supports full name in lastName field. */
+  private resolvePatientIdentity(): { firstName: string; lastName: string } | null {
+    let firstName = this.formData.firstName.trim();
+    let lastName = this.formData.lastName.trim();
+
+    if (!firstName && lastName.includes(' ')) {
+      const parts = lastName.split(/\s+/).filter(Boolean);
+      firstName = parts.shift() || '';
+      lastName = parts.join(' ');
+    }
+
+    if (!firstName || !lastName) {
+      return null;
+    }
+
+    return { firstName, lastName };
+  }
+
+  private buildBookingPayload(extra: Record<string, unknown> = {}): Record<string, unknown> | null {
+    const identity = this.resolvePatientIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    return {
+      firstName: identity.firstName,
+      lastName: identity.lastName,
+      prenom: identity.firstName,
+      nom: identity.lastName,
+      phone: this.formData.phone.trim(),
+      telephone: this.formData.phone.trim(),
+      email: this.formData.email.trim(),
+      age: Number(this.formData.age),
+      specialite: this.formData.specialite,
+      date: this.formData.date,
+      idPersonnel: this.doctorId,
+      timePreference: this.formData.timePreference,
+      fromPublicBooking: true,
+      ...extra
+    };
+  }
+
+  submitSmartBooking(): void {
+    const identity = this.resolvePatientIdentity();
+    if (!identity || !this.formData.age || !this.formData.phone || !this.formData.date) {
+      this.errorMessage = 'Veuillez remplir tous les champs obligatoires (prénom, nom, téléphone, âge, date).';
       return;
     }
-    
+
     if (!this.doctorId && !this.formData.specialite) {
       this.errorMessage = 'Veuillez spécifier une spécialité souhaitée.';
+      return;
+    }
+
+    const payload = this.buildBookingPayload({ rejectedSlots: [] });
+    if (!payload) {
+      this.errorMessage = 'Veuillez saisir le prénom et le nom du patient.';
       return;
     }
 
     this.errorMessage = '';
     this.step = 'loading';
 
-    const payload = {
-      nom: this.formData.nom.trim(),
-      prenom: this.formData.prenom.trim(),
-      age: Number(this.formData.age),
-      telephone: this.formData.telephone.trim(),
-      specialite: this.formData.specialite,
-      date: this.formData.date,
-      idPersonnel: this.doctorId,
-      timePreference: this.formData.timePreference,
-      rejectedSlots: []
-    };
-
     this.http.post<any>('http://localhost:5000/appointments/smart-booking', payload).subscribe({
       next: (res: any) => {
-        setTimeout(() => { // Simulate complex AI loading
+        setTimeout(() => {
           this.optimizationResult = res;
           this.step = 'result';
         }, 1500);
@@ -130,15 +175,17 @@ export class BookingComponent implements OnInit {
     });
   }
 
-  requestAlternativeSlot() {
+  requestAlternativeSlot(): void {
     this.step = 'loading';
-    const payload = {
-      ...this.formData,
-      idPersonnel: this.doctorId,
-      timePreference: this.formData.timePreference,
+    const payload = this.buildBookingPayload({
       rejectedSlots: [this.optimizationResult.slot]
-      // If we had a list of rejected slots, we'd append it
-    };
+    });
+
+    if (!payload) {
+      this.errorMessage = 'Informations patient invalides.';
+      this.step = 'result';
+      return;
+    }
 
     this.http.post<any>('http://localhost:5000/appointments/alternative-slot', payload).subscribe({
       next: (res) => {
@@ -167,44 +214,46 @@ export class BookingComponent implements OnInit {
       return;
     }
 
+    const identity = this.resolvePatientIdentity();
+    if (!identity) {
+      this.errorMessage = 'Veuillez saisir le prénom et le nom du patient.';
+      return;
+    }
+
     this.errorMessage = '';
     this.successMessage = '';
     this.isConfirming = true;
 
     const slotStart = this.formatTime(this.optimizationResult.slot.start);
-    const slotEnd   = this.formatTime(this.optimizationResult.slot.end);
+    const slotEnd = this.formatTime(this.optimizationResult.slot.end);
     const slotDuration = (this.optimizationResult.slot.end - this.optimizationResult.slot.start) || 30;
 
-    console.log('[Booking] confirmAppointment payload preview:', {
+    const payload = {
+      firstName: identity.firstName,
+      lastName: identity.lastName,
+      prenom: identity.firstName,
+      nom: identity.lastName,
+      phone: this.formData.phone.trim(),
+      telephone: this.formData.phone.trim(),
+      email: this.formData.email.trim(),
+      agePatient: Number(this.formData.age),
       idPersonnel: selectedDoctorId,
       dateRDV: this.formData.date,
       heureDebut: slotStart,
       heureFin: slotEnd,
       slotDuration,
-      fromSmartBooking: true
-    });
-
-    const payload = {
-      nom:               this.formData.nom.trim(),
-      prenom:            this.formData.prenom.trim(),
-      telephone:         this.formData.telephone.trim(),
-      agePatient:        Number(this.formData.age),
-      idPersonnel:       selectedDoctorId,
-      dateRDV:           this.formData.date,
-      heureDebut:        slotStart,
-      heureFin:          slotEnd,
-      slotDuration:      slotDuration,
       motifConsultation: 'consultation',
-      statut:            'consultation',
-      // Tells the backend that OR-Tools already validated this slot server-side
-      // → skips the redundant whitelist check that was causing HTTP 400
-      fromSmartBooking:  true
+      statut: 'consultation',
+      fromSmartBooking: true,
+      fromPublicBooking: true
     };
 
+    console.log('[Booking] confirmAppointment — patient:', `${identity.firstName} ${identity.lastName}`);
+
     this.http.post<any>('http://localhost:5000/add_rdv', payload).subscribe({
-      next: (res) => {
+      next: () => {
         this.isConfirming = false;
-        this.successMessage = '✓ Rendez-vous confirmé avec succès !';
+        this.successMessage = `✓ Demande enregistrée — en attente de confirmation par le médecin.`;
         setTimeout(() => this.router.navigate(['/home']), 1500);
       },
       error: (err) => {

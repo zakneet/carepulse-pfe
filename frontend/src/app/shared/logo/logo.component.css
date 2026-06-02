@@ -1,0 +1,43 @@
+.logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  display: block;
+  object-fit: contain;
+}
+
+.logo--sm .logo-mark { height: 32px; width: auto; max-width: 120px; }
+.logo--md .logo-mark { height: 44px; width: auto; max-width: 160px; }
+.logo--lg .logo-mark { height: 56px; width: auto; max-width: 200px; }
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.logo-name {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.logo-sub {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #64748b;
+}
+
+.logo--light .logo-name { color: #ffffff; }
+.logo--light .logo-sub { color: rgba(255,255,255,0.75); }
+
+.logo--sm .logo-name { font-size: 13px; }
+.logo--sm .logo-sub { font-size: 8px; }
+
+.logo--lg .logo-name { font-size: 20px; }
+.logo--lg .logo-sub { font-size: 10px; }

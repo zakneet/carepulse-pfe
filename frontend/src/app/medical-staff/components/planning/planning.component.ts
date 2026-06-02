@@ -114,6 +114,8 @@ export class PlanningComponent implements OnInit, OnDestroy {
   };
 
   emergencyNotice = '';
+  confirmLoading = false;
+  confirmNotice = '';
   private emergencyNoticeTimeout: any;
   private activePersonnelId?: number;
   private emergencySub?: Subscription;
@@ -387,6 +389,42 @@ export class PlanningComponent implements OnInit, OnDestroy {
     this.patientRecordError = '';
     this.patientRecordLoading = false;
     this.patientInConsultation = false;
+    this.confirmNotice = '';
+  }
+
+  isPendingAppointment(appt: MedicalPlanningAppointment | null): boolean {
+    if (!appt) return false;
+    const s = (appt.statut || '').toLowerCase();
+    const m = (appt.motifConsultation || '').toLowerCase();
+    return s.includes('attente') || s.includes('pending') || m.startsWith('en attente');
+  }
+
+  confirmSelectedAppointment(): void {
+    if (!this.selectedAppointment?.id) return;
+    const idPersonnel = this.getCurrentPersonnelId();
+    if (!idPersonnel) return;
+
+    this.confirmLoading = true;
+    this.confirmNotice = '';
+    this.rdvService.confirmAppointmentByDoctor(this.selectedAppointment.id, idPersonnel).subscribe({
+      next: (res) => {
+        this.confirmLoading = false;
+        const emailNote = res.emailSent ? ' Email envoyé au patient.' : (res.emailMessage ? ` ${res.emailMessage}` : '');
+        this.confirmNotice = `Rendez-vous confirmé.${emailNote}`;
+        this.emergencyNotice = this.confirmNotice;
+        if (this.emergencyNoticeTimeout) clearTimeout(this.emergencyNoticeTimeout);
+        this.emergencyNoticeTimeout = setTimeout(() => { this.emergencyNotice = ''; }, 6000);
+        if (this.selectedAppointment) {
+          this.selectedAppointment.statut = 'Confirme';
+          this.selectedAppointment.motifConsultation = (res.rdv?.motifConsultation as string) || 'Consultation confirmée';
+        }
+        this.loadDashboardData();
+      },
+      error: (err) => {
+        this.confirmLoading = false;
+        this.confirmNotice = err.error?.error || 'Impossible de confirmer le rendez-vous.';
+      }
+    });
   }
 
   toggleConsultationPresence(): void {
@@ -652,6 +690,7 @@ export class PlanningComponent implements OnInit, OnDestroy {
 
   getAppointmentClass(appt: MedicalPlanningAppointment): string {
     const statut = (appt.statut || '').toLowerCase();
+    if (statut.includes('attente') || statut.includes('pending')) return 'plan-appt-card--pending';
     if (statut.includes('urgent') || statut.includes('emergency')) return 'plan-appt-card--emergency';
     if (statut.includes('replanif') || statut.includes('rescheduled') || statut.includes('reprogramme')) return 'plan-appt-card--rescheduled';
     if (statut.includes('remplace') || statut.includes('replaced') || statut.includes('auto')) return 'plan-appt-card--auto-replaced';
@@ -662,6 +701,7 @@ export class PlanningComponent implements OnInit, OnDestroy {
 
   getStatusPillClass(appt: MedicalPlanningAppointment): string {
     const statut = (appt.statut || '').toLowerCase();
+    if (statut.includes('attente') || statut.includes('pending')) return 'plan-appt-status-pill--pending';
     if (statut.includes('urgent') || statut.includes('emergency')) return 'plan-appt-status-pill--emergency';
     if (statut.includes('replanif') || statut.includes('rescheduled') || statut.includes('reprogramme')) return 'plan-appt-status-pill--rescheduled';
     if (statut.includes('remplace') || statut.includes('replaced') || statut.includes('auto')) return 'plan-appt-status-pill--auto-replaced';
@@ -671,11 +711,13 @@ export class PlanningComponent implements OnInit, OnDestroy {
 
   getStatusLabel(appt: MedicalPlanningAppointment): string {
     const statut = (appt.statut || '').toLowerCase();
-    if (statut.includes('urgent') || statut.includes('emergency')) return 'EMERGENCY';
-    if (statut.includes('replanif') || statut.includes('rescheduled') || statut.includes('reprogramme')) return 'RESCHEDULED';
-    if (statut.includes('remplace') || statut.includes('replaced') || statut.includes('auto')) return 'AUTO-REPLACED';
+    if (statut.includes('attente') || statut.includes('pending')) return 'EN ATTENTE';
+    if (statut.includes('urgent') || statut.includes('emergency')) return 'URGENCE';
+    if (statut.includes('replanif') || statut.includes('rescheduled') || statut.includes('reprogramme')) return 'REPORTÉ';
+    if (statut.includes('remplace') || statut.includes('replaced') || statut.includes('auto')) return 'REMPLACÉ';
     if (statut.includes('alternat')) return 'ALTERNATIVE';
-    return 'OPTIMIZED';
+    if (statut.includes('confirm') || statut === 'confirme') return 'CONFIRMÉ';
+    return statut.toUpperCase() || 'CONFIRMÉ';
   }
 
   getAppointmentForSlot(dayDate: string, slot: string): MedicalPlanningAppointment | null {

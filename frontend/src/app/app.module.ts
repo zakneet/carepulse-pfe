@@ -50,6 +50,7 @@ import { AnalyticsComponent } from './medical-staff/components/analytics/analyti
 import { NotificationsComponent } from './medical-staff/components/notifications/notifications.component';
 import { SettingsComponent } from './medical-staff/components/settings/settings.component';
 import { LogoComponent } from './shared/logo/logo.component';
+import { PatientPortalComponent } from './patient-portal/patient-portal.component';
 
 @NgModule({
   declarations: [
@@ -89,7 +90,8 @@ import { LogoComponent } from './shared/logo/logo.component';
     AnalyticsComponent,
     NotificationsComponent,
     SettingsComponent,
-    LogoComponent
+    LogoComponent,
+    PatientPortalComponent
   ],
   imports: [
     BrowserModule,

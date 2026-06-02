@@ -4,6 +4,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from 'src/app/services/auth.service';
 import { SocketService } from 'src/app/services/socket.service';
 import { MedicalStaffDashboardService } from '../../services/medical-staff-dashboard.service';
+import { MedicalStaffApiService } from '../../services/medical-staff-api.service';
 
 @Component({
   selector: 'app-medical-staff-shell',
@@ -17,6 +18,7 @@ export class MedicalStaffShellComponent implements OnInit, OnDestroy {
 
   emergencyBadge = 0;
   waitingBadge = 0;
+  notificationBadge = 0;
   optimizationScore = 0;
 
   private dashboardSub?: Subscription;
@@ -26,6 +28,7 @@ export class MedicalStaffShellComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private router: Router,
     private dashboardService: MedicalStaffDashboardService,
+    private medicalStaffApi: MedicalStaffApiService,
     private socketService: SocketService
   ) {}
 
@@ -72,11 +75,27 @@ export class MedicalStaffShellComponent implements OnInit, OnDestroy {
         this.emergencyBadge = data.emergencies;
         this.waitingBadge = data.waitingList;
         this.optimizationScore = data.optimizationScore;
+        this.loadNotificationCount(idPersonnel);
       },
       error: () => {
         this.emergencyBadge = 0;
         this.waitingBadge = 0;
         this.optimizationScore = 0;
+        this.notificationBadge = 0;
+      }
+    });
+  }
+
+  private loadNotificationCount(idPersonnel: number): void {
+    this.medicalStaffApi.getNotifications(idPersonnel).subscribe({
+      next: (res) => {
+        const items = res?.notifications || [];
+        this.notificationBadge = Array.isArray(items)
+          ? items.filter((n: { read?: boolean }) => !n.read).length
+          : 0;
+      },
+      error: () => {
+        this.notificationBadge = 0;
       }
     });
   }

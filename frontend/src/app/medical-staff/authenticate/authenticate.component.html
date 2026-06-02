@@ -1,73 +1,57 @@
 <div class="auth-root" [class.auth-root--denied]="isDenied" [class.auth-root--success]="isSuccess">
 
-  <!-- Background -->
   <div class="auth-bg" aria-hidden="true">
     <div class="auth-bg-gradient"></div>
+    <div class="auth-bg-grid"></div>
     <div class="auth-torus-scene">
       <div class="auth-torus auth-torus--outer"></div>
       <div class="auth-torus auth-torus--inner"></div>
       <div class="auth-torus-glow"></div>
-      <div class="auth-floor-lines"></div>
     </div>
   </div>
 
-  <!-- Left branding -->
   <aside class="auth-brand">
-    <div class="auth-brand__top">
-      <div class="auth-brand__logo-row">
-        <div class="auth-brand__shield">
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            <path d="M9 12l2 2 4-4"/>
-          </svg>
-        </div>
-        <span class="auth-brand__name">OptiClinic</span>
+    <div class="auth-brand__inner">
+      <div class="auth-brand__logo">
+        <app-logo size="lg"></app-logo>
       </div>
-      <p class="auth-brand__tagline">SYSTÈME D'EXPLOITATION DE LA SANTÉ</p>
-    </div>
 
-    <div class="auth-brand__content">
-      <h1 class="auth-brand__headline">Sécurité. Fiabilité. Confidentialité.</h1>
+      <h1 class="auth-brand__headline">Accès sécurisé au personnel de santé</h1>
       <p class="auth-brand__sub">
-        OptiClinic protège vos données de santé avec les plus hauts standards de sécurité.
+        Connectez-vous à votre espace professionnel sécurisé.
       </p>
 
       <ul class="auth-brand__features">
         <li>
           <span class="auth-feature-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          </span>
+          <span>Planning privé</span>
+        </li>
+        <li>
+          <span class="auth-feature-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </span>
-          <div>
-            <strong>Chiffrement de bout en bout</strong>
-            <span>AES-256</span>
-          </div>
+          <span>Données protégées</span>
         </li>
         <li>
           <span class="auth-feature-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </span>
-          <div>
-            <strong>Authentification sécurisée</strong>
-            <span>Multi-couches</span>
-          </div>
+          <span>Authentification sécurisée</span>
         </li>
         <li>
           <span class="auth-feature-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </span>
-          <div>
-            <strong>Conformité RGPD</strong>
-            <span>Protection des données</span>
-          </div>
+          <span>Accès réservé au personnel autorisé</span>
         </li>
       </ul>
     </div>
   </aside>
 
-  <!-- Right panel -->
   <main class="auth-panel">
 
-    <!-- Success state -->
     <div *ngIf="isSuccess" class="auth-card auth-card--success" role="status">
       <div class="auth-success-ring">
         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -77,7 +61,6 @@
       <div class="auth-success-bar"><div class="auth-success-bar__fill"></div></div>
     </div>
 
-    <!-- Login card -->
     <div *ngIf="!isSuccess" class="auth-card" [class.auth-card--loading]="isLoading" [class.auth-card--shake]="isDenied">
       <h2 class="auth-card__title">Accès personnel</h2>
       <p class="auth-card__subtitle">Entrez votre code d'accès</p>

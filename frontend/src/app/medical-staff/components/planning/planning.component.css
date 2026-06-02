@@ -220,6 +220,7 @@
 
 /* Status color variants */
 .plan-appt-card--optimized    { background: #f0f9ff; border-color: #bae6fd; }
+.plan-appt-card--pending     { background: #fffbeb; border-color: #fde68a; }
 .plan-appt-card--emergency    { background: #fff5f5; border-color: #fecaca; }
 .plan-appt-card--rescheduled  { background: #fff7ed; border-color: #fed7aa; }
 .plan-appt-card--auto-replaced{ background: #f5f3ff; border-color: #ddd6fe; }
@@ -235,6 +236,7 @@
   text-transform: uppercase; letter-spacing: .05em;
   white-space: nowrap; flex-shrink: 0;
 }
+.plan-appt-status-pill--pending      { background: #f59e0b; color: #fff; }
 .plan-appt-status-pill--optimized    { background: #0284c7; color: #fff; }
 .plan-appt-status-pill--emergency    { background: #ef4444; color: #fff; }
 .plan-appt-status-pill--rescheduled  { background: #f97316; color: #fff; }
@@ -318,6 +320,13 @@
   cursor: pointer; transition: all 0.18s;
 }
 .plan-modal-action-btn:hover { background: #f8fafc; }
+.plan-modal-action-btn--confirm {
+  background: linear-gradient(135deg, #059669, #10b981);
+  border-color: transparent;
+  color: #fff;
+}
+.plan-modal-action-btn--confirm:hover { background: linear-gradient(135deg, #047857, #059669); color: #fff; }
+.plan-form-loading--success { color: #059669; font-weight: 600; }
 
 .plan-modal-body { padding: 22px; overflow-y: auto; flex: 1; }
 .plan-modal-body--scroll { background: rgba(248,250,252,0.3); }
