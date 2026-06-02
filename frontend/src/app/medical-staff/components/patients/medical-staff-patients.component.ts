@@ -3,22 +3,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 import { RdvService, MedicalStaffPatientListItem } from 'src/app/services/rdv.service';
 
-// Enriched patient type with UI fields
 interface EnrichedPatient extends MedicalStaffPatientListItem {
   condition?: string;
   lastVisit?: string;
   nextVisit?: string;
   risk?: 'LOW' | 'MODERATE' | 'HIGH';
-  dateNaissance?: string;
 }
-
-// Static enrichment data keyed by patient index (cycles if list is longer)
-const CONDITIONS = [
-  'Hypertension', 'Coronary artery disease', 'Annual check-up',
-  'Arrhythmia follow-up', 'Post-stent monitoring', 'Palpitations',
-  'ECG review', 'First consultation', 'Diabetes type 2', 'Asthma'
-];
-const RISKS: Array<'LOW' | 'MODERATE' | 'HIGH'> = ['LOW', 'HIGH', 'LOW', 'MODERATE', 'MODERATE', 'HIGH', 'LOW', 'LOW', 'HIGH', 'MODERATE'];
 
 @Component({
   selector: 'app-medical-staff-patients',
@@ -57,12 +47,7 @@ export class MedicalStaffPatientsComponent {
   }
 
   private loadPatients(): void {
-    const currentUser = this.authService.getCurrentUser() as unknown as {
-      id?: number;
-      idPersonnel?: number;
-      id_personnel?: number;
-    } | null;
-    const idPersonnel = currentUser?.id ?? currentUser?.idPersonnel ?? currentUser?.id_personnel;
+    const idPersonnel = this.getPersonnelId();
     if (!idPersonnel) {
       this.errorMessage = 'Utilisateur medical non identifie.';
       return;
@@ -72,17 +57,16 @@ export class MedicalStaffPatientsComponent {
     this.errorMessage = '';
 
     this.rdvService.getMedicalStaffPatients(idPersonnel).subscribe({
-      next: (rdvs) => {
+      next: (rows) => {
         this.loading = false;
-        // Enrich with static UI data
-        this.patients = (rdvs || []).map((p, i) => ({
+        this.patients = (rows || []).map((p) => ({
           ...p,
-          condition: CONDITIONS[i % CONDITIONS.length],
-          lastVisit: this.mockDate(-((i * 7) + 3)),
-          nextVisit: i % 5 !== 3 ? this.mockDate((i * 5) + 2) : undefined,
-          risk: RISKS[i % RISKS.length]
-        } as EnrichedPatient));
-        this.newThisMonth = Math.floor(this.patients.length * 0.017) || 38;
+          lastVisit: this.formatDate(p.lastVisit),
+          nextVisit: this.formatDate(p.nextVisit),
+          condition: p.condition || 'Consultation',
+          risk: p.risk || 'LOW'
+        }));
+        this.newThisMonth = this.patients.filter((p) => p.newThisMonth).length;
       },
       error: () => {
         this.loading = false;
@@ -91,17 +75,23 @@ export class MedicalStaffPatientsComponent {
     });
   }
 
-  private mockDate(offsetDays: number): string {
-    const d = new Date();
-    d.setDate(d.getDate() + offsetDays);
+  private getPersonnelId(): number | undefined {
+    const user = this.authService.getCurrentUser() as { id?: number; idPersonnel?: number; id_personnel?: number } | null;
+    return user?.id ?? user?.idPersonnel ?? user?.id_personnel;
+  }
+
+  private formatDate(value?: string | null): string | undefined {
+    if (!value) return undefined;
+    const d = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return undefined;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   get filteredPatients(): EnrichedPatient[] {
     const query = this.searchTerm.trim().toLowerCase();
     if (!query) return this.patients;
-    return this.patients.filter(p =>
-      [p.nom, p.prenom, p.email || '', p.telephone || '', String(p.id)]
+    return this.patients.filter((p) =>
+      [p.nom, p.prenom, p.email || '', p.telephone || '', String(p.id), p.condition || '']
         .join(' ').toLowerCase().includes(query)
     );
   }
@@ -120,15 +110,14 @@ export class MedicalStaffPatientsComponent {
   }
 
   getAge(patient: EnrichedPatient): number {
-    // Generate a plausible age from patient id
     return 25 + (patient.id % 45);
   }
 
   getRiskClass(risk: string | undefined): string {
     switch ((risk || 'LOW').toUpperCase()) {
-      case 'HIGH':     return 'pts-risk-badge--high';
+      case 'HIGH': return 'pts-risk-badge--high';
       case 'MODERATE': return 'pts-risk-badge--moderate';
-      default:         return 'pts-risk-badge--low';
+      default: return 'pts-risk-badge--low';
     }
   }
 }

@@ -105,11 +105,15 @@ export class BookingComponent implements OnInit {
     this.step = 'loading';
 
     const payload = {
-      ...this.formData,
+      nom: this.formData.nom.trim(),
+      prenom: this.formData.prenom.trim(),
       age: Number(this.formData.age),
+      telephone: this.formData.telephone.trim(),
+      specialite: this.formData.specialite,
+      date: this.formData.date,
       idPersonnel: this.doctorId,
       timePreference: this.formData.timePreference,
-      rejectedSlots: [] // For alternative proposals
+      rejectedSlots: []
     };
 
     this.http.post<any>('http://localhost:5000/appointments/smart-booking', payload).subscribe({
@@ -181,9 +185,9 @@ export class BookingComponent implements OnInit {
     });
 
     const payload = {
-      nom:               this.formData.nom,
-      prenom:            this.formData.prenom,
-      telephone:         this.formData.telephone,
+      nom:               this.formData.nom.trim(),
+      prenom:            this.formData.prenom.trim(),
+      telephone:         this.formData.telephone.trim(),
       agePatient:        Number(this.formData.age),
       idPersonnel:       selectedDoctorId,
       dateRDV:           this.formData.date,

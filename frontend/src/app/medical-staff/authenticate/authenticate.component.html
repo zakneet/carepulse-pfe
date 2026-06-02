@@ -1,210 +1,130 @@
-<div class="auth-root">
+<div class="auth-root" [class.auth-root--denied]="isDenied" [class.auth-root--success]="isSuccess">
 
-  <!-- ── Animated background ──────────────────────────────────────── -->
+  <!-- Background -->
   <div class="auth-bg" aria-hidden="true">
-    <div class="auth-blob auth-blob--1"></div>
-    <div class="auth-blob auth-blob--2"></div>
-    <div class="auth-blob auth-blob--3"></div>
-    <div class="auth-grid"></div>
+    <div class="auth-bg-gradient"></div>
+    <div class="auth-torus-scene">
+      <div class="auth-torus auth-torus--outer"></div>
+      <div class="auth-torus auth-torus--inner"></div>
+      <div class="auth-torus-glow"></div>
+      <div class="auth-floor-lines"></div>
+    </div>
   </div>
 
-  <!-- ── Left branding panel ──────────────────────────────────────── -->
+  <!-- Left branding -->
   <aside class="auth-brand">
-    <div class="auth-brand__inner">
-
-      <div class="auth-brand__logo">
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-        </svg>
+    <div class="auth-brand__top">
+      <div class="auth-brand__logo-row">
+        <div class="auth-brand__shield">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </div>
+        <span class="auth-brand__name">OptiClinic</span>
       </div>
+      <p class="auth-brand__tagline">SYSTÈME D'EXPLOITATION DE LA SANTÉ</p>
+    </div>
 
-      <h1 class="auth-brand__name">OptiClinic</h1>
-      <p class="auth-brand__tagline">Plateforme Médicale Intelligente</p>
+    <div class="auth-brand__content">
+      <h1 class="auth-brand__headline">Sécurité. Fiabilité. Confidentialité.</h1>
+      <p class="auth-brand__sub">
+        OptiClinic protège vos données de santé avec les plus hauts standards de sécurité.
+      </p>
 
       <ul class="auth-brand__features">
         <li>
           <span class="auth-feature-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </span>
-          <span>Accès sécurisé par code personnel</span>
+          <div>
+            <strong>Chiffrement de bout en bout</strong>
+            <span>AES-256</span>
+          </div>
         </li>
         <li>
           <span class="auth-feature-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </span>
-          <span>Données patients isolées par médecin</span>
+          <div>
+            <strong>Authentification sécurisée</strong>
+            <span>Multi-couches</span>
+          </div>
         </li>
         <li>
           <span class="auth-feature-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/>
-              <line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
-              <path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/>
-              <path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/>
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>
           </span>
-          <span>Planning optimisé par IA (OR-Tools)</span>
-        </li>
-        <li>
-          <span class="auth-feature-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-          </span>
-          <span>Session sécurisée — expire à la déconnexion</span>
+          <div>
+            <strong>Conformité RGPD</strong>
+            <span>Protection des données</span>
+          </div>
         </li>
       </ul>
-
     </div>
   </aside>
 
-  <!-- ── Right form panel ──────────────────────────────────────────── -->
+  <!-- Right panel -->
   <main class="auth-panel">
 
-    <!-- ══ SUCCESS STATE ══════════════════════════════════════════════ -->
+    <!-- Success state -->
     <div *ngIf="isSuccess" class="auth-card auth-card--success" role="status">
       <div class="auth-success-ring">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round" class="auth-success-check">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-          <polyline points="22 4 12 14.01 9 11.01"/>
-        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
       </div>
       <h2 class="auth-success-title">Authentification réussie</h2>
-      <p class="auth-success-sub">Chargement de votre espace…</p>
-      <div class="auth-success-bar">
-        <div class="auth-success-bar__fill"></div>
-      </div>
+      <p class="auth-success-sub">Ouverture de votre espace clinique…</p>
+      <div class="auth-success-bar"><div class="auth-success-bar__fill"></div></div>
     </div>
 
-    <!-- ══ FORM STATE ═════════════════════════════════════════════════ -->
-    <div *ngIf="!isSuccess" class="auth-card" [class.auth-card--loading]="isLoading">
+    <!-- Login card -->
+    <div *ngIf="!isSuccess" class="auth-card" [class.auth-card--loading]="isLoading" [class.auth-card--shake]="isDenied">
+      <h2 class="auth-card__title">Accès personnel</h2>
+      <p class="auth-card__subtitle">Entrez votre code d'accès</p>
 
-      <!-- Header -->
-      <div class="auth-card__header">
-        <a routerLink="/home" class="auth-back-link" title="Retour à l'accueil">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="m15 18-6-6 6-6"/>
-          </svg>
-          Accueil
-        </a>
+      <div *ngIf="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</div>
 
-        <div class="auth-card__logo-wrap">
-          <div class="auth-card__logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-            </svg>
-          </div>
-          <span class="auth-card__logo-label">OptiClinic</span>
-        </div>
-
-        <h2 class="auth-card__title">Accès Personnel de Santé</h2>
-        <p class="auth-card__subtitle">
-          Saisissez votre code d'accès sécurisé pour rejoindre votre espace clinique.
-        </p>
-      </div>
-
-      <!-- Error banner -->
-      <div *ngIf="errorMessage" class="auth-error" role="alert">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <span>{{ errorMessage }}</span>
-      </div>
-
-      <!-- Form -->
       <form (ngSubmit)="authenticate()" class="auth-form" autocomplete="off">
-
-        <div class="auth-field">
-          <label class="auth-field__label" for="accessCode">Code d'accès personnel</label>
-          <div class="auth-field__wrap" [class.auth-field__wrap--focus]="false">
-            <span class="auth-field__icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                   fill="none" stroke="currentColor" stroke-width="2"
-                   stroke-linecap="round" stroke-linejoin="round">
-                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-            </span>
+        <div class="auth-code-row">
+          <div class="auth-code-grid" (paste)="onPaste($event)">
             <input
-              id="accessCode"
-              type="password"
-              name="accessCode"
-              [(ngModel)]="accessCode"
-              class="auth-field__input"
-              placeholder="••••••••"
-              autocomplete="new-password"
-              spellcheck="false"
+              *ngFor="let d of digits; let i = index"
+              #codeInput
+              [type]="showCode ? 'text' : 'password'"
+              maxlength="1"
+              class="auth-code-box"
+              [class.auth-code-box--filled]="digits[i]"
               [disabled]="isLoading"
-            >
+              [value]="digits[i]"
+              (input)="onDigitInput(i, $event)"
+              (keydown)="onDigitKeydown(i, $event)"
+              autocomplete="one-time-code"
+              inputmode="text"
+            />
           </div>
+          <button
+            type="button"
+            class="auth-eye-btn"
+            (click)="toggleShowCode()"
+            [attr.aria-label]="showCode ? 'Masquer le code' : 'Afficher le code'"
+          >
+            <svg *ngIf="!showCode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg *ngIf="showCode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+          </button>
         </div>
 
         <button
           type="submit"
           class="auth-submit"
-          [disabled]="isLoading || !accessCode"
-          [class.auth-submit--active]="accessCode && !isLoading"
+          [class.auth-submit--active]="accessCode.length === codeLength && !isLoading"
+          [disabled]="isLoading || accessCode.length !== codeLength"
         >
-          <!-- Loading spinner -->
-          <svg *ngIf="isLoading"
-               xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2.5"
-               stroke-linecap="round" stroke-linejoin="round"
-               class="auth-spin">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-          </svg>
-
-          <!-- Arrow icon -->
-          <svg *ngIf="!isLoading"
-               xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2.5"
-               stroke-linecap="round" stroke-linejoin="round"
-               class="auth-arrow">
-            <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-          </svg>
-
-          <span>{{ isLoading ? 'Vérification en cours…' : 'Accéder à mon espace' }}</span>
+          <span *ngIf="isLoading" class="auth-spinner"></span>
+          <span>{{ isLoading ? 'Connexion…' : 'Se connecter' }}</span>
         </button>
-
       </form>
 
-      <!-- Footer hint -->
-      <p class="auth-hint">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 16v-4"/><path d="M12 8h.01"/>
-        </svg>
-        Votre code vous a été remis lors de votre inscription à la clinique.
-      </p>
-
+      <p class="auth-footer">Accès strictement réservé au personnel autorisé</p>
     </div>
-
   </main>
-
 </div>

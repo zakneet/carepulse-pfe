@@ -3,8 +3,17 @@
     <div><p class="nf-eyebrow">NOTIFICATIONS</p><h1 class="nf-title">Alerts & updates</h1></div>
     <button (click)="markAllRead()" class="nf-mark-btn">Mark all as read</button>
   </div>
-  <div class="nf-list">
-    <div *ngFor="let n of notifications" class="nf-item" [class.nf-item--unread]="!n.read" [ngClass]="getTypeClass(n.type)">
+  <div class="nf-filters">
+    <button type="button" [class.active]="filter==='All'" (click)="filter='All'">All</button>
+    <button type="button" [class.active]="filter==='Urgent'" (click)="filter='Urgent'">Urgent</button>
+    <button type="button" [class.active]="filter==='System'" (click)="filter='System'">System</button>
+    <button type="button" [class.active]="filter==='AI'" (click)="filter='AI'">AI</button>
+  </div>
+  <div *ngIf="loading" class="nf-loading">Loading notifications…</div>
+  <div *ngIf="errorMessage" class="nf-error">{{ errorMessage }}</div>
+  <div class="nf-list" *ngIf="!loading && !errorMessage">
+    <div *ngIf="filteredNotifications.length===0" class="nf-empty">No notifications.</div>
+    <div *ngFor="let n of filteredNotifications" class="nf-item" [class.nf-item--unread]="!n.read" [ngClass]="getTypeClass(n.type)">
       <div class="nf-dot"></div>
       <div class="nf-body">
         <div class="nf-title-text">{{ n.title }}</div>

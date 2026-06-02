@@ -462,6 +462,16 @@
   animation: fadeSlideIn 0.3s ease-out both;
 }
 
+.oc-page-content > app-header {
+  display: block;
+  margin: -24px -24px 20px;
+}
+
+.oc-page-content > app-header .site-nav--emergency-only {
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.98);
+}
+
 .oc-page-content::-webkit-scrollbar { width: 6px; }
 .oc-page-content::-webkit-scrollbar-track { background: transparent; }
 .oc-page-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { UserRole } from 'src/app/models/auth.model';
@@ -12,6 +12,7 @@ import { NotificationService } from 'src/app/services/notification.service';
   styleUrls: ['./header.component.css']
 })
 export class HeaderComponent implements OnInit, OnDestroy {
+  @Input() emergenciesOnly = false;
   selectedEmergencyType: 'doctor-left-short' | 'doctor-left-long' | 'patient-on-site' | null = null;
   showDoctorShortPopup = false;
   showDoctorLongPopup = false;

@@ -260,6 +260,11 @@ export interface MedicalStaffPatientListItem {
   email?: string | null;
   telephone?: string | null;
   rdvCount: number;
+  lastVisit?: string | null;
+  nextVisit?: string | null;
+  condition?: string;
+  risk?: 'LOW' | 'MODERATE' | 'HIGH';
+  newThisMonth?: boolean;
 }
 
 export interface MedicalStaffPatientProfileUpdatePayload {
@@ -456,10 +461,11 @@ export class RdvService {
     });
   }
 
-  getMedicalStaffPlanning(idPersonnel: number, date?: string): Observable<MedicalStaffPlanningResponse> {
+  getMedicalStaffPlanning(idPersonnel: number, date?: string, rangeDays?: number): Observable<MedicalStaffPlanningResponse> {
     const dateParam = date ? `&date=${encodeURIComponent(date)}` : '';
+    const rangeParam = rangeDays ? `&rangeDays=${rangeDays}` : '';
     return this.http.get<MedicalStaffPlanningResponse>(
-      `${this.apiUrl}/medical-staff/planning?idPersonnel=${idPersonnel}${dateParam}`
+      `${this.apiUrl}/medical-staff/planning?idPersonnel=${idPersonnel}${dateParam}${rangeParam}`
     );
   }
 

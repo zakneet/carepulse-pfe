@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="OptiClinic">
+  <defs>
+    <linearGradient id="ocGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <filter id="ocShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0284c7" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="144" height="144" rx="36" fill="url(#ocGrad)" filter="url(#ocShadow)"/>
+  <path d="M80 36v88M36 80h88" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="80" cy="80" r="52" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="3"/>
+</svg>

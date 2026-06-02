@@ -1,23 +1,27 @@
 <div class="ana-wrap">
   <div class="ana-header">
-    <div><p class="ana-eyebrow">ANALYTICS</p><h1 class="ana-title">Performance overview</h1><p class="ana-subtitle">Monthly insights for your practice.</p></div>
-    <button class="ana-export-btn">Export report →</button>
+    <div><p class="ana-eyebrow">ANALYTICS</p><h1 class="ana-title">Performance overview</h1><p class="ana-subtitle">Real appointment data for your practice.</p></div>
+    <div class="ana-periods">
+      <button type="button" [class.active]="period==='week'" (click)="setPeriod('week')">Week</button>
+      <button type="button" [class.active]="period==='month'" (click)="setPeriod('month')">Month</button>
+      <button type="button" [class.active]="period==='quarter'" (click)="setPeriod('quarter')">Quarter</button>
+    </div>
   </div>
-  <!-- KPI strip -->
-  <div class="ana-kpi-grid">
+  <div *ngIf="loading" class="ana-loading">Loading analytics…</div>
+  <div *ngIf="errorMessage" class="ana-error">{{ errorMessage }}</div>
+  <div class="ana-kpi-grid" *ngIf="!loading && !errorMessage">
     <div *ngFor="let k of kpis" class="ana-kpi-card">
       <div class="ana-kpi-label">{{ k.label }}</div>
       <div class="ana-kpi-value">{{ k.value }}</div>
-      <div class="ana-kpi-trend" [ngClass]="'ana-trend--' + k.color">{{ k.trend }} vs last month</div>
+      <div class="ana-kpi-trend" [ngClass]="'ana-trend--' + k.color">{{ k.trend }}</div>
     </div>
   </div>
-  <!-- Bar chart -->
-  <div class="ana-card">
-    <h2 class="ana-card-title">Monthly appointments · 2025</h2>
+  <div class="ana-card" *ngIf="!loading && !errorMessage">
+    <h2 class="ana-card-title">Appointment volume</h2>
     <div class="ana-bar-chart">
-      <div *ngFor="let val of monthlyData; let i = index" class="ana-bar-col">
-        <div class="ana-bar-fill" [style.height]="(val / maxBar * 100) + '%'"></div>
-        <div class="ana-bar-label">{{ months[i] }}</div>
+      <div *ngFor="let item of trend" class="ana-bar-col">
+        <div class="ana-bar-fill" [style.height.%]="barHeight(item.count)"></div>
+        <div class="ana-bar-label">{{ item.date.slice(5) }}</div>
       </div>
     </div>
   </div>

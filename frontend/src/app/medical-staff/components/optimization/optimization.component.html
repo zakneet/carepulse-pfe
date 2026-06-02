@@ -35,19 +35,17 @@
           <span class="opt-donut-label">SCORE</span>
         </div>
       </div>
-      <p class="opt-score-note">Top 5% of clinics · 142 slots optimized this week</p>
+      <p class="opt-score-note">Live optimization score from today's occupied slots.</p>
     </div>
 
-    <!-- Metrics -->
     <div class="opt-metrics-grid">
       <div *ngFor="let m of metrics" class="opt-metric-card">
         <div class="opt-metric-label">{{ m.label }}</div>
         <div class="opt-metric-value">{{ m.value }}<span class="opt-metric-unit">{{ m.unit }}</span></div>
         <div class="opt-metric-bar-track">
-          <div class="opt-metric-bar-fill" [style.width]="m.value + '%'"
+          <div class="opt-metric-bar-fill" [style.width.%]="metricWidth(m)"
                [ngClass]="'opt-bar--' + m.color"></div>
         </div>
-        <div class="opt-metric-trend" [ngClass]="'opt-trend--' + m.color">{{ m.trend }}</div>
       </div>
     </div>
 
@@ -58,7 +56,7 @@
     <h2 class="opt-section-title">AI Recommendations</h2>
     <div class="opt-recs-grid">
       <div *ngFor="let rec of recommendations" class="opt-rec-card">
-        <div class="opt-rec-icon">{{ rec.icon }}</div>
+        <div class="opt-rec-icon">{{ rec.type === 'fill' ? '↻' : rec.type === 'list' ? '☰' : '⚡' }}</div>
         <div class="opt-rec-body">
           <div class="opt-rec-title">{{ rec.title }}</div>
           <div class="opt-rec-desc">{{ rec.desc }}</div>

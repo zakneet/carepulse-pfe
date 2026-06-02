@@ -1,13 +1,60 @@
-import { Component } from '@angular/core';
-@Component({ selector:'app-analytics', templateUrl:'./analytics.component.html', styleUrls:['./analytics.component.css'] })
-export class AnalyticsComponent {
-  kpis = [
-    { label:'Total Appointments',  value:'1,284', trend:'+12%', color:'blue' },
-    { label:'Patient Satisfaction', value:'96.4%', trend:'+2.1%', color:'green' },
-    { label:'Average Wait Time',   value:'14 min', trend:'-6 min', color:'cyan' },
-    { label:'Cancellation Rate',   value:'3.2%',  trend:'-1.1%', color:'violet' },
-  ];
-  monthlyData = [75,82,91,88,95,78,100,93,87,94,98,88];
-  months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  maxBar = 100;
+import { Component, OnInit } from '@angular/core';
+import { AuthService } from 'src/app/services/auth.service';
+import { MedicalStaffApiService } from '../../services/medical-staff-api.service';
+
+@Component({
+  selector: 'app-analytics',
+  templateUrl: './analytics.component.html',
+  styleUrls: ['./analytics.component.css']
+})
+export class AnalyticsComponent implements OnInit {
+  loading = true;
+  errorMessage = '';
+  period: 'week' | 'month' | 'quarter' = 'week';
+  kpis: Array<{ label: string; value: string; trend: string; color: string }> = [];
+  trend: Array<{ date: string; count: number }> = [];
+  maxBar = 1;
+
+  constructor(private authService: AuthService, private api: MedicalStaffApiService) {}
+
+  ngOnInit(): void {
+    this.load();
+  }
+
+  setPeriod(period: 'week' | 'month' | 'quarter'): void {
+    this.period = period;
+    this.load();
+  }
+
+  load(): void {
+    const id = this.getPersonnelId();
+    if (!id) {
+      this.loading = false;
+      this.errorMessage = 'Utilisateur medical non identifie.';
+      return;
+    }
+
+    this.loading = true;
+    this.api.getAnalytics(id, this.period).subscribe({
+      next: (res) => {
+        this.kpis = res.kpis || [];
+        this.trend = res.trend || [];
+        this.maxBar = Math.max(1, ...this.trend.map((t) => t.count));
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+        this.errorMessage = 'Impossible de charger les analyses.';
+      }
+    });
+  }
+
+  barHeight(count: number): number {
+    return Math.round((count / this.maxBar) * 100);
+  }
+
+  private getPersonnelId(): number | undefined {
+    const user = this.authService.getCurrentUser() as { id?: number; id_personnel?: number } | null;
+    return user?.id ?? user?.id_personnel;
+  }
 }

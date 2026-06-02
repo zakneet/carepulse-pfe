@@ -1,15 +1,71 @@
-import { Component } from '@angular/core';
-@Component({ selector:'app-notifications', templateUrl:'./notifications.component.html', styleUrls:['./notifications.component.css'] })
-export class NotificationsComponent {
-  notifications = [
-    { type:'emergency', title:'Emergency: M. Dubois', body:'Acute chest pain — slot moved to 09:45 today.', time:'2 min ago', read:false },
-    { type:'ai',        title:'AI Optimization complete', body:'Your schedule has been re-optimized. 4 slots filled automatically.', time:'15 min ago', read:false },
-    { type:'match',     title:'Waiting list match', body:'2 patients fit the freed 14:00 slot today.', time:'32 min ago', read:false },
-    { type:'info',      title:'Appointment confirmed', body:'Sophie Laurent confirmed her 14:00 appointment.', time:'1h ago', read:true },
-    { type:'info',      title:'Patient arrived early', body:'Marc Dubois checked in 20 minutes early.', time:'2h ago', read:true },
-    { type:'system',    title:'Weekly report ready', body:'Your performance report for W22 is available.', time:'Yesterday', read:true },
-    { type:'system',    title:'System update', body:'OptiClinic v2.3.1 deployed. OR-Tools engine upgraded.', time:'2 days ago', read:true },
-  ];
-  getTypeClass(type:string){ switch(type){ case 'emergency': return 'notif--emergency'; case 'ai': return 'notif--ai'; case 'match': return 'notif--match'; default: return 'notif--info'; } }
-  markAllRead(){ this.notifications.forEach(n=>n.read=true); }
+import { Component, OnInit } from '@angular/core';
+import { AuthService } from 'src/app/services/auth.service';
+import { MedicalStaffApiService, StaffNotification } from '../../services/medical-staff-api.service';
+
+@Component({
+  selector: 'app-notifications',
+  templateUrl: './notifications.component.html',
+  styleUrls: ['./notifications.component.css']
+})
+export class NotificationsComponent implements OnInit {
+  loading = true;
+  errorMessage = '';
+  filter = 'All';
+  notifications: StaffNotification[] = [];
+
+  constructor(private authService: AuthService, private api: MedicalStaffApiService) {}
+
+  ngOnInit(): void {
+    this.load();
+  }
+
+  load(): void {
+    const id = this.getPersonnelId();
+    if (!id) {
+      this.loading = false;
+      this.errorMessage = 'Utilisateur medical non identifie.';
+      return;
+    }
+
+    this.loading = true;
+    this.api.getNotifications(id).subscribe({
+      next: (res) => {
+        this.notifications = res.notifications || [];
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+        this.errorMessage = 'Impossible de charger les notifications.';
+      }
+    });
+  }
+
+  get filteredNotifications(): StaffNotification[] {
+    if (this.filter === 'All') return this.notifications;
+    const map: Record<string, string[]> = {
+      Urgent: ['emergency'],
+      System: ['info', 'system'],
+      AI: ['ai', 'match']
+    };
+    const types = map[this.filter] || [];
+    return this.notifications.filter((n) => types.includes(n.type));
+  }
+
+  getTypeClass(type: string): string {
+    switch (type) {
+      case 'emergency': return 'notif--emergency';
+      case 'ai': return 'notif--ai';
+      case 'match': return 'notif--match';
+      default: return 'notif--info';
+    }
+  }
+
+  markAllRead(): void {
+    this.notifications.forEach((n) => { n.read = true; });
+  }
+
+  private getPersonnelId(): number | undefined {
+    const user = this.authService.getCurrentUser() as { id?: number; id_personnel?: number } | null;
+    return user?.id ?? user?.id_personnel;
+  }
 }

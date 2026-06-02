@@ -74,6 +74,12 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
         Filters
       </button>
+      <div class="plan-view-tabs">
+        <button type="button" [class.active]="viewMode==='day'" (click)="setViewMode('day')">Day</button>
+        <button type="button" [class.active]="viewMode==='week'" (click)="setViewMode('week')">Week</button>
+        <button type="button" [class.active]="viewMode==='month'" (click)="setViewMode('month')">Month</button>
+        <button type="button" [class.active]="viewMode==='2months'" (click)="setViewMode('2months')">2 Months</button>
+      </div>
       <button class="plan-optimize-btn" (click)="refreshPlanning()">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
         Optimize
@@ -148,7 +154,7 @@
     <div class="plan-cal-footer">
       <div class="plan-cal-footer-left">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-        AI re-optimized 4 slots in the last hour.
+        AI re-optimized {{ statistics.pendingRequests || 0 }} slot(s) in the last hour.
       </div>
       <button class="plan-cal-footer-link">··· View full week</button>
     </div>

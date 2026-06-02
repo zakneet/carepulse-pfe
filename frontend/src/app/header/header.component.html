@@ -1,9 +1,9 @@
-<header class="site-nav">
+<header class="site-nav" [class.site-nav--emergency-only]="emergenciesOnly">
 	<div class="nav-inner">
-		<a routerLink="/" class="brand-logo-link" aria-label="Retour a l accueil">
-			<img [src]="logoPath" alt="Logo de la plateforme de gestion des rendez-vous" class="brand-logo" />
+		<a *ngIf="!emergenciesOnly" routerLink="/" class="brand-logo-link" aria-label="Retour a l accueil">
+			<img [src]="logoPath" alt="OptiClinic" class="brand-logo" />
 		</a>
-		<div class="emergency-layout" [class.emergency-layout-hidden]="isPatientView" [attr.aria-hidden]="isPatientView">
+		<div class="emergency-layout" [class.emergency-layout-hidden]="isPatientView && !emergenciesOnly" [attr.aria-hidden]="isPatientView && !emergenciesOnly">
 			<div class="doctor-group">
 				<button
 					type="button"

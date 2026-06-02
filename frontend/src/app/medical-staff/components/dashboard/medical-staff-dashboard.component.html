@@ -1,157 +1,173 @@
 <!-- =====================================================================
-     OPTICLINIC HEALTHCARE OS — DASHBOARD
+     OPTICLINIC — TABLEAU DE BORD MÉDECIN
      ===================================================================== -->
 <div class="dash-wrap">
 
-  <!-- ── HERO BANNER ──────────────────────────────────────────────────── -->
+  <div *ngIf="loading" class="dash-notice dash-notice--loading">Chargement du tableau de bord…</div>
+  <div *ngIf="errorMessage && !loading" class="dash-notice dash-notice--error">{{ errorMessage }}</div>
+
+  <!-- ── BANNIÈRE HÉRO ──────────────────────────────────────────────────── -->
   <div class="dash-hero">
     <div class="dash-hero-blob1"></div>
     <div class="dash-hero-blob2"></div>
 
-    <!-- AI badge -->
     <div class="dash-ai-badge">
       <span class="dash-ai-dot"></span>
-      AI engine · Live
+      Moteur IA · En direct
     </div>
 
     <div class="dash-hero-body">
-      <!-- Left: greeting -->
       <div class="dash-hero-left">
         <h1 class="dash-greeting">
-          Good morning,
-          <span class="dash-greeting-name">Dr. {{ currentUser?.prenom || 'Léa' }} {{ currentUser?.nom || 'Moreau' }}</span>
+          Bonjour,
+          <span class="dash-greeting-name">Dr {{ currentUser?.prenom || '' }} {{ currentUser?.nom || '' }}</span>
         </h1>
         <p class="dash-greeting-sub">
-          You have <strong>{{ stats.appointments }} appointments</strong> today,
-          including <strong class="dash-emerg-count">{{ stats.urgencies }} emergencies</strong>.
-          OptiClinic has already optimized your day — efficiency is up
-          <strong class="dash-opt-count">+{{ stats.optimizationDelta }}%</strong>.
+          Vous avez <strong>{{ stats.appointments }} rendez-vous</strong> aujourd'hui,
+          dont <strong class="dash-emerg-count">{{ stats.urgencies }} urgences</strong>.
+          Score d'optimisation OptiClinic :
+          <strong class="dash-opt-count">{{ stats.optimizationRate }}%</strong>.
         </p>
         <div class="dash-hero-actions">
           <button (click)="openPlanning()" class="btn-primary">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-            Open today's planning →
+            Ouvrir le planning →
           </button>
           <button (click)="openEmergency()" class="btn-danger-outline">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-            Declare emergency
+            Déclarer une urgence
           </button>
         </div>
       </div>
 
-      <!-- Right: mini stats -->
       <div class="dash-hero-stats">
-        <div class="dash-mini-stat dash-mini-stat--red">
-          <div class="dash-mini-stat-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          </div>
-          <div class="dash-mini-stat-value">72</div>
-          <div class="dash-mini-stat-label">BPM AVG</div>
-        </div>
         <div class="dash-mini-stat dash-mini-stat--blue">
           <div class="dash-mini-stat-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
           </div>
-          <div class="dash-mini-stat-value">184</div>
-          <div class="dash-mini-stat-label">AI DECISIONS</div>
+          <div class="dash-mini-stat-value">{{ stats.appointments }}</div>
+          <div class="dash-mini-stat-label">AUJOURD'HUI</div>
         </div>
-        <div class="dash-mini-stat dash-mini-stat--green">
+        <div class="dash-mini-stat dash-mini-stat--red">
           <div class="dash-mini-stat-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>
           </div>
-          <div class="dash-mini-stat-value">98%</div>
-          <div class="dash-mini-stat-label">ON-TIME</div>
+          <div class="dash-mini-stat-value">{{ stats.urgencies }}</div>
+          <div class="dash-mini-stat-label">URGENCES</div>
         </div>
-        <div class="dash-mini-stat dash-mini-stat--violet">
+        <div class="dash-mini-stat dash-mini-stat--amber">
           <div class="dash-mini-stat-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
-          <div class="dash-mini-stat-value">{{ stats.timeSaved }}</div>
-          <div class="dash-mini-stat-label">SAVED HOURS</div>
+          <div class="dash-mini-stat-value">{{ stats.waitingList }}</div>
+          <div class="dash-mini-stat-label">EN ATTENTE</div>
+        </div>
+        <div class="dash-mini-stat dash-mini-stat--violet">
+          <div class="dash-mini-stat-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+          </div>
+          <div class="dash-mini-stat-value">{{ stats.optimizationRate }}%</div>
+          <div class="dash-mini-stat-label">OPTIMISÉ</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ── KPI STRIP ─────────────────────────────────────────────────────── -->
+  <!-- ── CARTES LIVE ─────────────────────────────────────────────────────── -->
+  <div class="dash-live-row" *ngIf="!loading">
+    <div class="dash-live-card">
+      <span class="dash-live-label">Prochain rendez-vous</span>
+      <strong *ngIf="nextAppointment">{{ nextAppointment.time }} · {{ nextAppointment.patient }}</strong>
+      <strong *ngIf="!nextAppointment">Aucun rendez-vous à venir</strong>
+      <span class="dash-live-sub">{{ nextAppointment?.motif || 'Planning libre' }}</span>
+    </div>
+    <div class="dash-live-card">
+      <span class="dash-live-label">Statut médecin</span>
+      <strong [class.dash-live--ok]="doctorAvailable" [class.dash-live--busy]="!doctorAvailable">
+        {{ doctorAvailable ? 'Disponible' : 'En consultation' }}
+      </strong>
+      <span class="dash-live-sub">État du cabinet en direct</span>
+    </div>
+    <div class="dash-live-card">
+      <span class="dash-live-label">Occupation</span>
+      <strong>{{ occupancyPercent }}%</strong>
+      <span class="dash-live-sub">Taux d'utilisation des créneaux</span>
+    </div>
+  </div>
+
   <div class="dash-kpi-grid">
 
     <div class="dash-kpi-card">
       <div class="dash-kpi-top">
-        <span class="dash-kpi-label">TODAY'S APPOINTMENTS</span>
+        <span class="dash-kpi-label">RENDEZ-VOUS DU JOUR</span>
         <div class="dash-kpi-icon dash-kpi-icon--blue">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
         </div>
       </div>
       <div class="dash-kpi-value">{{ stats.appointments }}</div>
-      <div class="dash-kpi-sub">{{ stats.urgencies }} next hour</div>
-      <div class="dash-kpi-trend dash-kpi-trend--up">↑ +{{ stats.optimizationDelta }}% vs last week</div>
+      <div class="dash-kpi-sub">{{ stats.appointmentsNextHour }} dans la prochaine heure</div>
+      <div class="dash-kpi-trend dash-kpi-trend--up">Données live du planning</div>
     </div>
 
     <div class="dash-kpi-card dash-kpi-card--danger">
       <div class="dash-kpi-top">
-        <span class="dash-kpi-label">EMERGENCIES</span>
+        <span class="dash-kpi-label">URGENCES</span>
         <div class="dash-kpi-icon dash-kpi-icon--red">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
         </div>
       </div>
       <div class="dash-kpi-value">{{ stats.urgencies }}</div>
-      <div class="dash-kpi-sub">1 critical</div>
-      <div class="dash-kpi-trend dash-kpi-trend--down">↓ -15% vs last week</div>
+      <div class="dash-kpi-sub">{{ stats.criticalEmergencies }} critique(s)</div>
+      <div class="dash-kpi-trend dash-kpi-trend--down">Actives aujourd'hui</div>
     </div>
 
     <div class="dash-kpi-card">
       <div class="dash-kpi-top">
-        <span class="dash-kpi-label">OPTIMIZATION SCORE</span>
+        <span class="dash-kpi-label">SCORE D'OPTIMISATION</span>
         <div class="dash-kpi-icon dash-kpi-icon--violet">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
         </div>
       </div>
       <div class="dash-kpi-value">{{ stats.optimizationRate }}%</div>
-      <div class="dash-kpi-sub">Top 5% of clinics</div>
-      <div class="dash-kpi-trend dash-kpi-trend--up">↑ +{{ stats.optimizationDelta }}% vs last week</div>
+      <div class="dash-kpi-sub">{{ optimizationMetrics.slotUtilization }}% créneaux utilisés</div>
+      <div class="dash-kpi-trend dash-kpi-trend--up">Occupés / disponibles</div>
     </div>
 
     <div class="dash-kpi-card">
       <div class="dash-kpi-top">
-        <span class="dash-kpi-label">WAITING LIST</span>
+        <span class="dash-kpi-label">LISTE D'ATTENTE</span>
         <div class="dash-kpi-icon dash-kpi-icon--amber">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
       </div>
-      <div class="dash-kpi-value">12</div>
-      <div class="dash-kpi-sub">4 high priority</div>
-      <div class="dash-kpi-trend dash-kpi-trend--down">↓ -22% vs last week</div>
+      <div class="dash-kpi-value">{{ stats.waitingList }}</div>
+      <div class="dash-kpi-sub">{{ stats.highPriorityWaiting }} priorité haute</div>
+      <button type="button" class="dash-kpi-trend dash-kpi-trend--down" (click)="openWaitingList()">Voir la liste →</button>
     </div>
 
   </div>
 
-  <!-- ── MAIN GRID ─────────────────────────────────────────────────────── -->
   <div class="dash-main-grid">
 
-    <!-- Today's Appointments List -->
     <div class="dash-card">
       <div class="dash-card-header">
         <div>
-          <h2 class="dash-card-title">Today's appointments</h2>
-          <p class="dash-card-sub">Live · {{ stats.appointments }} patients scheduled</p>
+          <h2 class="dash-card-title">Rendez-vous du jour</h2>
+          <p class="dash-card-sub">En direct · {{ stats.appointments }} patient(s) planifié(s)</p>
         </div>
-        <button (click)="openPlanning()" class="dash-link-btn">View planning →</button>
+        <button (click)="openPlanning()" class="dash-link-btn">Voir le planning →</button>
       </div>
       <div class="dash-appt-list">
+        <div *ngIf="!loading && nextAppointments.length === 0" class="dash-appt-empty">Aucun rendez-vous prévu aujourd'hui.</div>
         <div *ngFor="let apt of nextAppointments" class="dash-appt-row">
-          <!-- Time -->
           <div class="dash-appt-time">{{ apt.time }}</div>
-          <!-- Avatar -->
           <div class="dash-appt-avatar" [ngStyle]="{'background': getAvatarGradient(apt.statusColor)}">
             {{ apt.patient.charAt(0) }}
           </div>
-          <!-- Info -->
           <div class="dash-appt-info">
             <div class="dash-appt-name">{{ apt.patient }}</div>
             <div class="dash-appt-motif">{{ apt.motif }}</div>
           </div>
-          <!-- Status Badge -->
           <span class="dash-status-badge"
             [ngClass]="{
               'dash-status-badge--green':  apt.statusColor === 'emerald',
@@ -165,24 +181,18 @@
       </div>
     </div>
 
-    <!-- Right column: Optimization + Emergency Alerts -->
     <div class="dash-right-col">
 
-      <!-- Optimization Card -->
       <div class="dash-card">
         <div class="dash-card-header">
-          <h2 class="dash-card-title">Optimization</h2>
-          <button class="dash-icon-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 1.52 13.83"/><path d="M4.93 4.93a10 10 0 0 0-1.52 13.83"/></svg>
-          </button>
+          <h2 class="dash-card-title">Optimisation</h2>
         </div>
 
-        <!-- Donut -->
         <div class="dash-donut-wrap">
           <svg viewBox="0 0 36 36" class="dash-donut">
             <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" stroke-width="3"/>
             <circle cx="18" cy="18" r="15.9" fill="none" stroke="url(#donutGrad)" stroke-width="3"
-              [attr.stroke-dasharray]="stats.optimizationRate + ' 100'"
+              [attr.stroke-dasharray]="animatedOptimizationScore + ' 100'"
               stroke-linecap="round" class="dash-donut-arc"/>
             <defs>
               <linearGradient id="donutGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -192,74 +202,52 @@
             </defs>
           </svg>
           <div class="dash-donut-center">
-            <span class="dash-donut-pct">{{ stats.optimizationRate }}%</span>
+            <span class="dash-donut-pct">{{ animatedOptimizationScore }}%</span>
             <span class="dash-donut-label">SCORE</span>
           </div>
         </div>
 
-        <!-- Metrics list -->
         <div class="dash-opt-metrics">
           <div class="dash-opt-metric">
-            <span class="dash-opt-metric-name">Scheduling efficiency</span>
-            <span class="dash-opt-metric-value dash-opt-metric-value--green">92%</span>
+            <span class="dash-opt-metric-name">Efficacité du planning</span>
+            <span class="dash-opt-metric-value dash-opt-metric-value--green">{{ optimizationMetrics.schedulingEfficiency }}%</span>
           </div>
           <div class="dash-opt-metric">
-            <span class="dash-opt-metric-name">Slot utilization</span>
-            <span class="dash-opt-metric-value dash-opt-metric-value--green">88%</span>
+            <span class="dash-opt-metric-name">Utilisation des créneaux</span>
+            <span class="dash-opt-metric-value dash-opt-metric-value--green">{{ optimizationMetrics.slotUtilization }}%</span>
           </div>
           <div class="dash-opt-metric">
-            <span class="dash-opt-metric-name">Patient wait time</span>
-            <span class="dash-opt-metric-value dash-opt-metric-value--red">-32%</span>
+            <span class="dash-opt-metric-name">Rendez-vous du jour</span>
+            <span class="dash-opt-metric-value dash-opt-metric-value--blue">{{ stats.appointments }}</span>
           </div>
           <div class="dash-opt-metric">
-            <span class="dash-opt-metric-name">Auto-replacements</span>
-            <span class="dash-opt-metric-value dash-opt-metric-value--blue">4 today</span>
+            <span class="dash-opt-metric-name">Remplacements auto</span>
+            <span class="dash-opt-metric-value dash-opt-metric-value--blue">{{ optimizationMetrics.autoReplacements }} aujourd'hui</span>
           </div>
         </div>
       </div>
 
-      <!-- Emergency Alerts Card -->
       <div class="dash-card">
         <div class="dash-card-header">
-          <h2 class="dash-card-title">Emergency alerts</h2>
+          <h2 class="dash-card-title">Alertes urgence</h2>
         </div>
         <div class="dash-alerts-list">
-
-          <div class="dash-alert dash-alert--red">
-            <div class="dash-alert-icon dash-alert-icon--red">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+          <div *ngIf="!loading && emergencyAlerts.length === 0" class="dash-appt-empty">Aucune alerte urgence active.</div>
+          <div *ngFor="let alert of emergencyAlerts" class="dash-alert" [ngClass]="getAlertClass(alert.severity)">
+            <div class="dash-alert-icon" [ngClass]="getAlertIconClass(alert.severity)">
+              <svg *ngIf="alert.severity !== 'info'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+              <svg *ngIf="alert.severity === 'info'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div class="dash-alert-body">
-              <div class="dash-alert-title">Critical: M. Dubois</div>
-              <div class="dash-alert-sub">Acute chest pain — slot moved to 09:45</div>
+              <div class="dash-alert-title">{{ alert.title }}</div>
+              <div class="dash-alert-sub">{{ alert.subtitle }}</div>
             </div>
           </div>
-
-          <div class="dash-alert dash-alert--orange">
-            <div class="dash-alert-icon dash-alert-icon--orange">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-            </div>
-            <div class="dash-alert-body">
-              <div class="dash-alert-title">High: E. Chevalier</div>
-              <div class="dash-alert-sub">Severe palpitations — Friday 09:00</div>
-            </div>
-          </div>
-
-          <div class="dash-alert dash-alert--blue">
-            <div class="dash-alert-icon dash-alert-icon--blue">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <div class="dash-alert-body">
-              <div class="dash-alert-title">Waiting list match</div>
-              <div class="dash-alert-sub">2 patients fit the freed 14:00 slot</div>
-            </div>
-          </div>
-
         </div>
       </div>
 
-    </div><!-- /right col -->
+    </div>
 
-  </div><!-- /main grid -->
+  </div>
 
 </div>

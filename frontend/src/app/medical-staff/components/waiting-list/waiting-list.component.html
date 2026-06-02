@@ -25,14 +25,15 @@
     <span class="wl-ai-stat">{{ matches.length }} patients matched · {{ freedSlots }} slots freed today</span>
   </div>
 
-  <!-- Match Cards Grid -->
-  <div class="wl-cards-grid">
-    <div *ngFor="let match of matches" class="wl-card">
+  <div *ngIf="loading" class="wl-loading">Loading waiting list…</div>
+  <div *ngIf="errorMessage" class="wl-error">{{ errorMessage }}</div>
 
-      <!-- Card Top -->
+  <div class="wl-cards-grid" *ngIf="!loading && !errorMessage">
+    <div *ngIf="matches.length===0" class="wl-empty">No patients on the waiting list.</div>
+    <div *ngFor="let match of matches; let i = index" class="wl-card">
       <div class="wl-card-top">
-        <div class="wl-card-avatar" [ngStyle]="{'background': match.avatarColor}">
-          {{ match.initials }}
+        <div class="wl-card-avatar" [ngStyle]="{'background': getAvatarColor(i)}">
+          {{ getInitials(match.name) }}
         </div>
         <div class="wl-card-info">
           <div class="wl-card-name">{{ match.name }}</div>

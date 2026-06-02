@@ -7,78 +7,72 @@
 
     <!-- Logo -->
     <div class="oc-logo">
-      <div class="oc-logo-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M2 12h20"/></svg>
-      </div>
-      <div>
-        <div class="oc-logo-name">OptiClinic</div>
-        <div class="oc-logo-sub">HEALTHCARE OS</div>
-      </div>
+      <app-logo size="sm"></app-logo>
     </div>
 
     <!-- Nav items -->
     <nav class="oc-nav">
 
-      <a routerLink="/medical-staff/doctor/dashboard"
+      <a [routerLink]="baseRoute + '/dashboard'"
          routerLinkActive="oc-nav-active"
          [routerLinkActiveOptions]="{exact: true}"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-        <span>Dashboard</span>
+        <span>Tableau de bord</span>
       </a>
 
-      <a routerLink="/medical-staff/doctor/planning"
+      <a [routerLink]="baseRoute + '/planning'"
          routerLinkActive="oc-nav-active"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
         <span>Planning</span>
       </a>
 
-      <a routerLink="/medical-staff/doctor/appointments"
+      <a [routerLink]="baseRoute + '/appointments'"
          routerLinkActive="oc-nav-active"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
         <span>Urgences</span>
-        <span class="oc-badge oc-badge-red">3</span>
+        <span *ngIf="emergencyBadge > 0" class="oc-badge oc-badge-red">{{ emergencyBadge }}</span>
       </a>
 
-      <a routerLink="/medical-staff/doctor/patients"
+      <a [routerLink]="baseRoute + '/patients'"
          routerLinkActive="oc-nav-active"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span>Patients</span>
       </a>
 
-      <a routerLink="/medical-staff/doctor/waiting-list"
+      <a [routerLink]="baseRoute + '/waiting-list'"
          routerLinkActive="oc-nav-active"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <span>Liste d'attente</span>
-        <span class="oc-badge oc-badge-cyan">12</span>
+        <span *ngIf="waitingBadge > 0" class="oc-badge oc-badge-cyan">{{ waitingBadge }}</span>
       </a>
 
-      <a routerLink="/medical-staff/doctor/optimization"
+      <a [routerLink]="baseRoute + '/optimization'"
          routerLinkActive="oc-nav-active"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
         <span>Optimisation</span>
       </a>
 
-      <a routerLink="/medical-staff/doctor/analytics"
+      <a [routerLink]="baseRoute + '/analytics'"
          routerLinkActive="oc-nav-active"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
         <span>Analyses</span>
       </a>
 
-      <a routerLink="/medical-staff/doctor/notifications"
+      <a [routerLink]="baseRoute + '/notifications'"
          routerLinkActive="oc-nav-active"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
         <span>Notifications</span>
       </a>
 
-      <a routerLink="/medical-staff/doctor/settings"
+      <a [routerLink]="baseRoute + '/settings'"
          routerLinkActive="oc-nav-active"
          class="oc-nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -92,14 +86,14 @@
       <div class="oc-ai-widget">
         <div class="oc-ai-widget-header">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-          <span class="oc-ai-widget-title">Smart AI Engine</span>
+          <span class="oc-ai-widget-title">Moteur IA intelligent</span>
         </div>
-        <p class="oc-ai-widget-desc">Optimizing 142 slots this week.<br>Efficiency up 8%.</p>
+        <p class="oc-ai-widget-desc">Optimisation du planning<br>en direct pour votre cabinet.</p>
         <div class="oc-ai-bar-track">
-          <div class="oc-ai-bar-fill" style="width: 86%"></div>
+          <div class="oc-ai-bar-fill" [style.width.%]="optimizationScore"></div>
         </div>
         <div class="oc-ai-bar-labels">
-          <span>Optimization</span><span class="oc-ai-bar-value">86%</span>
+          <span>Optimisation</span><span class="oc-ai-bar-value">{{ optimizationScore }}%</span>
         </div>
       </div>
 
@@ -133,7 +127,7 @@
         <div class="oc-search-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
-        <input type="text" placeholder="Search patients, doctors, slots..." class="oc-search-input">
+        <input type="text" placeholder="Rechercher patients, créneaux..." class="oc-search-input">
         <kbd class="oc-search-kbd">⌘K</kbd>
       </div>
 
@@ -143,14 +137,14 @@
         <!-- Status -->
         <div class="oc-status-pill">
           <div class="oc-status-dot"></div>
-          <span>All systems live</span>
+          <span>Tous les systèmes actifs</span>
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         </div>
 
         <!-- Emergency bell -->
         <button class="oc-icon-btn">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
-          <span class="oc-icon-btn-badge oc-icon-btn-badge--orange">3</span>
+          <span *ngIf="emergencyBadge > 0" class="oc-icon-btn-badge oc-icon-btn-badge--orange">{{ emergencyBadge }}</span>
         </button>
         <!-- Notifications bell -->
         <button class="oc-icon-btn">
@@ -165,7 +159,7 @@
           <div class="oc-doctor-avatar">{{ currentDoctor.charAt(0) }}</div>
           <div class="oc-doctor-info">
             <div class="oc-doctor-name">Dr. {{ currentDoctor }}</div>
-            <div class="oc-doctor-sub">Cardiology · On call</div>
+            <div class="oc-doctor-sub">{{ currentSpecialty }} · De garde</div>
           </div>
         </div>
 
@@ -174,6 +168,7 @@
 
     <!-- Page content -->
     <main class="oc-page-content">
+      <app-header [emergenciesOnly]="true"></app-header>
       <router-outlet></router-outlet>
     </main>
   </div>

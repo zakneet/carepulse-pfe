@@ -385,3 +385,29 @@
 .plan-patient-history-doctor { font-size: 12px; font-weight: 700; color: #0284c7; }
 .plan-patient-history-motif  { font-size: 12px; color: #64748b; }
 .plan-patient-history-status { font-size: 10px; font-weight: 700; text-transform: uppercase; background: #f8fafc; border: 1px solid #e2e8f0; color: #64748b; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+
+.plan-view-tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.plan-view-tabs button {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.plan-view-tabs button.active {
+  background: #fff;
+  color: #0284c7;
+  box-shadow: 0 2px 8px rgba(2,132,199,0.12);
+}

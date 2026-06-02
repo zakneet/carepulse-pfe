@@ -2731,6 +2731,7 @@ def get_medical_staff_planning():
     try:
         id_personnel = request.args.get("idPersonnel", type=int)
         selected_date = parse_date(request.args.get("date")) or datetime.utcnow().date()
+        range_days = min(max(request.args.get("rangeDays", type=int) or 7, 1), 60)
 
         if not id_personnel:
             return jsonify({"error": "idPersonnel est obligatoire"}), 400
@@ -2747,7 +2748,10 @@ def get_medical_staff_planning():
             ).mappings().first()
 
             week_start = selected_date - timedelta(days=selected_date.weekday())
-            week_end = week_start + timedelta(days=6)
+            range_end = selected_date + timedelta(days=range_days - 1)
+            if range_days > 7:
+                week_start = selected_date
+                range_end = selected_date + timedelta(days=range_days - 1)
 
             rdvs = conn.exec_driver_sql(
                 """
@@ -2770,14 +2774,22 @@ def get_medical_staff_planning():
                 WHERE r.idPersonnel = %s
                   AND r.dateRDV >= %s
                   AND r.dateRDV <= %s
+                  AND LOWER(COALESCE(r.motifConsultation, '')) NOT LIKE 'annule%%'
                 ORDER BY r.dateRDV ASC, r.heureDebut ASC
                 """,
-                (id_personnel, week_start, week_end),
+                (id_personnel, week_start, range_end),
             ).mappings().all()
 
         grouped = {}
         for rdv in rdvs:
             day_key = rdv["dateRDV"].isoformat() if hasattr(rdv["dateRDV"], "isoformat") else str(rdv["dateRDV"])
+            motif = rdv["motifConsultation"] or ""
+            statut = "Confirme"
+            lowered = motif.lower()
+            if "urgence" in lowered or "urgent" in lowered:
+                statut = "Urgence"
+            elif any(t in lowered for t in ("replac", "replanif", "deplace", "optimis")):
+                statut = "Optimise"
             grouped.setdefault(day_key, []).append(
                 {
                     "id": rdv["id"],
@@ -2787,7 +2799,7 @@ def get_medical_staff_planning():
                     "heureDebut": _format_sql_time(rdv["heureDebut"]),
                     "heureFin": _format_sql_time(rdv["heureFin"]),
                     "motifConsultation": rdv["motifConsultation"],
-                    "statut": "Confirme",
+                    "statut": statut,
                     "patientNom": rdv["patientNom"] or "",
                     "patientPrenom": rdv["patientPrenom"] or "",
                     "medecinNom": rdv["medecinNom"] or "",
@@ -2798,7 +2810,8 @@ def get_medical_staff_planning():
             )
 
         week_planning = []
-        for offset in range(7):
+        total_days = (range_end - week_start).days + 1
+        for offset in range(total_days):
             current_day = week_start + timedelta(days=offset)
             day_key = current_day.isoformat()
             day_appointments = grouped.get(day_key, [])
@@ -2811,6 +2824,7 @@ def get_medical_staff_planning():
             )
 
         today_planning = grouped.get(selected_date.isoformat(), [])
+        week_end = week_start + timedelta(days=min(6, total_days - 1))
 
         return jsonify(
             {
@@ -2818,17 +2832,573 @@ def get_medical_staff_planning():
                 "date": selected_date.isoformat(),
                 "weekStart": week_start.isoformat(),
                 "weekEnd": week_end.isoformat(),
+                "rangeDays": range_days,
+                "rangeEnd": range_end.isoformat(),
                 "todayPlanning": today_planning,
                 "weekPlanning": week_planning,
                 "stats": {
                     "todayCount": len(today_planning),
                     "weekCount": len(rdvs),
+                    "rangeCount": len(rdvs),
                 },
             }
         ), 200
     except Exception as exc:
         import traceback
         traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
+
+
+def _is_cancelled_rdv(motif):
+    return (motif or "").strip().lower().startswith("annule")
+
+
+def _is_emergency_rdv(motif):
+    lowered = (motif or "").lower()
+    return "urgence" in lowered or "urgent" in lowered
+
+
+def _emergency_severity(motif):
+    lowered = (motif or "").lower()
+    if "critique" in lowered or "critical" in lowered:
+        return "critical"
+    return "high"
+
+
+def _count_planning_slots_for_day(id_personnel, target_date, slot_duration=30):
+    plannings = (
+        Planning.query
+        .filter_by(idPersonnel=int(id_personnel), date=target_date)
+        .order_by(Planning.heure_debut.asc())
+        .all()
+    )
+    planning_ranges = [(_to_minutes(plan.heure_debut), _to_minutes(plan.heure_fin)) for plan in plannings]
+    if not planning_ranges:
+        planning_ranges = [(9 * 60, 17 * 60)]
+
+    available_slots = 0
+    for start_min, end_min in planning_ranges:
+        if end_min <= start_min:
+            continue
+        cursor = start_min
+        while cursor + slot_duration <= end_min:
+            available_slots += 1
+            cursor += slot_duration
+    return available_slots, planning_ranges
+
+
+def _count_occupied_slots_for_day(id_personnel, target_date, slot_duration=30):
+    rdvs = (
+        Rdv.query
+        .filter(Rdv.idPersonnel == int(id_personnel), Rdv.dateRDV == target_date)
+        .order_by(Rdv.heureDebut.asc())
+        .all()
+    )
+    occupied_slots = 0
+    active_rdvs = []
+    for rdv in rdvs:
+        if _is_cancelled_rdv(rdv.motifConsultation):
+            continue
+        active_rdvs.append(rdv)
+        start_min = _to_minutes(rdv.heureDebut)
+        end_min = _to_minutes(rdv.heureFin)
+        if start_min is None or end_min is None:
+            occupied_slots += 1
+            continue
+        duration = max(slot_duration, end_min - start_min)
+        occupied_slots += max(1, int(round(duration / slot_duration)))
+
+    return occupied_slots, active_rdvs
+
+
+def _build_medical_staff_dashboard(id_personnel, target_date=None):
+    target_date = target_date or datetime.utcnow().date()
+    now_time = datetime.now().time()
+
+    available_slots, _ = _count_planning_slots_for_day(id_personnel, target_date)
+    occupied_slots, today_rdvs = _count_occupied_slots_for_day(id_personnel, target_date)
+
+    optimization_score = int(round((occupied_slots / available_slots) * 100)) if available_slots > 0 else 0
+    slot_utilization = optimization_score
+    scheduling_efficiency = min(100, optimization_score + (5 if occupied_slots > 0 else 0))
+
+    appointments_today = len(today_rdvs)
+    emergencies = 0
+    critical_emergencies = 0
+    high_emergencies = 0
+    emergency_alerts = []
+    today_appointments = []
+    auto_replacements = 0
+
+    patient_ids = {int(rdv.idPatient) for rdv in today_rdvs if rdv.idPatient}
+    patient_names = {}
+    if patient_ids:
+        placeholders = ", ".join(["%s"] * len(patient_ids))
+        with db.engine.connect() as conn:
+            patient_rows = conn.exec_driver_sql(
+                f"""
+                SELECT id_patient, nom, prenom
+                FROM patient
+                WHERE id_patient IN ({placeholders})
+                """,
+                tuple(patient_ids),
+            ).mappings().all()
+        for row in patient_rows:
+            patient_names[int(row["id_patient"])] = (
+                f"{(row['prenom'] or '').strip()} {(row['nom'] or '').strip()}".strip() or "Patient"
+            )
+
+    for rdv in today_rdvs:
+        motif = rdv.motifConsultation or ""
+        lowered = motif.lower()
+        if any(token in lowered for token in ("replac", "replanif", "deplace", "optimis", "reordonn")):
+            auto_replacements += 1
+
+        patient_name = patient_names.get(int(rdv.idPatient), "Patient")
+
+        start_time = _format_sql_time(rdv.heureDebut)
+        is_emergency = _is_emergency_rdv(motif)
+        status_label = "Confirmé"
+        status_color = "blue"
+        if is_emergency:
+            status_label = "Urgence"
+            status_color = "red"
+            emergencies += 1
+            severity = _emergency_severity(motif)
+            if severity == "critical":
+                critical_emergencies += 1
+            else:
+                high_emergencies += 1
+            emergency_alerts.append(
+                {
+                    "severity": severity,
+                    "title": f"{'Critique' if severity == 'critical' else 'Haute priorité'} : {patient_name}",
+                    "subtitle": f"{motif} — {start_time[:5] if start_time else ''}",
+                    "patientName": patient_name,
+                    "time": start_time,
+                }
+            )
+        elif "attente" in lowered:
+            status_label = "En salle d'attente"
+            status_color = "emerald"
+        elif "optim" in lowered:
+            status_label = "Optimisé"
+            status_color = "blue"
+
+        today_appointments.append(
+            {
+                "id": rdv.idRdv,
+                "time": (start_time or "")[:5],
+                "patient": patient_name,
+                "motif": motif,
+                "status": status_label,
+                "statusColor": status_color,
+                "isEmergency": is_emergency,
+            }
+        )
+
+    appointments_next_hour = 0
+    now_minutes = _to_minutes(now_time)
+    if now_minutes is not None:
+        for rdv in today_rdvs:
+            start_min = _to_minutes(rdv.heureDebut)
+            if start_min is None:
+                continue
+            if now_minutes <= start_min <= now_minutes + 60:
+                appointments_next_hour += 1
+
+    with db.engine.connect() as conn:
+        waiting_row = conn.exec_driver_sql(
+            """
+            SELECT COUNT(DISTINCT p.id_patient) AS waiting_count
+            FROM patient p
+            INNER JOIN rdv r ON r.idPatient = p.id_patient AND r.idPersonnel = %s
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM rdv r2
+                WHERE r2.idPatient = p.id_patient
+                  AND r2.idPersonnel = %s
+                  AND r2.dateRDV >= %s
+                  AND LOWER(COALESCE(r2.motifConsultation, '')) NOT LIKE 'annule%%'
+            )
+            """,
+            (id_personnel, id_personnel, target_date),
+        ).mappings().first()
+
+        high_priority_row = conn.exec_driver_sql(
+            """
+            SELECT COUNT(DISTINCT p.id_patient) AS high_priority_count
+            FROM patient p
+            INNER JOIN rdv r ON r.idPatient = p.id_patient AND r.idPersonnel = %s
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM rdv r2
+                WHERE r2.idPatient = p.id_patient
+                  AND r2.idPersonnel = %s
+                  AND r2.dateRDV >= %s
+                  AND LOWER(COALESCE(r2.motifConsultation, '')) NOT LIKE 'annule%%'
+            )
+            AND (
+                SELECT MAX(r3.dateRDV)
+                FROM rdv r3
+                WHERE r3.idPatient = p.id_patient
+                  AND r3.idPersonnel = %s
+                  AND LOWER(COALESCE(r3.motifConsultation, '')) NOT LIKE 'annule%%'
+            ) < DATE_SUB(%s, INTERVAL 14 DAY)
+            """,
+            (id_personnel, id_personnel, target_date, id_personnel, target_date),
+        ).mappings().first()
+
+    waiting_list = int((waiting_row or {}).get("waiting_count") or 0)
+    high_priority_waiting = int((high_priority_row or {}).get("high_priority_count") or 0)
+
+    if waiting_list > 0 and len(emergency_alerts) < 3:
+        emergency_alerts.append(
+            {
+                "severity": "info",
+                "title": "Correspondance liste d'attente",
+                "subtitle": f"{min(waiting_list, 99)} patient(s) éligible(s) aux créneaux libérés",
+                "patientName": "",
+                "time": "",
+            }
+        )
+
+    next_appointment = None
+    now_minutes = _to_minutes(now_time)
+    for rdv in today_rdvs:
+        start_min = _to_minutes(rdv.heureDebut)
+        if start_min is None:
+            continue
+        if start_min >= (now_minutes or 0):
+            patient_name = patient_names.get(int(rdv.idPatient), "Patient")
+            next_appointment = {
+                "id": rdv.idRdv,
+                "patient": patient_name,
+                "time": (_format_sql_time(rdv.heureDebut) or "")[:5],
+                "motif": rdv.motifConsultation or "",
+                "isEmergency": _is_emergency_rdv(rdv.motifConsultation),
+            }
+            break
+
+    doctor_available = True
+    if now_minutes is not None:
+        for rdv in today_rdvs:
+            start_min = _to_minutes(rdv.heureDebut)
+            end_min = _to_minutes(rdv.heureFin)
+            if start_min is None or end_min is None:
+                continue
+            if start_min <= now_minutes < end_min:
+                doctor_available = False
+                break
+
+    return {
+        "idPersonnel": int(id_personnel),
+        "date": target_date.isoformat(),
+        "appointmentsToday": appointments_today,
+        "appointmentsNextHour": appointments_next_hour,
+        "emergencies": emergencies,
+        "criticalEmergencies": critical_emergencies,
+        "highEmergencies": high_emergencies,
+        "waitingList": waiting_list,
+        "highPriorityWaiting": high_priority_waiting,
+        "optimizationScore": optimization_score,
+        "schedulingEfficiency": scheduling_efficiency,
+        "slotUtilization": slot_utilization,
+        "autoReplacements": auto_replacements,
+        "availableSlots": available_slots,
+        "occupiedSlots": occupied_slots,
+        "occupancyPercent": optimization_score,
+        "doctorAvailable": doctor_available,
+        "nextAppointment": next_appointment,
+        "todayAppointments": today_appointments,
+        "emergencyAlerts": emergency_alerts[:3],
+    }
+
+
+@app.route("/medical-staff/dashboard", methods=["GET"])
+@debug_route
+def get_medical_staff_dashboard():
+    try:
+        id_personnel = request.args.get("idPersonnel", type=int)
+        token = None
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+
+        if token:
+            try:
+                payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+                token_personnel_id = int(payload.get("id_personnel") or 0)
+                if token_personnel_id:
+                    if id_personnel and int(id_personnel) != token_personnel_id:
+                        return jsonify({"error": "Acces refuse pour ce personnel"}), 403
+                    id_personnel = token_personnel_id
+            except Exception:
+                return jsonify({"error": "Token invalide ou expire"}), 401
+
+        if not id_personnel:
+            return jsonify({"error": "idPersonnel est obligatoire"}), 400
+
+        if not is_medical_staff(int(id_personnel)):
+            return jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400
+
+        selected_date = parse_date(request.args.get("date")) or datetime.utcnow().date()
+        dashboard = _build_medical_staff_dashboard(int(id_personnel), selected_date)
+        return jsonify(dashboard), 200
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
+
+
+def _resolve_personnel_id_from_request():
+    id_personnel = request.args.get("idPersonnel", type=int)
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            token_personnel_id = int(payload.get("id_personnel") or 0)
+            if token_personnel_id:
+                if id_personnel and int(id_personnel) != token_personnel_id:
+                    return None, (jsonify({"error": "Acces refuse pour ce personnel"}), 403)
+                id_personnel = token_personnel_id
+        except Exception:
+            return None, (jsonify({"error": "Token invalide ou expire"}), 401)
+    if not id_personnel:
+        return None, (jsonify({"error": "idPersonnel est obligatoire"}), 400)
+    if not is_medical_staff(int(id_personnel)):
+        return None, (jsonify({"error": "idPersonnel doit correspondre a un personnel medical"}), 400)
+    return int(id_personnel), None
+
+
+@app.route("/medical-staff/waiting-list", methods=["GET"])
+@debug_route
+def get_medical_staff_waiting_list():
+    try:
+        id_personnel, error = _resolve_personnel_id_from_request()
+        if error:
+            return error
+        target_date = parse_date(request.args.get("date")) or datetime.utcnow().date()
+
+        with db.engine.connect() as conn:
+            rows = conn.exec_driver_sql(
+                """
+                SELECT
+                    p.id_patient AS id,
+                    p.nom,
+                    p.prenom,
+                    MAX(r.dateRDV) AS lastVisitDate,
+                    MAX(r.motifConsultation) AS lastMotif,
+                    DATEDIFF(%s, MAX(r.dateRDV)) AS waitingDays
+                FROM patient p
+                INNER JOIN rdv r ON r.idPatient = p.id_patient AND r.idPersonnel = %s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM rdv r2
+                    WHERE r2.idPatient = p.id_patient
+                      AND r2.idPersonnel = %s
+                      AND r2.dateRDV >= %s
+                      AND LOWER(COALESCE(r2.motifConsultation, '')) NOT LIKE 'annule%%'
+                )
+                AND LOWER(COALESCE(r.motifConsultation, '')) NOT LIKE 'annule%%'
+                GROUP BY p.id_patient, p.nom, p.prenom
+                ORDER BY waitingDays DESC, p.nom ASC
+                LIMIT 50
+                """,
+                (target_date, id_personnel, id_personnel, target_date),
+            ).mappings().all()
+
+        available_slots, _ = _count_planning_slots_for_day(id_personnel, target_date)
+        occupied_slots, _ = _count_occupied_slots_for_day(id_personnel, target_date)
+        free_slots = max(0, available_slots - occupied_slots)
+
+        matches = []
+        for row in rows:
+            waiting_days = int(row.get("waitingDays") or 0)
+            match_pct = min(95, max(55, 95 - waiting_days * 2))
+            priority = "High" if waiting_days >= 14 else ("Moderate" if waiting_days >= 7 else "Low")
+            matches.append(
+                {
+                    "id": int(row["id"]),
+                    "name": f"{(row['prenom'] or '').strip()} {(row['nom'] or '').strip()}".strip(),
+                    "consultationType": row.get("lastMotif") or "Consultation de suivi",
+                    "waitDuration": f"{waiting_days} day(s)",
+                    "waitingDays": waiting_days,
+                    "matchPct": match_pct,
+                    "priority": priority,
+                    "freedSlot": "Next available slot" if free_slots else "No slot today",
+                }
+            )
+
+        return jsonify({"idPersonnel": id_personnel, "count": len(matches), "matches": matches, "freeSlotsToday": free_slots}), 200
+    except Exception as exc:
+        return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/medical-staff/optimization", methods=["GET"])
+@debug_route
+def get_medical_staff_optimization():
+    try:
+        id_personnel, error = _resolve_personnel_id_from_request()
+        if error:
+            return error
+        target_date = parse_date(request.args.get("date")) or datetime.utcnow().date()
+        dashboard = _build_medical_staff_dashboard(id_personnel, target_date)
+
+        recommendations = []
+        if dashboard["waitingList"] > 0 and dashboard["availableSlots"] > dashboard["occupiedSlots"]:
+            recommendations.append(
+                {
+                    "icon": "fill",
+                    "title": "Fill available slots",
+                    "desc": f"{dashboard['waitingList']} patient(s) match {dashboard['availableSlots'] - dashboard['occupiedSlots']} free slot(s) today.",
+                    "action": "Review waiting list",
+                    "type": "fill",
+                }
+            )
+        if dashboard["autoReplacements"] > 0:
+            recommendations.append(
+                {
+                    "icon": "rebalance",
+                    "title": "Recent schedule changes",
+                    "desc": f"{dashboard['autoReplacements']} appointment(s) were rescheduled today.",
+                    "action": "View planning",
+                    "type": "rebalance",
+                }
+            )
+        if dashboard["highPriorityWaiting"] > 0:
+            recommendations.append(
+                {
+                    "icon": "list",
+                    "title": "High-priority waiting patients",
+                    "desc": f"{dashboard['highPriorityWaiting']} patient(s) waiting more than 14 days.",
+                    "action": "Review list",
+                    "type": "list",
+                }
+            )
+
+        return jsonify(
+            {
+                "idPersonnel": id_personnel,
+                "score": dashboard["optimizationScore"],
+                "schedulingEfficiency": dashboard["schedulingEfficiency"],
+                "slotUtilization": dashboard["slotUtilization"],
+                "autoReplacements": dashboard["autoReplacements"],
+                "metrics": [
+                    {"label": "Scheduling efficiency", "value": dashboard["schedulingEfficiency"], "unit": "%", "color": "green"},
+                    {"label": "Slot utilization", "value": dashboard["slotUtilization"], "unit": "%", "color": "green"},
+                    {"label": "Occupied slots", "value": dashboard["occupiedSlots"], "unit": f"/ {dashboard['availableSlots']}", "color": "blue"},
+                    {"label": "Auto-replacements", "value": dashboard["autoReplacements"], "unit": "today", "color": "violet"},
+                ],
+                "recommendations": recommendations,
+            }
+        ), 200
+    except Exception as exc:
+        return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/medical-staff/analytics", methods=["GET"])
+@debug_route
+def get_medical_staff_analytics():
+    try:
+        id_personnel, error = _resolve_personnel_id_from_request()
+        if error:
+            return error
+        period = (request.args.get("period") or "week").lower()
+        days = {"week": 7, "month": 30, "quarter": 90}.get(period, 7)
+        end_date = datetime.utcnow().date()
+        start_date = end_date - timedelta(days=days - 1)
+
+        with db.engine.connect() as conn:
+            rows = conn.exec_driver_sql(
+                """
+                SELECT dateRDV, COUNT(*) AS cnt
+                FROM rdv
+                WHERE idPersonnel = %s
+                  AND dateRDV >= %s AND dateRDV <= %s
+                  AND LOWER(COALESCE(motifConsultation, '')) NOT LIKE 'annule%%'
+                GROUP BY dateRDV
+                ORDER BY dateRDV ASC
+                """,
+                (id_personnel, start_date, end_date),
+            ).mappings().all()
+
+        counts_by_day = {str(r["dateRDV"]): int(r["cnt"]) for r in rows}
+        trend = []
+        cursor = start_date
+        while cursor <= end_date:
+            key = cursor.isoformat()
+            trend.append({"date": key, "count": counts_by_day.get(key, 0)})
+            cursor += timedelta(days=1)
+
+        total = sum(item["count"] for item in trend)
+        avg_per_day = round(total / max(len(trend), 1), 1)
+        max_count = max((item["count"] for item in trend), default=0)
+
+        return jsonify(
+            {
+                "idPersonnel": id_personnel,
+                "period": period,
+                "kpis": [
+                    {"label": "Total Appointments", "value": str(total), "trend": f"{days} days", "color": "blue"},
+                    {"label": "Daily Average", "value": str(avg_per_day), "trend": "appointments/day", "color": "green"},
+                    {"label": "Peak Day Volume", "value": str(max_count), "trend": "max/day", "color": "cyan"},
+                    {"label": "Active Days", "value": str(len([t for t in trend if t['count'] > 0])), "trend": f"of {days}", "color": "violet"},
+                ],
+                "trend": trend,
+            }
+        ), 200
+    except Exception as exc:
+        return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
+
+
+@app.route("/medical-staff/notifications", methods=["GET"])
+@debug_route
+def get_medical_staff_notifications():
+    try:
+        id_personnel, error = _resolve_personnel_id_from_request()
+        if error:
+            return error
+        target_date = parse_date(request.args.get("date")) or datetime.utcnow().date()
+        dashboard = _build_medical_staff_dashboard(id_personnel, target_date)
+        notifications = []
+
+        for alert in dashboard.get("emergencyAlerts") or []:
+            notifications.append(
+                {
+                    "type": "emergency" if alert.get("severity") != "info" else "match",
+                    "title": alert.get("title"),
+                    "body": alert.get("subtitle"),
+                    "time": alert.get("time") or "Today",
+                    "read": False,
+                }
+            )
+
+        for apt in (dashboard.get("todayAppointments") or [])[:5]:
+            notifications.append(
+                {
+                    "type": "info",
+                    "title": f"Appointment: {apt.get('patient')}",
+                    "body": f"{apt.get('motif')} at {apt.get('time')}",
+                    "time": apt.get("time") or "",
+                    "read": True,
+                }
+            )
+
+        if dashboard.get("autoReplacements", 0) > 0:
+            notifications.insert(
+                0,
+                {
+                    "type": "ai",
+                    "title": "Schedule optimization",
+                    "body": f"{dashboard['autoReplacements']} slot(s) adjusted today.",
+                    "time": "Today",
+                    "read": False,
+                },
+            )
+
+        return jsonify({"idPersonnel": id_personnel, "notifications": notifications}), 200
+    except Exception as exc:
         return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
 
 
@@ -3247,16 +3817,30 @@ def get_medical_staff_patients():
                     p.prenom,
                     p.email,
                     p.telephone,
-                    COUNT(r.idRdv) AS rdvCount
+                    COUNT(r.idRDV) AS rdvCount,
+                    MAX(CASE WHEN r.dateRDV < CURDATE() THEN r.dateRDV END) AS lastVisit,
+                    MIN(CASE WHEN r.dateRDV >= CURDATE()
+                        AND LOWER(COALESCE(r.motifConsultation, '')) NOT LIKE 'annule%%'
+                        THEN r.dateRDV END) AS nextVisit,
+                    (
+                        SELECT r2.motifConsultation FROM rdv r2
+                        WHERE r2.idPatient = p.id_patient AND r2.idPersonnel = %s
+                        ORDER BY r2.dateRDV DESC LIMIT 1
+                    ) AS lastCondition
                 FROM patient p
                 LEFT JOIN rdv r
                     ON r.idPatient = p.id_patient
                    AND r.idPersonnel = %s
+                   AND LOWER(COALESCE(r.motifConsultation, '')) NOT LIKE 'annule%%'
                 GROUP BY p.id_patient, p.nom, p.prenom, p.email, p.telephone
+                HAVING rdvCount > 0
                 ORDER BY p.nom ASC, p.prenom ASC
                 """,
-                (id_personnel,),
+                (id_personnel, id_personnel),
             ).mappings().all()
+
+        today = datetime.utcnow().date()
+        month_start = today.replace(day=1)
 
         return jsonify([
             {
@@ -3266,6 +3850,14 @@ def get_medical_staff_patients():
                 "email": row["email"],
                 "telephone": row["telephone"],
                 "rdvCount": int(row["rdvCount"] or 0),
+                "lastVisit": row["lastVisit"].isoformat() if row.get("lastVisit") else None,
+                "nextVisit": row["nextVisit"].isoformat() if row.get("nextVisit") else None,
+                "condition": row.get("lastCondition") or "Consultation",
+                "risk": (
+                    "HIGH" if row.get("lastVisit") and (today - row["lastVisit"]).days > 30
+                    else ("MODERATE" if row.get("lastVisit") and (today - row["lastVisit"]).days > 14 else "LOW")
+                ),
+                "newThisMonth": bool(row.get("lastVisit") and row["lastVisit"] >= month_start),
             }
             for row in rows
         ]), 200
@@ -4360,49 +4952,68 @@ def add_rdv():
                     print(f"    ERROR: Patient ID {id_patient} not found in patient table")
                     return jsonify({"error": "patient introuvable"}), 404
             elif patient_nom and patient_prenom:
-                email = (data.get("email") or "").strip()
-                if not email:
-                    email = _generate_unique_patient_email()
-                
-                conn.exec_driver_sql(
-                    """
-                    INSERT INTO patient (nom, prenom, telephone)
-                    VALUES (%s, %s, %s)
-                    """,
-                    (patient_nom, patient_prenom, data.get("telephone") or ""),
-                )
-                
-                patient_row = conn.exec_driver_sql(
-                    """
-                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
-                    FROM patient
-                    WHERE telephone = %s
-                    LIMIT 1
-                    """,
-                    (data.get("telephone") or "",),
-                ).mappings().first()
-                
+                telephone = (data.get("telephone") or "").strip()
+                patient_row = None
+
+                if telephone:
+                    patient_row = conn.exec_driver_sql(
+                        """
+                        SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
+                        FROM patient
+                        WHERE telephone = %s
+                        LIMIT 1
+                        """,
+                        (telephone,),
+                    ).mappings().first()
+
                 if patient_row:
+                    conn.exec_driver_sql(
+                        """
+                        UPDATE patient
+                        SET nom = %s, prenom = %s
+                        WHERE id_patient = %s
+                        """,
+                        (patient_nom, patient_prenom, int(patient_row["id_patient"])),
+                    )
+                    patient_row = conn.exec_driver_sql(
+                        """
+                        SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
+                        FROM patient
+                        WHERE id_patient = %s
+                        LIMIT 1
+                        """,
+                        (int(patient_row["id_patient"]),),
+                    ).mappings().first()
                     id_patient = patient_row["id_patient"]
-                    print(f"    Created new patient ID {id_patient}: {patient_nom} {patient_prenom}")
+                    print(f"    Updated existing patient ID {id_patient}: {patient_nom} {patient_prenom}")
+                else:
+                    insert_result = conn.exec_driver_sql(
+                        """
+                        INSERT INTO patient (nom, prenom, telephone)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (patient_nom, patient_prenom, telephone),
+                    )
+                    new_id = insert_result.lastrowid
+                    if not new_id:
+                        new_id_row = conn.exec_driver_sql("SELECT LAST_INSERT_ID() AS id").mappings().first()
+                        new_id = int((new_id_row or {}).get("id") or 0)
+
+                    patient_row = conn.exec_driver_sql(
+                        """
+                        SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
+                        FROM patient
+                        WHERE id_patient = %s
+                        LIMIT 1
+                        """,
+                        (int(new_id),),
+                    ).mappings().first()
+                    if patient_row:
+                        id_patient = patient_row["id_patient"]
+                        print(f"    Created new patient ID {id_patient}: {patient_nom} {patient_prenom}")
             else:
-                # Get first patient as fallback
-                fallback_row = conn.exec_driver_sql(
-                    """
-                    SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
-                    FROM patient
-                    ORDER BY id_patient ASC
-                    LIMIT 1
-                    """
-                ).mappings().first()
-                
-                if not fallback_row:
-                    print(f"    ERROR: No fallback patient available")
-                    return jsonify({"error": "aucun patient disponible pour creer un RDV public"}), 400
-                
-                patient_row = fallback_row
-                id_patient = fallback_row["id_patient"]
-                print(f"    Using fallback patient ID {id_patient}")
+                print(f"    ERROR: nom et prenom sont obligatoires pour un RDV public")
+                return jsonify({"error": "nom et prenom sont obligatoires"}), 400
 
         if not patient_row:
             print(f"    ERROR: Patient not found")

@@ -86,7 +86,8 @@ export class PlanningComponent implements OnInit, OnDestroy {
     email: ''
   };
   selectedDate = this.getTodayLocalISO();
-  timeSlots: string[] = this.buildTimeSlots('08:00', '18:00', 30);
+  viewMode: 'day' | 'week' | 'month' | '2months' = 'week';
+  timeSlots: string[] = this.buildTimeSlots('08:00', '17:30', 30);
   todayPlanning: MedicalPlanningAppointment[] = [];
   weekPlanning: MedicalPlanningDay[] = [];
   optimizerLoading = false;
@@ -233,7 +234,7 @@ export class PlanningComponent implements OnInit, OnDestroy {
 
         this.activePersonnelId = idPersonnel;
 
-        return this.rdvService.getMedicalStaffPlanning(idPersonnel, this.selectedDate);
+        return this.rdvService.getMedicalStaffPlanning(idPersonnel, this.selectedDate, this.getRangeDays());
       })
     ).subscribe({
       next: (planning) => {
@@ -585,26 +586,45 @@ export class PlanningComponent implements OnInit, OnDestroy {
   // ── NEW: Vertical calendar slots (08:00–18:00, every 30 min) ──────────
   get calendarSlots(): Array<{ label: string; apiLabel: string; isFullHour: boolean }> {
     const slots: Array<{ label: string; apiLabel: string; isFullHour: boolean }> = [];
-    for (let h = 8; h < 18; h++) {
-      slots.push({ label: `${h.toString().padStart(2,'0')}:00`, apiLabel: `${h.toString().padStart(2,'0')}:00`, isFullHour: true });
-      slots.push({ label: `${h.toString().padStart(2,'0')}:30`, apiLabel: `${h.toString().padStart(2,'0')}:30`, isFullHour: false });
+    for (let h = 8; h <= 17; h++) {
+      slots.push({ label: `${h.toString().padStart(2, '0')}:00`, apiLabel: `${h.toString().padStart(2, '0')}:00`, isFullHour: true });
+      if (h < 17) {
+        slots.push({ label: `${h.toString().padStart(2, '0')}:30`, apiLabel: `${h.toString().padStart(2, '0')}:30`, isFullHour: false });
+      } else {
+        slots.push({ label: '17:30', apiLabel: '17:30', isFullHour: false });
+      }
     }
     return slots;
   }
 
+  getRangeDays(): number {
+    switch (this.viewMode) {
+      case 'day': return 1;
+      case 'month': return 30;
+      case '2months': return 60;
+      default: return 7;
+    }
+  }
+
+  setViewMode(mode: 'day' | 'week' | 'month' | '2months'): void {
+    this.viewMode = mode;
+    this.loadDashboardData();
+  }
+
   // ── NEW: Week day columns for vertical calendar ─────────────────────────
   get weekDays(): Array<{ date: string; abbr: string; num: string }> {
-    const abbrs = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+    const abbrs = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     const base = this.weekStart || this.selectedDate || this.getTodayLocalISO();
     const start = new Date(`${base}T00:00:00`);
     if (Number.isNaN(start.getTime())) return [];
 
-    return Array.from({ length: 7 }, (_, i) => {
+    const count = this.getRangeDays();
+    return Array.from({ length: count }, (_, i) => {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       return {
         date: this.formatDateLocal(d),
-        abbr: abbrs[i],
+        abbr: abbrs[d.getDay() === 0 ? 6 : d.getDay() - 1],
         num: d.getDate().toString()
       };
     });

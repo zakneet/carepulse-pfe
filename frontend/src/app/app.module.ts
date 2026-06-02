@@ -43,6 +43,13 @@ import { WeatherWidgetComponent } from './patient-dashboard/components/weather-w
 import { TrafficWidgetComponent } from './patient-dashboard/components/traffic-widget/traffic-widget.component';
 import { AuthenticateComponent } from './medical-staff/authenticate/authenticate.component';
 import { PlanningComponent } from './medical-staff/components/planning/planning.component';
+import { MedicalStaffShellComponent } from './medical-staff/components/shell/medical-staff-shell.component';
+import { WaitingListComponent } from './medical-staff/components/waiting-list/waiting-list.component';
+import { OptimizationComponent } from './medical-staff/components/optimization/optimization.component';
+import { AnalyticsComponent } from './medical-staff/components/analytics/analytics.component';
+import { NotificationsComponent } from './medical-staff/components/notifications/notifications.component';
+import { SettingsComponent } from './medical-staff/components/settings/settings.component';
+import { LogoComponent } from './shared/logo/logo.component';
 
 @NgModule({
   declarations: [
@@ -75,7 +82,14 @@ import { PlanningComponent } from './medical-staff/components/planning/planning.
     WeatherWidgetComponent,
     TrafficWidgetComponent,
     AuthenticateComponent,
-    PlanningComponent
+    PlanningComponent,
+    MedicalStaffShellComponent,
+    WaitingListComponent,
+    OptimizationComponent,
+    AnalyticsComponent,
+    NotificationsComponent,
+    SettingsComponent,
+    LogoComponent
   ],
   imports: [
     BrowserModule,
