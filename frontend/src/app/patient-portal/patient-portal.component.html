@@ -80,6 +80,46 @@
           </div>
         </div>
 
+        <!-- Real-time tracking -->
+        <div class="pp-card pp-tracking-card" *ngIf="data.upcomingAppointments[0] as next">
+          <div class="flex items-center justify-between mb-2">
+            <p class="pp-card-label m-0">Suivi temps réel</p>
+            <span *ngIf="isTrackingActive" class="pp-badge bg-green-100 text-green-700">Activé</span>
+            <span *ngIf="!isTrackingActive" class="pp-badge bg-slate-100 text-slate-500">En attente</span>
+          </div>
+          
+          <div *ngIf="!isTrackingActive" class="text-sm text-slate-500 mt-2">
+            Le suivi temps réel s'activera 2 heures avant votre rendez-vous.
+          </div>
+          
+          <div *ngIf="isTrackingActive && data.tracking" class="mt-4 space-y-4">
+            <div class="flex flex-col gap-1">
+              <div class="text-sm font-semibold text-slate-700 flex justify-between">
+                <span>Temps restant</span>
+                <span class="text-primary font-bold">{{ timeRemaining }}</span>
+              </div>
+              <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full bg-primary animate-pulse" style="width: 100%"></div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mt-4">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Météo</div>
+                <div class="text-sm font-medium text-slate-800">{{ data.tracking.weatherRecommendation || 'Météo indisponible' }}</div>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Trafic</div>
+                <div class="text-sm font-medium text-slate-800">{{ data.tracking.trafficRecommendation || 'Trafic indisponible' }}</div>
+              </div>
+            </div>
+
+            <div class="p-3 bg-blue-50 text-blue-800 rounded-xl text-sm font-medium border border-blue-100">
+              Heure de départ conseillée : {{ data.tracking.departureTime || 'Non calculée' }}
+            </div>
+          </div>
+        </div>
+
         <!-- Weather -->
         <div class="pp-card pp-weather-card">
           <p class="pp-card-label">Météo à {{ weather?.city || 'Tunis' }}</p>

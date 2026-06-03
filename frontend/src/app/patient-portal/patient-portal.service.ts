@@ -60,6 +60,13 @@ export interface PatientPortalData {
   prescriptions: PortalDocument[];
   notifications: PortalNotification[];
   clinic: { name: string; address: string; mapQuery: string };
+  tracking?: {
+    weather: any;
+    weatherRecommendation: string;
+    trafficRecommendation: string;
+    trafficDelay: number | null;
+    departureTime: string | null;
+  } | null;
 }
 
 @Injectable({ providedIn: 'root' })

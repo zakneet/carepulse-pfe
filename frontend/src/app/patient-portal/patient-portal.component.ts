@@ -1,4 +1,4 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import {
@@ -22,6 +22,11 @@ export class PatientPortalComponent implements OnInit {
   weather: { temp?: number; description?: string; city?: string } | null = null;
   deferredPrompt: any = null;
   showInstallBanner = false;
+
+  // Real-time tracking
+  isTrackingActive = false;
+  timeRemaining = '';
+  trackingInterval: any;
 
   @HostListener('window:beforeinstallprompt', ['$event'])
   onbeforeinstallprompt(e: Event) {
@@ -61,6 +66,41 @@ export class PatientPortalComponent implements OnInit {
     });
   }
 
+  ngOnDestroy(): void {
+    if (this.trackingInterval) clearInterval(this.trackingInterval);
+  }
+
+  startTrackingInterval(): void {
+    if (this.trackingInterval) clearInterval(this.trackingInterval);
+    
+    this.updateTrackingStatus(); // Initial check
+    this.trackingInterval = setInterval(() => {
+      this.updateTrackingStatus();
+    }, 60000);
+  }
+
+  updateTrackingStatus(): void {
+    if (!this.data || !this.data.upcomingAppointments || this.data.upcomingAppointments.length === 0) {
+      this.isTrackingActive = false;
+      return;
+    }
+
+    const nxt = this.data.upcomingAppointments[0];
+    const appointmentTime = new Date(`${nxt.dateRDV}T${nxt.heureDebut}:00`).getTime();
+    const now = Date.now();
+    const diff = appointmentTime - now;
+
+    if (diff > 0 && diff <= 2 * 60 * 60 * 1000) {
+      this.isTrackingActive = true;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      this.timeRemaining = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    } else {
+      this.isTrackingActive = false;
+      this.timeRemaining = '';
+    }
+  }
+
   loadPortal(token: string): void {
     this.loading = true;
     this.errorMessage = '';
@@ -69,6 +109,7 @@ export class PatientPortalComponent implements OnInit {
         this.data = res;
         this.loading = false;
         this.loadWeather(res.clinic?.address || 'Tunis');
+        this.startTrackingInterval();
       },
       error: (err) => {
         this.loading = false;

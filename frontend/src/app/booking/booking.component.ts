@@ -142,8 +142,16 @@ export class BookingComponent implements OnInit {
 
   submitSmartBooking(): void {
     const identity = this.resolvePatientIdentity();
-    if (!identity || !this.formData.age || !this.formData.phone || !this.formData.date) {
-      this.errorMessage = 'Veuillez remplir tous les champs obligatoires (prénom, nom, téléphone, âge, date).';
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const email = this.formData.email.trim();
+
+    if (!identity || !this.formData.age || !this.formData.phone || !this.formData.date || !email) {
+      this.errorMessage = 'Veuillez remplir tous les champs obligatoires (prénom, nom, email, téléphone, âge, date).';
+      return;
+    }
+
+    if (!emailPattern.test(email)) {
+      this.errorMessage = 'Veuillez saisir une adresse email valide.';
       return;
     }
 
@@ -222,6 +230,18 @@ export class BookingComponent implements OnInit {
 
     this.errorMessage = '';
     this.successMessage = '';
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const email = this.formData.email.trim();
+    if (!email) {
+      this.errorMessage = 'L’adresse email est obligatoire pour recevoir votre lien d’espace patient.';
+      return;
+    }
+    if (!emailPattern.test(email)) {
+      this.errorMessage = 'Veuillez saisir une adresse email valide.';
+      return;
+    }
+
     this.isConfirming = true;
 
     const slotStart = this.formatTime(this.optimizationResult.slot.start);
@@ -253,15 +273,19 @@ export class BookingComponent implements OnInit {
     this.http.post<any>('http://localhost:5000/add_rdv', payload).subscribe({
       next: () => {
         this.isConfirming = false;
-        this.successMessage = `✓ Demande enregistrée — en attente de confirmation par le médecin.`;
-        setTimeout(() => this.router.navigate(['/home']), 1500);
+        this.successMessage = "Votre rendez-vous est confirmé. Un email contenant votre lien d’espace patient vient de vous être envoyé.";
+        setTimeout(() => this.router.navigate(['/home']), 3000);
       },
       error: (err) => {
         this.isConfirming = false;
         const backendMsg = err.error?.error || err.error?.message || null;
-        this.errorMessage = backendMsg
-          ? `Impossible de confirmer le rendez-vous : ${backendMsg}`
-          : 'Erreur lors de la confirmation. Veuillez réessayer.';
+        if (err.status === 400 && backendMsg) {
+          this.errorMessage = backendMsg;
+        } else {
+          this.errorMessage = backendMsg
+            ? `Impossible de confirmer le rendez-vous : ${backendMsg}`
+            : 'Erreur lors de la confirmation. Veuillez réessayer.';
+        }
         console.error('[Booking] /add_rdv error:', err.status, err.error);
       }
     });
