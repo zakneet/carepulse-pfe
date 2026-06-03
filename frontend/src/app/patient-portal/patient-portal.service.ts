@@ -22,6 +22,7 @@ export interface PortalDoctor {
   available: boolean;
   rating?: number | null;
   reviewsCount?: number | null;
+  photo?: string | null;
 }
 
 export interface PortalAppointment {

@@ -376,9 +376,10 @@ export class PlanningComponent implements OnInit, OnDestroy {
           this.patientRecord = record;
           this.patientRecordError = '';
         },
-        error: () => {
+        error: (err) => {
           this.patientRecord = null;
-          this.patientRecordError = 'Impossible de charger le profil et le dossier medical du patient.';
+          console.error('[loadPatientRecord] Error loading patient record:', err);
+          this.patientRecordError = '';
         }
       });
   }
@@ -409,7 +410,18 @@ export class PlanningComponent implements OnInit, OnDestroy {
     this.rdvService.confirmAppointmentByDoctor(this.selectedAppointment.id, idPersonnel).subscribe({
       next: (res) => {
         this.confirmLoading = false;
-        const emailNote = res.emailSent ? ' Email envoyé au patient.' : (res.emailMessage ? ` ${res.emailMessage}` : '');
+        console.log('[confirmAppointment] Backend response:', res);
+        
+        let emailNote = '';
+        if (res.emailSent === true) {
+          emailNote = ' Email envoyé avec succès.';
+        } else if (res.emailMessage) {
+          emailNote = ` Erreur lors de l'envoi de l'email: ${res.emailMessage}`;
+          console.error('[confirmAppointment] Email failed:', res.emailMessage);
+        } else {
+          emailNote = ' Email non envoyé.';
+        }
+        
         this.confirmNotice = `Rendez-vous confirmé.${emailNote}`;
         this.emergencyNotice = this.confirmNotice;
         if (this.emergencyNoticeTimeout) clearTimeout(this.emergencyNoticeTimeout);
@@ -422,6 +434,7 @@ export class PlanningComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.confirmLoading = false;
+        console.error('[confirmAppointment] Confirmation error:', err);
         this.confirmNotice = err.error?.error || 'Impossible de confirmer le rendez-vous.';
       }
     });

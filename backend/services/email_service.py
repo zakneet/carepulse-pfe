@@ -14,12 +14,19 @@ def _is_configured() -> bool:
 
 
 def send_transactional_email(to_email: str, subject: str, text_content: str, html_content: str | None = None) -> dict:
-    """Send email via Brevo. Returns {success, message, provider}."""
+    """Send email via Brevo. Returns {success, message, provider, response}."""
+    print(f"[brevo] send_transactional_email called with to_email={to_email}, subject={subject}", flush=True)
+    
     if not to_email or "@" not in to_email:
+        print(f"[brevo] ERROR: Invalid email address: {to_email}", flush=True)
         return {"success": False, "message": "Adresse email invalide", "provider": "brevo"}
 
+    print(f"[brevo] BREVO_API_KEY configured: {bool(BREVO_API_KEY)}", flush=True)
+    print(f"[brevo] BREVO_SENDER_EMAIL: {BREVO_SENDER_EMAIL}", flush=True)
+    print(f"[brevo] BREVO_SENDER_NAME: {BREVO_SENDER_NAME}", flush=True)
+    
     if not _is_configured():
-        print("[brevo] BREVO_API_KEY not configured — email skipped", flush=True)
+        print("[brevo] ERROR: BREVO_API_KEY not configured — email skipped", flush=True)
         print(f"[brevo] Would send to {to_email}: {subject}", flush=True)
         return {"success": False, "message": "Brevo non configuré", "provider": "brevo", "skipped": True}
 
@@ -32,6 +39,9 @@ def send_transactional_email(to_email: str, subject: str, text_content: str, htm
     if html_content:
         payload["htmlContent"] = html_content
 
+    print(f"[brevo] Sending request to Brevo API: https://api.brevo.com/v3/smtp/email", flush=True)
+    print(f"[brevo] Payload: {json.dumps(payload, indent=2)}", flush=True)
+    
     req = urllib.request.Request(
         "https://api.brevo.com/v3/smtp/email",
         data=json.dumps(payload).encode("utf-8"),
@@ -46,15 +56,18 @@ def send_transactional_email(to_email: str, subject: str, text_content: str, htm
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8")
-            print(f"[brevo] Email sent to {to_email}: {subject}", flush=True)
-            return {"success": True, "message": "Email envoyé", "provider": "brevo", "response": body}
+            print(f"[brevo] SUCCESS: Email sent to {to_email}: {subject}", flush=True)
+            print(f"[brevo] Brevo response body: {body}", flush=True)
+            return {"success": True, "message": "Email envoyé avec succès", "provider": "brevo", "response": body}
     except urllib.error.HTTPError as exc:
         err_body = exc.read().decode("utf-8", errors="replace")
-        print(f"[brevo] HTTP {exc.code}: {err_body}", flush=True)
-        return {"success": False, "message": f"Erreur Brevo ({exc.code})", "provider": "brevo"}
+        print(f"[brevo] ERROR: HTTP {exc.code}: {err_body}", flush=True)
+        return {"success": False, "message": f"Erreur Brevo HTTP {exc.code}: {err_body}", "provider": "brevo", "error": err_body}
     except Exception as exc:
-        print(f"[brevo] send failed: {exc}", flush=True)
-        return {"success": False, "message": str(exc), "provider": "brevo"}
+        print(f"[brevo] ERROR: send failed: {exc}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"Erreur d'envoi: {str(exc)}", "provider": "brevo", "error": str(exc)}
 
 
 def build_appointment_confirmation_email(

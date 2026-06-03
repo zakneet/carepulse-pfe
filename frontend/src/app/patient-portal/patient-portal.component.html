@@ -47,7 +47,12 @@
         <div class="pp-card pp-doctor-card" *ngIf="data.doctor as doc">
           <p class="pp-card-label">Votre médecin de suivi</p>
           <div class="pp-doctor-row">
-            <div class="pp-doctor-avatar">{{ doc.name.charAt(3) || 'M' }}</div>
+            <div class="pp-doctor-avatar" *ngIf="doc.photo; else avatarInitial">
+              <img [src]="doc.photo" [alt]="doc.name" class="w-full h-full object-cover rounded-full">
+            </div>
+            <ng-template #avatarInitial>
+              <div class="pp-doctor-avatar">{{ doc.name.charAt(3) || 'M' }}</div>
+            </ng-template>
             <div>
               <h2>{{ doc.name }}</h2>
               <p>{{ doc.specialite }} · {{ doc.clinicName }}</p>

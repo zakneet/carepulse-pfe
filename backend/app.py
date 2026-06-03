@@ -4997,7 +4997,7 @@ def _resolve_booking_patient(conn, data):
 
     patient_row = conn.exec_driver_sql(
         """
-        SELECT id_patient, nom, prenom, telephone, NULL AS email, NULL AS cin, NULL AS password
+        SELECT id_patient, nom, prenom, telephone, email, NULL AS cin, NULL AS password
         FROM patient
         WHERE id_patient = %s
         LIMIT 1
@@ -5882,7 +5882,7 @@ def _build_patient_portal_payload(conn, token_row):
         """
         SELECT r.idRDV AS id, r.dateRDV, r.heureDebut, r.heureFin, r.motifConsultation,
                ps.nom AS medecinNom, ps.prenom AS medecinPrenom, ps.specialite,
-               ps.region, ps.disponibilite
+               ps.region, ps.disponibilite, ps.photo
         FROM rdv r
         INNER JOIN personnel_de_sante ps ON ps.id_personnel = r.idPersonnel
         WHERE r.idPatient = %s
@@ -5943,6 +5943,7 @@ def _build_patient_portal_payload(conn, token_row):
                 "available": bool(rdv.get("disponibilite")),
                 "rating": None,
                 "reviewsCount": None,
+                "photo": rdv.get("photo") or "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop&crop=face",
             }
 
     if not primary_doctor and rdvs:
@@ -5957,6 +5958,7 @@ def _build_patient_portal_payload(conn, token_row):
             "available": bool(rdv0.get("disponibilite")),
             "rating": None,
             "reviewsCount": None,
+            "photo": rdv0.get("photo") or "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop&crop=face",
         }
 
     notifications = []
@@ -6021,8 +6023,13 @@ def confirm_appointment():
         if not is_pending_motif(rdv.motifConsultation):
             return jsonify({"error": "Ce rendez-vous est déjà confirmé", "rdv": rdv.to_dict()}), 400
 
+        print(f"[email-confirmation] Starting confirmation for appointment ID: {rdv.idRdv}", flush=True)
+        print(f"[email-confirmation] Patient ID: {rdv.idPatient}", flush=True)
+        print(f"[email-confirmation] Doctor ID: {rdv.idPersonnel}", flush=True)
+        
         rdv.motifConsultation = confirm_motif(rdv.motifConsultation)
         db.session.commit()
+        print(f"[email-confirmation] Appointment status updated to confirmed for ID: {rdv.idRdv}", flush=True)
 
         _ensure_patient_table_columns()
         with db.engine.begin() as conn:
@@ -6034,9 +6041,12 @@ def confirm_appointment():
                 (int(rdv.idPatient),),
             ).mappings().first()
             if not patient_row:
+                print(f"[email-confirmation] ERROR: Patient not found for appointment ID: {rdv.idRdv}, patient ID: {rdv.idPatient}", flush=True)
                 return jsonify({"error": "Patient introuvable"}), 404
 
             portal_token = create_portal_token(conn, int(rdv.idPatient), int(rdv.idRdv))
+            print(f"[email-confirmation] Portal token generated: {portal_token} for patient ID: {rdv.idPatient}", flush=True)
+            
             patient_name = f"{(patient_row['prenom'] or '').strip()} {(patient_row['nom'] or '').strip()}".strip()
             doctor = PersonnelDeSante.query.get(int(rdv.idPersonnel))
             doctor_name = f"Dr. {(doctor.prenom if doctor else '')} {(doctor.nom if doctor else '')}".strip()
@@ -6051,6 +6061,8 @@ def confirm_appointment():
 
         portal_url = f"{FRONTEND_URL.rstrip('/')}/patient/portal/{portal_token}"
         patient_email = (patient_row.get("email") or "").strip()
+        print(f"[email-confirmation] Patient email from database: {patient_email if patient_email else 'NOT PROVIDED'}", flush=True)
+        
         email_result = {"success": False, "message": "Aucune adresse email patient"}
 
         if patient_email:
@@ -6063,7 +6075,19 @@ def confirm_appointment():
                 clinic_name="Cabinet OptiClinic",
                 portal_url=portal_url,
             )
+            print(f"[email-confirmation] Attempting to send email via Brevo to: {patient_email}", flush=True)
+            print(f"[email-confirmation] Email subject: {subject}", flush=True)
             email_result = send_transactional_email(patient_email, subject, text_body, html_body)
+            print(f"[email-confirmation] Brevo API result: {email_result}", flush=True)
+            
+            if email_result.get("success"):
+                print(f"[email-confirmation] SUCCESS: Email sent successfully to {patient_email}", flush=True)
+            else:
+                print(f"[email-confirmation] FAILURE: Email send failed - {email_result.get('message')}", flush=True)
+                print(f"[email-confirmation] Brevo error details: {email_result.get('error', 'No error details')}", flush=True)
+        else:
+            print(f"[email-confirmation] WARNING: No patient email available in database for patient ID: {rdv.idPatient}", flush=True)
+            print(f"[email-confirmation] Patient row data: {dict(patient_row)}", flush=True)
 
         try:
             _trigger_booking_confirmation_sms(patient_row, rdv.idRdv)
