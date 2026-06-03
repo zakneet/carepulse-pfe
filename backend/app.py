@@ -116,6 +116,10 @@ ALLOWED_FRONTEND_ORIGINS = [
     "http://localhost:4200",
     "http://127.0.0.1:4200",
 ]
+
+additional_cors = os.getenv("ADDITIONAL_CORS_ORIGINS")
+if additional_cors:
+    ALLOWED_FRONTEND_ORIGINS.extend([origin.strip() for origin in additional_cors.split(",") if origin.strip()])
 # Enable CORS for Angular frontend and keep booking-session cookies available.
 CORS(app, resources={r"/*": {"origins": ALLOWED_FRONTEND_ORIGINS}}, supports_credentials=True)
 
@@ -5046,6 +5050,11 @@ def add_rdv():
             print(f"    ERROR: {msg}")
             return jsonify({"error": "idPersonnel et dateRDV sont obligatoires"}), 400
 
+        if from_smart_booking or data.get("fromPublicBooking"):
+            if not _patient_email or "@" not in _patient_email or "." not in _patient_email:
+                print(f"    ERROR: Missing or invalid email: {_patient_email}")
+                return jsonify({"error": "L'adresse email est obligatoire pour recevoir votre lien d'espace patient."}), 400
+
         # ── Hard constraint: never accept past appointment times ──────────────
         if not is_urgent and heure_debut and date_rdv:
             try:
@@ -5329,8 +5338,10 @@ def add_rdv():
 
         from_public_booking = bool(data.get("fromPublicBooking") or data.get("fromSmartBooking"))
         motif_raw = (data.get("motifConsultation") or "consultation").strip()
-        if from_public_booking and not is_urgent and not is_pending_motif(motif_raw):
-            motif_final = f"{PENDING_PREFIX}{motif_raw}"
+        
+        # User constraint: Normal patient booking should create a confirmed appointment immediately
+        if from_public_booking and not is_urgent and is_pending_motif(motif_raw):
+            motif_final = confirm_motif(motif_raw)
         else:
             motif_final = motif_raw
 
@@ -5348,13 +5359,21 @@ def add_rdv():
         db.session.add(rdv)
         db.session.commit()
 
-        if not is_pending_motif(rdv.motifConsultation):
+        if from_public_booking:
+            print(f"    Public booking detected: Sending immediate confirmation email via Brevo")
             try:
-                _trigger_booking_confirmation_sms(patient_row, rdv.idRdv or rdv.id)
+                portal_url, email_result = _process_appointment_confirmation(rdv.idRdv or rdv.id)
+                print(f"    Confirmation email result: {email_result}")
             except Exception as exc:
-                print(f"[sms] normal confirmation SMS fallback failed: {exc}", flush=True)
+                print(f"    [email] confirmation email failed: {exc}", flush=True)
         else:
-            print(f"    RDV pending — SMS/email deferred until doctor confirmation")
+            if not is_pending_motif(rdv.motifConsultation):
+                try:
+                    _trigger_booking_confirmation_sms(patient_row, rdv.idRdv or rdv.id)
+                except Exception as exc:
+                    print(f"[sms] normal confirmation SMS fallback failed: {exc}", flush=True)
+            else:
+                print(f"    RDV pending — SMS/email deferred until doctor confirmation")
         
         print(f"    SUCCESS: RDV #{rdv.idRdv} created")
         print(f"<<< /add_rdv - Response: 201\n")
@@ -5882,7 +5901,7 @@ def _build_patient_portal_payload(conn, token_row):
         """
         SELECT r.idRDV AS id, r.dateRDV, r.heureDebut, r.heureFin, r.motifConsultation,
                ps.nom AS medecinNom, ps.prenom AS medecinPrenom, ps.specialite,
-               ps.region, ps.disponibilite, ps.photo
+               ps.region, ps.disponibilite
         FROM rdv r
         INNER JOIN personnel_de_sante ps ON ps.id_personnel = r.idPersonnel
         WHERE r.idPatient = %s
@@ -5943,7 +5962,7 @@ def _build_patient_portal_payload(conn, token_row):
                 "available": bool(rdv.get("disponibilite")),
                 "rating": None,
                 "reviewsCount": None,
-                "photo": rdv.get("photo") or "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop&crop=face",
+                "photo": "/assets/patient/default-doctor.jpeg",
             }
 
     if not primary_doctor and rdvs:
@@ -5958,7 +5977,7 @@ def _build_patient_portal_payload(conn, token_row):
             "available": bool(rdv0.get("disponibilite")),
             "rating": None,
             "reviewsCount": None,
-            "photo": rdv0.get("photo") or "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop&crop=face",
+            "photo": rdv0.get("photo") or "/assets/patient/default-doctor.jpeg",
         }
 
     notifications = []
@@ -5978,7 +5997,10 @@ def _build_patient_portal_payload(conn, token_row):
             "read": True,
         })
 
-    return {
+    print(f"[patient-portal] Doctor resolved", flush=True)
+    print(f"[patient-portal] Doctor photo fallback applied", flush=True)
+
+    payload = {
         "token": token_row["token"],
         "patient": {
             "id": int(patient["id_patient"]),
@@ -5999,7 +6021,97 @@ def _build_patient_portal_payload(conn, token_row):
             "address": (primary_doctor or {}).get("address") or DEFAULT_CLINIC_ADDRESS,
             "mapQuery": (primary_doctor or {}).get("address") or DEFAULT_CLINIC_ADDRESS,
         },
+        "tracking": None,
     }
+    
+    if upcoming:
+        try:
+            nxt = upcoming[0]
+            clinic_addr = payload["clinic"]["address"]
+            patient_addr = payload["patient"].get("address") or clinic_addr.split(",")[0]
+            weather_data = get_weather(clinic_addr.split(",")[0])
+            traffic_data = get_travel_notice(patient_addr, clinic_addr, f"{nxt['dateRDV']}T{nxt['heureDebut']}:00")
+            payload["tracking"] = {
+                "weather": weather_data.get("current_weather", {}) if weather_data else {},
+                "weatherRecommendation": weather_data.get("weather_recommendation") if weather_data else "Météo indisponible",
+                "trafficRecommendation": traffic_data.get("recommendation") if traffic_data else "Trafic indisponible",
+                "trafficDelay": traffic_data.get("traffic_duration") if traffic_data else None,
+                "departureTime": traffic_data.get("optimal_departure_time") if traffic_data else None
+            }
+        except Exception as exc:
+            print(f"[patient-portal] Tracking info error: {exc}")
+
+    return payload
+
+def _process_appointment_confirmation(rdv_id):
+    rdv = Rdv.query.get(int(rdv_id))
+    if not rdv:
+        return "", {"success": False, "message": "RDV not found"}
+
+    _ensure_patient_table_columns()
+    with db.engine.begin() as conn:
+        patient_row = conn.exec_driver_sql(
+            """
+            SELECT id_patient, nom, prenom, telephone, email
+            FROM patient WHERE id_patient = %s LIMIT 1
+            """,
+            (int(rdv.idPatient),),
+        ).mappings().first()
+        if not patient_row:
+            print(f"[email-confirmation] ERROR: Patient not found for appointment ID: {rdv.idRdv}, patient ID: {rdv.idPatient}", flush=True)
+            return "", {"success": False, "message": "Patient introuvable"}
+
+        portal_token = create_portal_token(conn, int(rdv.idPatient), int(rdv.idRdv))
+        print(f"[email-confirmation] Portal token generated: {portal_token} for patient ID: {rdv.idPatient}", flush=True)
+        
+        patient_name = f"{(patient_row['prenom'] or '').strip()} {(patient_row['nom'] or '').strip()}".strip()
+        doctor = PersonnelDeSante.query.get(int(rdv.idPersonnel))
+        doctor_name = f"Dr. {(doctor.prenom if doctor else '')} {(doctor.nom if doctor else '')}".strip()
+        speciality = (doctor.specialite if doctor else "") or "Médecine générale"
+        date_label = rdv.dateRDV.strftime("%d/%m/%Y") if rdv.dateRDV else ""
+        time_label = (_format_sql_time(rdv.heureDebut) or "")[:5]
+
+        generate_patient_documents(
+            conn, int(rdv.idPatient), int(rdv.idRdv),
+            patient_name, doctor_name.replace("Dr. ", ""), date_label,
+        )
+
+    portal_url = f"{FRONTEND_URL.rstrip('/')}/patient/portal/{portal_token}"
+    patient_email = (patient_row.get("email") or "").strip()
+    print(f"[email-confirmation] Patient email from database: {patient_email if patient_email else 'NOT PROVIDED'}", flush=True)
+    
+    email_result = {"success": False, "message": "Aucune adresse email patient"}
+
+    if patient_email:
+        subject, text_body, html_body = build_appointment_confirmation_email(
+            patient_name=patient_name,
+            doctor_name=doctor_name,
+            speciality=speciality,
+            appointment_date=date_label,
+            appointment_time=time_label,
+            clinic_name="Cabinet OptiClinic",
+            portal_url=portal_url,
+        )
+        print(f"[email-confirmation] Attempting to send email via Brevo to: {patient_email}", flush=True)
+        print(f"[email-confirmation] Email subject: {subject}", flush=True)
+        email_result = send_transactional_email(patient_email, subject, text_body, html_body)
+        print(f"[email-confirmation] Brevo API result: {email_result}", flush=True)
+        
+        if email_result.get("success"):
+            print(f"[email-confirmation] SUCCESS: Email sent successfully to {patient_email}", flush=True)
+        else:
+            print(f"[email-confirmation] FAILURE: Email send failed - {email_result.get('message')}", flush=True)
+            print(f"[email-confirmation] Brevo error details: {email_result.get('error', 'No error details')}", flush=True)
+    else:
+        print(f"[email-confirmation] WARNING: No patient email available in database for patient ID: {rdv.idPatient}", flush=True)
+        print(f"[email-confirmation] Patient row data: {dict(patient_row)}", flush=True)
+
+    try:
+        _trigger_booking_confirmation_sms(patient_row, rdv.idRdv)
+    except Exception as exc:
+        print(f"[sms] confirm SMS failed: {exc}", flush=True)
+
+    return portal_url, email_result
 
 
 @app.route("/appointments/confirm", methods=["POST"])
@@ -6031,68 +6143,7 @@ def confirm_appointment():
         db.session.commit()
         print(f"[email-confirmation] Appointment status updated to confirmed for ID: {rdv.idRdv}", flush=True)
 
-        _ensure_patient_table_columns()
-        with db.engine.begin() as conn:
-            patient_row = conn.exec_driver_sql(
-                """
-                SELECT id_patient, nom, prenom, telephone, email
-                FROM patient WHERE id_patient = %s LIMIT 1
-                """,
-                (int(rdv.idPatient),),
-            ).mappings().first()
-            if not patient_row:
-                print(f"[email-confirmation] ERROR: Patient not found for appointment ID: {rdv.idRdv}, patient ID: {rdv.idPatient}", flush=True)
-                return jsonify({"error": "Patient introuvable"}), 404
-
-            portal_token = create_portal_token(conn, int(rdv.idPatient), int(rdv.idRdv))
-            print(f"[email-confirmation] Portal token generated: {portal_token} for patient ID: {rdv.idPatient}", flush=True)
-            
-            patient_name = f"{(patient_row['prenom'] or '').strip()} {(patient_row['nom'] or '').strip()}".strip()
-            doctor = PersonnelDeSante.query.get(int(rdv.idPersonnel))
-            doctor_name = f"Dr. {(doctor.prenom if doctor else '')} {(doctor.nom if doctor else '')}".strip()
-            speciality = (doctor.specialite if doctor else "") or "Médecine générale"
-            date_label = rdv.dateRDV.strftime("%d/%m/%Y") if rdv.dateRDV else ""
-            time_label = (_format_sql_time(rdv.heureDebut) or "")[:5]
-
-            generate_patient_documents(
-                conn, int(rdv.idPatient), int(rdv.idRdv),
-                patient_name, doctor_name.replace("Dr. ", ""), date_label,
-            )
-
-        portal_url = f"{FRONTEND_URL.rstrip('/')}/patient/portal/{portal_token}"
-        patient_email = (patient_row.get("email") or "").strip()
-        print(f"[email-confirmation] Patient email from database: {patient_email if patient_email else 'NOT PROVIDED'}", flush=True)
-        
-        email_result = {"success": False, "message": "Aucune adresse email patient"}
-
-        if patient_email:
-            subject, text_body, html_body = build_appointment_confirmation_email(
-                patient_name=patient_name,
-                doctor_name=doctor_name,
-                speciality=speciality,
-                appointment_date=date_label,
-                appointment_time=time_label,
-                clinic_name="Cabinet OptiClinic",
-                portal_url=portal_url,
-            )
-            print(f"[email-confirmation] Attempting to send email via Brevo to: {patient_email}", flush=True)
-            print(f"[email-confirmation] Email subject: {subject}", flush=True)
-            email_result = send_transactional_email(patient_email, subject, text_body, html_body)
-            print(f"[email-confirmation] Brevo API result: {email_result}", flush=True)
-            
-            if email_result.get("success"):
-                print(f"[email-confirmation] SUCCESS: Email sent successfully to {patient_email}", flush=True)
-            else:
-                print(f"[email-confirmation] FAILURE: Email send failed - {email_result.get('message')}", flush=True)
-                print(f"[email-confirmation] Brevo error details: {email_result.get('error', 'No error details')}", flush=True)
-        else:
-            print(f"[email-confirmation] WARNING: No patient email available in database for patient ID: {rdv.idPatient}", flush=True)
-            print(f"[email-confirmation] Patient row data: {dict(patient_row)}", flush=True)
-
-        try:
-            _trigger_booking_confirmation_sms(patient_row, rdv.idRdv)
-        except Exception as exc:
-            print(f"[sms] confirm SMS failed: {exc}", flush=True)
+        portal_url, email_result = _process_appointment_confirmation(rdv.idRdv)
 
         socketio.emit(
             "doctor_planning_rearranged",
@@ -6118,16 +6169,20 @@ def confirm_appointment():
 @debug_route
 def get_patient_portal(token):
     try:
+        print(f"[patient-portal] Portal token received", flush=True)
         _ensure_patient_table_columns()
         with db.engine.connect() as conn:
             token_row = resolve_token(conn, token)
             if not token_row:
                 return jsonify({"error": "Lien expiré ou invalide"}), 404
+            print(f"[patient-portal] Patient resolved", flush=True)
             payload = _build_patient_portal_payload(conn, token_row)
             if not payload:
                 return jsonify({"error": "Espace patient introuvable"}), 404
+            print(f"[patient-portal] Portal payload generated successfully", flush=True)
             return jsonify(payload), 200
     except Exception as exc:
+        print(f"[patient-portal] Error: {exc}", flush=True)
         return jsonify({"error": str(exc)}), 500
 
 
@@ -6474,7 +6529,14 @@ def cancel_appointment(appointment_id):
 
 if __name__ == "__main__":
     start_travel_notice_worker()
-    socketio.run(app, host="127.0.0.1", port=5000, debug=True, use_reloader=False, allow_unsafe_werkzeug=True)
+    socketio.run(
+        app,
+        host=os.getenv("FLASK_HOST", "0.0.0.0"),
+        port=int(os.getenv("FLASK_PORT", "5000")),
+        debug=True,
+        use_reloader=False,
+        allow_unsafe_werkzeug=True,
+    )
 
 
 
