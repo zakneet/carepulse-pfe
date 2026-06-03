@@ -24,17 +24,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         this.updateHeaderVisibility(nav.urlAfterRedirects || nav.url);
       });
 
-    // PWA Standalone Redirect logic
-    setTimeout(() => {
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-      const currentPath = window.location.pathname;
-      if (isStandalone && (currentPath === '/' || currentPath === '/index.html' || currentPath === '')) {
-        const lastPortalPath = localStorage.getItem('opticlinic_last_patient_portal_path');
-        if (lastPortalPath && lastPortalPath.startsWith('/patient/portal/')) {
-          this.router.navigateByUrl(lastPortalPath);
-        }
-      }
-    }, 100);
   }
 
   ngOnDestroy(): void {

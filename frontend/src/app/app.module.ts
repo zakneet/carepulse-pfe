@@ -51,6 +51,7 @@ import { NotificationsComponent } from './medical-staff/components/notifications
 import { SettingsComponent } from './medical-staff/components/settings/settings.component';
 import { LogoComponent } from './shared/logo/logo.component';
 import { PatientPortalComponent } from './patient-portal/patient-portal.component';
+import { PortalLaunchComponent } from './patient-portal/portal-launch.component';
 import { ServiceWorkerModule } from '@angular/service-worker';
 import { environment } from '../environments/environment';
 
@@ -93,7 +94,8 @@ import { environment } from '../environments/environment';
     NotificationsComponent,
     SettingsComponent,
     LogoComponent,
-    PatientPortalComponent
+    PatientPortalComponent,
+    PortalLaunchComponent
   ],
   imports: [
     BrowserModule,

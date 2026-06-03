@@ -24,6 +24,7 @@ import { NotificationsComponent } from './medical-staff/components/notifications
 import { SettingsComponent } from './medical-staff/components/settings/settings.component';
 import { MedicalStaffShellComponent } from './medical-staff/components/shell/medical-staff-shell.component';
 import { PatientPortalComponent } from './patient-portal/patient-portal.component';
+import { PortalLaunchComponent } from './patient-portal/portal-launch.component';
 
 const medicalStaffChildren: Routes = [
   { path: '', redirectTo: 'doctor/dashboard', pathMatch: 'full' },
@@ -76,6 +77,7 @@ const routes: Routes = [
   { path: 'demo/rdvs', component: RdvListComponent },
   { path: 'patient/booking', component: BookingComponent },
   { path: 'patient/rdv/new', component: BookingComponent },
+  { path: 'patient/portal-launch', component: PortalLaunchComponent },
   { path: 'patient/portal/:token', component: PatientPortalComponent },
   { path: 'rdv', component: BookingComponent },
   { path: 'rdv/new', component: BookingComponent },

@@ -113,7 +113,8 @@ export class PatientPortalComponent implements OnInit {
         this.loading = false;
         
         // Save secure path for PWA auto-redirect
-        localStorage.setItem('opticlinic_last_patient_portal_path', window.location.pathname);
+        const fullPath = window.location.pathname + window.location.search + window.location.hash;
+        localStorage.setItem('opticlinic_last_patient_portal_path', fullPath);
 
         this.loadWeather(res.clinic?.address || 'Tunis');
         this.startTrackingInterval();
