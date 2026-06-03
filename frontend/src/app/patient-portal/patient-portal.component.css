@@ -62,6 +62,33 @@
 .pp-user strong { display: block; font-size: 0.9rem; }
 .pp-user span { font-size: 0.75rem; color: #64748b; }
 
+.pp-install-banner {
+  background: rgba(2, 132, 199, 0.05);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+  border-radius: 12px;
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-right: auto;
+}
+.pp-install-text { display: flex; flex-direction: column; }
+.pp-install-text strong { color: #0284c7; font-size: 0.85rem; }
+.pp-install-text span { font-size: 0.7rem; color: #475569; }
+.pp-install-actions { display: flex; gap: 0.5rem; }
+.pp-btn-text {
+  background: transparent; border: none; color: #64748b;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer; padding: 0.5rem;
+}
+.pp-btn-primary {
+  background: linear-gradient(135deg, #0284c7, #06b6d4); color: #fff;
+  border: none; border-radius: 8px; padding: 0.5rem 1rem;
+  font-size: 0.75rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 12px rgba(2,132,199,0.2);
+}
+
+
 .pp-content { padding: 1.5rem; }
 .pp-section-title { font-size: 1.5rem; font-weight: 800; margin: 0 0 1.25rem; }
 

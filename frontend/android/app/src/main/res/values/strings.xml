@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OptiClinic</string>
+    <string name="title_activity_main">OptiClinic</string>
+    <string name="package_name">com.opticlinic.patient</string>
+    <string name="custom_url_scheme">com.opticlinic.patient</string>
+</resources>

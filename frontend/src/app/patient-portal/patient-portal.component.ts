@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import {
@@ -20,6 +20,28 @@ export class PatientPortalComponent implements OnInit {
   activeSection: 'dashboard' | 'appointments' | 'documents' | 'notifications' = 'dashboard';
   selectedDoc: { title: string; content: string } | null = null;
   weather: { temp?: number; description?: string; city?: string } | null = null;
+  deferredPrompt: any = null;
+  showInstallBanner = false;
+
+  @HostListener('window:beforeinstallprompt', ['$event'])
+  onbeforeinstallprompt(e: Event) {
+    e.preventDefault();
+    this.deferredPrompt = e;
+    this.showInstallBanner = true;
+  }
+
+  installApp() {
+    if (!this.deferredPrompt) return;
+    this.showInstallBanner = false;
+    this.deferredPrompt.prompt();
+    this.deferredPrompt.userChoice.then((choiceResult: any) => {
+      this.deferredPrompt = null;
+    });
+  }
+
+  dismissInstall() {
+    this.showInstallBanner = false;
+  }
 
   constructor(
     private route: ActivatedRoute,

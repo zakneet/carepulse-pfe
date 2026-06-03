@@ -51,6 +51,8 @@ import { NotificationsComponent } from './medical-staff/components/notifications
 import { SettingsComponent } from './medical-staff/components/settings/settings.component';
 import { LogoComponent } from './shared/logo/logo.component';
 import { PatientPortalComponent } from './patient-portal/patient-portal.component';
+import { ServiceWorkerModule } from '@angular/service-worker';
+import { environment } from '../environments/environment';
 
 @NgModule({
   declarations: [
@@ -100,7 +102,13 @@ import { PatientPortalComponent } from './patient-portal/patient-portal.componen
     HttpClientModule,
     FormsModule,
     ReactiveFormsModule,
-    FullCalendarModule
+    FullCalendarModule,
+    ServiceWorkerModule.register('ngsw-worker.js', {
+      enabled: environment.production,
+      // Register the ServiceWorker as soon as the application is stable
+      // or after 30 seconds (whichever comes first).
+      registrationStrategy: 'registerWhenStable:30000'
+    })
   ],
   providers: [
     {

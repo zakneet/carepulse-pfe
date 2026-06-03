@@ -2,11 +2,17 @@
 // `ng build` replaces `environment.ts` with `environment.prod.ts`.
 // The list of file replacements can be found in `angular.json`.
 
+const hostname = window.location.hostname;
+const apiBaseUrl =
+  hostname === 'localhost' || hostname === '127.0.0.1'
+    ? 'http://localhost:5000'
+    : `http://${hostname}:5000`;
+
 export const environment = {
   production: false,
-  apiUrl: 'http://127.0.0.1:5000',
+  apiUrl: apiBaseUrl,
   // Démon météo local (dev). Changez si vous intégrez dans le backend principal.
-  weatherUrl: 'http://127.0.0.1:5000'
+  weatherUrl: apiBaseUrl
 };
 
 /*

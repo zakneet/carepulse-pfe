@@ -30,6 +30,18 @@
   <!-- Main -->
   <div class="pp-main">
     <header class="pp-topbar">
+      <!-- PWA Install Banner -->
+      <div class="pp-install-banner" *ngIf="showInstallBanner">
+        <div class="pp-install-text">
+          <strong>Installer OptiClinic sur votre appareil</strong>
+          <span>Accédez plus rapidement à votre espace</span>
+        </div>
+        <div class="pp-install-actions">
+          <button type="button" (click)="dismissInstall()" class="pp-btn-text">Plus tard</button>
+          <button type="button" (click)="installApp()" class="pp-btn-primary">Installer maintenant</button>
+        </div>
+      </div>
+
       <div class="pp-user">
         <div class="pp-avatar">{{ data.patient.fullName.charAt(0) }}</div>
         <div>

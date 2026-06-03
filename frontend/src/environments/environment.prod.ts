@@ -1,5 +1,11 @@
+const hostname = window.location.hostname;
+const apiBaseUrl =
+  hostname === 'localhost' || hostname === '127.0.0.1'
+    ? 'http://localhost:5000'
+    : `http://${hostname}:5000`;
+
 export const environment = {
   production: true,
-  apiUrl: 'http://127.0.0.1:5000',
-  weatherUrl: 'http://127.0.0.1:5000'
+  apiUrl: apiBaseUrl,
+  weatherUrl: apiBaseUrl
 };
