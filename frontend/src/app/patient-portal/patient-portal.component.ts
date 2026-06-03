@@ -21,7 +21,7 @@ export class PatientPortalComponent implements OnInit {
   selectedDoc: { title: string; content: string } | null = null;
   weather: { temp?: number; description?: string; city?: string } | null = null;
   deferredPrompt: any = null;
-  showInstallBanner = false;
+  showInstallHelpModal = false;
 
   // Real-time tracking
   isTrackingActive = false;
@@ -32,20 +32,23 @@ export class PatientPortalComponent implements OnInit {
   onbeforeinstallprompt(e: Event) {
     e.preventDefault();
     this.deferredPrompt = e;
-    this.showInstallBanner = true;
   }
 
   installApp() {
-    if (!this.deferredPrompt) return;
-    this.showInstallBanner = false;
+    if (!this.deferredPrompt) {
+      // Native prompt unavailable: show manual instructions
+      this.showInstallHelpModal = true;
+      return;
+    }
+    
     this.deferredPrompt.prompt();
     this.deferredPrompt.userChoice.then((choiceResult: any) => {
       this.deferredPrompt = null;
     });
   }
 
-  dismissInstall() {
-    this.showInstallBanner = false;
+  dismissInstallHelp() {
+    this.showInstallHelpModal = false;
   }
 
   constructor(
@@ -108,6 +111,10 @@ export class PatientPortalComponent implements OnInit {
       next: (res) => {
         this.data = res;
         this.loading = false;
+        
+        // Save secure path for PWA auto-redirect
+        localStorage.setItem('opticlinic_last_patient_portal_path', window.location.pathname);
+
         this.loadWeather(res.clinic?.address || 'Tunis');
         this.startTrackingInterval();
       },

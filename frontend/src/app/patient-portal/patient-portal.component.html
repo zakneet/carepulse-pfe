@@ -30,17 +30,7 @@
   <!-- Main -->
   <div class="pp-main">
     <header class="pp-topbar">
-      <!-- PWA Install Banner -->
-      <div class="pp-install-banner" *ngIf="showInstallBanner">
-        <div class="pp-install-text">
-          <strong>Installer OptiClinic sur votre appareil</strong>
-          <span>Accédez plus rapidement à votre espace</span>
-        </div>
-        <div class="pp-install-actions">
-          <button type="button" (click)="dismissInstall()" class="pp-btn-text">Plus tard</button>
-          <button type="button" (click)="installApp()" class="pp-btn-primary">Installer maintenant</button>
-        </div>
-      </div>
+      <!-- Removed PWA Install Banner -->
 
       <div class="pp-user">
         <div class="pp-avatar">{{ data.patient.fullName.charAt(0) }}</div>
@@ -223,6 +213,19 @@
         </div>
       </div>
     </div>
+
+    <!-- PWA Premium Install Button -->
+    <div class="mt-8 mb-4 px-4 sm:px-0">
+      <button type="button" (click)="installApp()" class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-primary to-cyan-500 rounded-2xl shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all text-left group">
+        <div class="flex flex-col gap-1 pr-4">
+          <span class="text-white font-bold text-lg">Ajouter mon espace patient à l'écran d'accueil</span>
+          <span class="text-white/80 text-sm font-medium">Accédez directement à votre suivi, vos rendez-vous et documents.</span>
+        </div>
+        <div class="w-10 h-10 shrink-0 bg-white/20 rounded-full flex items-center justify-center text-white group-hover:bg-white group-hover:text-primary transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+        </div>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -246,6 +249,25 @@
     <div class="pp-modal-actions">
       <button type="button" (click)="downloadDocument()">Télécharger</button>
       <button type="button" class="secondary" (click)="closeDocument()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Install Help Modal -->
+<div class="pp-modal-backdrop" *ngIf="showInstallHelpModal" (click)="dismissInstallHelp()">
+  <div class="pp-modal" (click)="$event.stopPropagation()">
+    <h3>Installation Manuelle</h3>
+    <div class="mt-4 text-slate-600 text-sm space-y-4">
+      <p>Votre navigateur ne supporte pas l'installation automatique. Vous pouvez tout de même installer l'application manuellement :</p>
+      <ol class="list-decimal pl-5 space-y-2 font-medium text-slate-800">
+        <li>Appuyez sur le menu <strong class="text-xl leading-none px-1">⋮</strong> de votre navigateur</li>
+        <li>Choisissez <strong>"Ajouter à l'écran d'accueil"</strong></li>
+        <li>Confirmez <strong>"OptiClinic Patient"</strong></li>
+      </ol>
+      <p class="text-xs text-slate-400 mt-4">Sur iOS (Safari), appuyez sur l'icône de partage puis "Sur l'écran d'accueil".</p>
+    </div>
+    <div class="pp-modal-actions mt-6">
+      <button type="button" class="secondary w-full text-center justify-center" (click)="dismissInstallHelp()">Compris</button>
     </div>
   </div>
 </div>
