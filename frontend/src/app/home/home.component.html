@@ -1,62 +1,108 @@
-<main class="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans relative overflow-hidden scroll-smooth">
-  
-  <!-- Modern Tech Grid Background -->
-  <div class="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+<main class="min-h-screen oc-mesh-bg text-slate-800 font-sans relative overflow-x-hidden scroll-smooth">
 
+  <!-- Animated background orbs -->
   <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/20 blur-[120px] animate-blob"></div>
-    <div class="absolute top-[20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-cyan-400/20 blur-[120px] animate-blob animation-delay-2000"></div>
-    <div class="absolute bottom-[-20%] left-[20%] w-[60%] h-[60%] rounded-full bg-blue-300/20 blur-[150px] animate-blob animation-delay-4000"></div>
+    <div style="position:absolute;width:700px;height:700px;border-radius:50%;
+                background:radial-gradient(circle,rgba(2,132,199,0.10) 0%,transparent 70%);
+                top:-20%;left:-10%;animation:oc-mesh-drift 20s ease-in-out infinite;"></div>
+    <div style="position:absolute;width:600px;height:600px;border-radius:50%;
+                background:radial-gradient(circle,rgba(6,182,212,0.08) 0%,transparent 70%);
+                bottom:-15%;right:-8%;animation:oc-mesh-drift 16s ease-in-out infinite reverse;"></div>
+    <div style="position:absolute;width:400px;height:400px;border-radius:50%;
+                background:radial-gradient(circle,rgba(56,189,248,0.06) 0%,transparent 70%);
+                top:40%;left:50%;animation:oc-mesh-drift 24s ease-in-out infinite 4s;"></div>
   </div>
 
-  <header class="bg-white sticky top-0 z-50 border-b border-slate-100 shadow-sm">
+  <!-- Grid overlay -->
+  <div class="fixed inset-0 z-0 pointer-events-none"
+       style="background-image:linear-gradient(rgba(2,132,199,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(2,132,199,0.03) 1px,transparent 1px);background-size:48px 48px;"></div>
+
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header class="oc-home-header sticky top-0 z-50 transition-all duration-300">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-[72px]">
-        <a routerLink="/" class="flex items-center" (click)="scrollTo('top', $event)">
+
+        <a routerLink="/" class="flex items-center gap-3" (click)="scrollTo('top', $event)">
           <app-logo size="md"></app-logo>
         </a>
 
-        <nav class="hidden md:flex items-center gap-8">
-          <a href="#fonctionnalites" (click)="scrollTo('fonctionnalites', $event)" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Fonctionnalités</a>
-          <a href="#specialites" (click)="scrollTo('specialites', $event)" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Spécialités</a>
-          <a routerLink="/doctors" (click)="scrollTo('medecins', $event)" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Pour les médecins</a>
-          <a href="#contact" class="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Contact</a>
+        <nav class="hidden md:flex items-center gap-1">
+          <a href="#fonctionnalites" (click)="scrollTo('fonctionnalites', $event)"
+             class="oc-nav-link group relative px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors rounded-xl hover:bg-slate-50/80">
+            Fonctionnalités
+            <span class="absolute bottom-1.5 left-4 right-4 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-full"></span>
+          </a>
+          <a href="#specialites" (click)="scrollTo('specialites', $event)"
+             class="oc-nav-link group relative px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors rounded-xl hover:bg-slate-50/80">
+            Spécialités
+            <span class="absolute bottom-1.5 left-4 right-4 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-full"></span>
+          </a>
+          <a routerLink="/doctors"
+             class="oc-nav-link group relative px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors rounded-xl hover:bg-slate-50/80">
+            Médecins
+            <span class="absolute bottom-1.5 left-4 right-4 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-full"></span>
+          </a>
+          <a href="#contact"
+             class="oc-nav-link group relative px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors rounded-xl hover:bg-slate-50/80">
+            Contact
+            <span class="absolute bottom-1.5 left-4 right-4 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-full"></span>
+          </a>
         </nav>
 
-        <div class="flex items-center">
-          <a routerLink="/patient/booking" class="text-sm font-bold text-white bg-[#0284c7] hover:bg-[#0369a1] px-5 py-2.5 rounded-full transition-colors">Prendre RDV</a>
-        </div>
+        <a routerLink="/patient/booking" class="oc-btn oc-btn-primary" style="padding:0.625rem 1.5rem;font-size:0.875rem;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          Prendre RDV
+        </a>
       </div>
     </div>
   </header>
 
-  <section id="top" class="relative pt-20 pb-32 z-10">
+  <!-- ═══════════ HERO ═══════════ -->
+  <section id="top" class="relative pt-24 pb-36 z-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid lg:grid-cols-2 gap-16 items-center">
-        
+      <div class="grid lg:grid-cols-2 gap-20 items-center">
+
+        <!-- Copy -->
         <div class="max-w-2xl">
-          <h1 class="text-5xl lg:text-7xl font-extrabold text-slate-900 tracking-tight mb-6 leading-[1.1]">
-            Votre santé.<br>Un rendez-vous en <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-500">30 secondes.</span>
+          <div class="oc-section-badge w-fit mb-8">
+            <span class="oc-live-dot"></span>
+            Plateforme médicale IA · Tunisia
+          </div>
+
+          <h1 class="text-5xl lg:text-[4.5rem] font-black text-slate-900 tracking-tight mb-6 leading-[1.05]">
+            Votre santé.<br>Un rendez-vous en
+            <span class="oc-gradient-text"> 30 secondes.</span>
           </h1>
-          <p class="text-xl text-slate-600 mb-10 leading-relaxed font-medium">
-            Trouvez le bon médecin et prenez rendez-vous instantanément. Sans inscription, juste votre santé.
+
+          <p class="text-xl text-slate-500 mb-10 leading-relaxed font-medium max-w-lg">
+            Trouvez le bon médecin et prenez rendez-vous instantanément.
+            Notre IA Google OR-Tools optimise chaque créneau pour vous.
           </p>
-          
-          <div class="bg-white/80 backdrop-blur-xl p-3 rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-white flex flex-col md:flex-row gap-2 relative z-20">
-            <div class="flex-1 relative group">
-              <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8M3 16.2V21m0 0h4.8M3 21l6-6M21 7.8V3m0 0h-4.8M21 3l-6 6M3 7.8V3m0 0h4.8M3 3l6 6"/></svg>
-              </div>
-              <input #specInput type="text" placeholder="Spécialité, ex: Cardiologue" class="w-full h-14 pl-12 pr-4 bg-slate-50/50 hover:bg-slate-100/50 focus:bg-white rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-primary transition-all text-slate-900 placeholder:text-slate-500 font-medium">
-            </div>
+
+          <!-- Search bar — ALL BINDINGS PRESERVED -->
+          <div class="oc-glass-strong p-2.5 flex flex-col md:flex-row gap-2 relative z-20"
+               style="border-radius:2rem;box-shadow:0 24px 64px -12px rgba(0,0,0,0.1);">
 
             <div class="flex-1 relative group">
-              <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-sky-500 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
               </div>
-              <select #regionInput class="w-full h-14 pl-12 pr-4 bg-slate-50/50 hover:bg-slate-100/50 focus:bg-white rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-primary transition-all text-slate-900 placeholder:text-slate-500 font-medium appearance-none">
-                <option value="">Ville ou Région (ex: Tunis)</option>
-                <optgroup label="Tunis & Ariana">
+              <input #specInput type="text" placeholder="Spécialité, ex: Cardiologue"
+                     class="w-full h-14 pl-11 pr-4 bg-transparent border-none focus:outline-none text-slate-900 placeholder:text-slate-400 font-medium text-sm">
+            </div>
+
+            <div class="w-px bg-slate-200/60 self-stretch mx-1 hidden md:block"></div>
+
+            <div class="flex-1 relative group">
+              <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-sky-500 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <select #regionInput class="w-full h-14 pl-11 pr-4 bg-transparent border-none focus:outline-none text-slate-700 font-medium text-sm appearance-none cursor-pointer">
+                <option value="">Ville ou Région</option>
+                <optgroup label="Tunis &amp; Ariana">
                   <option value="Carthage">Carthage</option>
                   <option value="Bardo">Bardo</option>
                   <option value="La Marsa">La Marsa</option>
@@ -65,7 +111,7 @@
                   <option value="Raoued">Raoued</option>
                   <option value="Cité Attadhamon">Cité Attadhamon</option>
                 </optgroup>
-                <optgroup label="Ben Arous & Manouba">
+                <optgroup label="Ben Arous &amp; Manouba">
                   <option value="Radès">Radès</option>
                   <option value="Hammam Lif">Hammam Lif</option>
                   <option value="Mornag">Mornag</option>
@@ -73,136 +119,164 @@
                   <option value="Oued Ellil">Oued Ellil</option>
                   <option value="Tebourba">Tebourba</option>
                 </optgroup>
-                <optgroup label="Nabeul & Bizerte">
+                <optgroup label="Nabeul &amp; Bizerte">
                   <option value="Nabeul">Nabeul</option>
                   <option value="Hammamet">Hammamet</option>
                   <option value="Kelibia">Kelibia</option>
                   <option value="Bizerte Nord">Bizerte Nord</option>
                   <option value="Menzel Bourguiba">Menzel Bourguiba</option>
-                  <option value="Ras Jebel">Ras Jebel</option>
                 </optgroup>
-                <optgroup label="Zaghouan & Sousse">
-                  <option value="Zaghouan">Zaghouan</option>
-                  <option value="Fahs">Fahs</option>
-                  <option value="Sousse (Ryadh/Jawhara)">Sousse (Ryadh/Jawhara)</option>
+                <optgroup label="Sousse &amp; Sfax">
+                  <option value="Sousse (Ryadh/Jawhara)">Sousse</option>
                   <option value="Hammam Sousse">Hammam Sousse</option>
-                  <option value="Msaken">Msaken</option>
-                  <option value="Enfidha">Enfidha</option>
-                </optgroup>
-                <optgroup label="Monastir & Mahdia">
-                  <option value="Monastir">Monastir</option>
-                  <option value="Moknine">Moknine</option>
-                  <option value="Ksar Helal">Ksar Helal</option>
-                  <option value="Mahdia">Mahdia</option>
-                  <option value="Eljem">Eljem</option>
-                  <option value="Chebba">Chebba</option>
-                </optgroup>
-                <optgroup label="Sfax">
-                  <option value="Sfax (Ville/Ouest/Sud)">Sfax (Ville/Ouest/Sud)</option>
-                  <option value="Sakiet Ezzit">Sakiet Ezzit</option>
-                  <option value="Agareb">Agareb</option>
-                  <option value="Mahrès">Mahrès</option>
-                  <option value="Kerkennah">Kerkennah</option>
-                </optgroup>
-                <optgroup label="Nord-Ouest">
-                  <option value="Béja">Béja</option>
-                  <option value="Testour">Testour</option>
-                  <option value="Jendouba">Jendouba</option>
-                  <option value="Tabarka">Tabarka</option>
-                  <option value="Ain Drahem">Ain Drahem</option>
-                  <option value="Kef">Kef</option>
-                  <option value="Dahmani">Dahmani</option>
-                  <option value="Siliana">Siliana</option>
-                  <option value="Makther">Makther</option>
-                </optgroup>
-                <optgroup label="Centre-Ouest">
-                  <option value="Kairouan">Kairouan</option>
-                  <option value="Haffouz">Haffouz</option>
-                  <option value="Sidi Bouzid">Sidi Bouzid</option>
-                  <option value="Regueb">Regueb</option>
-                  <option value="Kasserine">Kasserine</option>
-                  <option value="Sbitla">Sbitla</option>
-                  <option value="Thala">Thala</option>
+                  <option value="Sfax (Ville/Ouest/Sud)">Sfax</option>
                 </optgroup>
                 <optgroup label="Sud">
                   <option value="Gabès">Gabès</option>
-                  <option value="El Hamma">El Hamma</option>
                   <option value="Médenine">Médenine</option>
-                  <option value="Zarzis">Zarzis</option>
                   <option value="Djerba">Djerba</option>
-                  <option value="Gafsa">Gafsa</option>
-                  <option value="Métlaoui">Métlaoui</option>
                   <option value="Tozeur">Tozeur</option>
-                  <option value="Nefta">Nefta</option>
                   <option value="Tataouine">Tataouine</option>
-                  <option value="Kébili">Kébili</option>
                 </optgroup>
               </select>
             </div>
 
-            <button (click)="onSearch(specInput.value, regionInput.value)" class="h-14 px-8 bg-primary hover:bg-primary-dark text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/30 shrink-0 group">
-              <span>Rechercher</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            <button (click)="onSearch(specInput.value, regionInput.value)"
+                    class="oc-btn oc-btn-primary shrink-0"
+                    style="height:56px;padding:0 2rem;border-radius:1.5rem;font-size:0.9375rem;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              Rechercher
             </button>
+          </div>
+
+          <!-- Trust row -->
+          <div class="flex flex-wrap items-center gap-6 mt-8">
+            <div class="flex -space-x-2">
+              <div *ngFor="let c of ['#ef4444','#0284c7','#10b981','#f59e0b','#8b5cf6']; let i=index"
+                   class="w-9 h-9 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-black"
+                   [style.background]="c" [style.zIndex]="5-i">
+                {{ 'ABCDE'.charAt(i) }}
+              </div>
+            </div>
+            <p class="text-sm text-slate-500 font-medium">
+              <span class="font-black text-slate-800">+2 400</span> patients ce mois
+            </p>
+            <div class="flex items-center gap-1.5">
+              <span style="color:#f59e0b;font-size:0.95rem;letter-spacing:-1px;">★★★★★</span>
+              <span class="text-sm font-black text-slate-700">4.9</span>
+              <span class="text-sm text-slate-400 font-medium">/ 5</span>
+            </div>
           </div>
         </div>
 
-        <div class="relative lg:ml-auto animate-float">
-          <img src="assets/booking_illustration.jpeg" alt="OptiClinic" class="w-full max-w-md rounded-[2rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] relative z-10 object-cover border border-white/60 hover:scale-105 transition-transform duration-500">
-          <div class="absolute -top-10 -right-10 w-40 h-40 bg-cyan-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
-          <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-primary rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
+        <!-- Hero visual -->
+        <div class="relative lg:ml-auto" style="perspective:1000px;">
+          <div class="relative rounded-[2.5rem] overflow-hidden"
+               style="box-shadow:var(--oc-shadow-xl);transform:rotateY(-4deg) rotateX(2deg);">
+            <img src="assets/booking_illustration.jpeg" alt="OptiClinic IA"
+                 class="w-full object-cover" style="display:block;height:460px;object-fit:cover;">
+            <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(6,18,44,0.6) 0%,rgba(6,18,44,0.08) 55%,transparent 100%);"></div>
+            <div class="absolute bottom-8 left-8 right-8">
+              <div class="oc-badge oc-badge-dark mb-3">
+                <span class="oc-live-dot" style="width:6px;height:6px;"></span>
+                IA Active
+              </div>
+              <p class="text-white font-black text-2xl leading-tight mb-1">Planification Intelligente</p>
+              <p class="text-white/70 text-sm font-medium">Google OR-Tools · Optimisation temps réel</p>
+            </div>
+          </div>
+
+          <!-- Floating card: confirmed -->
+          <div class="absolute -top-6 -right-5 oc-card-glass px-4 py-3 flex items-center gap-3"
+               style="border-radius:1.5rem;min-width:185px;animation:oc-float 7s ease-in-out infinite;">
+            <div style="width:38px;height:38px;border-radius:12px;flex-shrink:0;
+                        background:linear-gradient(135deg,#10b981,#059669);
+                        display:flex;align-items:center;justify-content:center;
+                        box-shadow:0 4px 16px rgba(16,185,129,0.4);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div>
+              <p style="font-size:0.68rem;color:var(--oc-text-3);font-weight:600;margin:0;">RDV confirmé</p>
+              <p style="font-size:0.875rem;font-weight:800;color:var(--oc-text-1);margin:0;">Dr. Ben Salah</p>
+            </div>
+          </div>
+
+          <!-- Floating card: next slot -->
+          <div class="absolute -bottom-5 -left-5 oc-card-glass px-4 py-3 flex items-center gap-3"
+               style="border-radius:1.5rem;min-width:168px;animation:oc-float 9s ease-in-out infinite 2s;">
+            <div style="width:38px;height:38px;border-radius:12px;flex-shrink:0;
+                        background:linear-gradient(135deg,var(--oc-brand),var(--oc-cyan));
+                        display:flex;align-items:center;justify-content:center;
+                        box-shadow:var(--oc-shadow-brand);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div>
+              <p style="font-size:0.68rem;color:var(--oc-text-3);font-weight:600;margin:0;">Prochain créneau</p>
+              <p style="font-size:0.875rem;font-weight:800;color:var(--oc-text-1);margin:0;">Aujourd'hui 14h30</p>
+            </div>
+          </div>
         </div>
-      </div>
-      
-      <!-- Scroll Indicator -->
-      <div class="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center animate-bounce text-slate-400 hidden md:flex">
-        <span class="text-xs font-bold uppercase tracking-widest mb-2">Découvrir</span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+
       </div>
     </div>
   </section>
 
-<section id="fonctionnalites" class="py-24 relative z-10">
+  <!-- ═══════════ FEATURES ═══════════ -->
+  <section id="fonctionnalites" class="py-24 relative z-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto mb-16">
-        <p class="text-primary font-bold uppercase tracking-wider text-sm mb-2">Pourquoi OptiClinic</p>
-        <h2 class="text-4xl lg:text-5xl font-extrabold mb-6 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-primary to-cyan-600">Une plateforme pensée pour la performance clinique</h2>
-        <p class="text-lg text-slate-500">Conçue avec des médecins, validée par des patients. Chaque détail compte.</p>
+        <div class="oc-section-badge mx-auto mb-6">Pourquoi OptiClinic</div>
+        <h2 class="text-4xl lg:text-5xl font-black mb-5 tracking-tight text-slate-900">
+          Une plateforme pensée pour la <span class="oc-gradient-text">performance clinique</span>
+        </h2>
+        <p class="text-lg text-slate-500 font-medium">Conçue avec des médecins, validée par des patients. Chaque détail compte.</p>
       </div>
 
-      <div class="grid md:grid-cols-3 gap-8">
-        <div class="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-white hover:border-primary/20 shadow-sm hover:shadow-2xl transition-all group">
-          <div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">📅</div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="oc-card-glass p-8 group relative overflow-hidden" style="border-radius:1.75rem;">
+          <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-6 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(2,132,199,0.08),rgba(6,182,212,0.05));border:1px solid rgba(2,132,199,0.12);">📅</div>
           <h3 class="font-bold text-xl text-slate-900 mb-3">Réservation Zero-Click</h3>
           <p class="text-slate-500 text-sm leading-relaxed">Un wizard en 4 étapes, calendrier interactif et confirmation instantanée pour maximiser les prises de rendez-vous.</p>
         </div>
-        
-        <div class="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-white hover:border-primary/20 shadow-sm hover:shadow-2xl transition-all group">
-          <div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">🛡️</div>
+
+        <div class="oc-card-glass p-8 group relative overflow-hidden" style="border-radius:1.75rem;">
+          <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-6 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(2,132,199,0.08),rgba(6,182,212,0.05));border:1px solid rgba(2,132,199,0.12);">🛡️</div>
           <h3 class="font-bold text-xl text-slate-900 mb-3">Sécurité médicale</h3>
           <p class="text-slate-500 text-sm leading-relaxed">Conformité RGPD, chiffrement de bout-en-bout, traçabilité des accès aux dossiers pour une confiance absolue.</p>
         </div>
 
-        <div class="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-white hover:border-primary/20 shadow-sm hover:shadow-2xl transition-all group">
-          <div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">🔔</div>
+        <div class="oc-card-glass p-8 group relative overflow-hidden" style="border-radius:1.75rem;">
+          <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-6 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(2,132,199,0.08),rgba(6,182,212,0.05));border:1px solid rgba(2,132,199,0.12);">🔔</div>
           <h3 class="font-bold text-xl text-slate-900 mb-3">Rappels intelligents</h3>
           <p class="text-slate-500 text-sm leading-relaxed">SMS, e-mail et notifications push automatisés pour réduire les no-show jusqu'à 60%.</p>
         </div>
 
-        <div class="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-white hover:border-primary/20 shadow-sm hover:shadow-2xl transition-all group">
-          <div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">🚨</div>
+        <div class="oc-card-glass p-8 group relative overflow-hidden" style="border-radius:1.75rem;">
+          <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-6 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(239,68,68,0.08),rgba(220,38,38,0.04));border:1px solid rgba(239,68,68,0.12);">🚨</div>
           <h3 class="font-bold text-xl text-slate-900 mb-3">Mode urgence</h3>
           <p class="text-slate-500 text-sm leading-relaxed">Bascule instantanée du cockpit médecin en mode critique avec protocoles d'action rapide intégrés.</p>
         </div>
 
-        <div class="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-white hover:border-primary/20 shadow-sm hover:shadow-2xl transition-all group">
-          <div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">📈</div>
+        <div class="oc-card-glass p-8 group relative overflow-hidden" style="border-radius:1.75rem;">
+          <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-6 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04));border:1px solid rgba(16,185,129,0.12);">📈</div>
           <h3 class="font-bold text-xl text-slate-900 mb-3">Analytics cliniques</h3>
           <p class="text-slate-500 text-sm leading-relaxed">Tableau de bord en temps réel : taux d'occupation, flux en salle d'attente et performance globale.</p>
         </div>
 
-        <div class="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-white hover:border-primary/20 shadow-sm hover:shadow-2xl transition-all group">
-          <div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">📁</div>
+        <div class="oc-card-glass p-8 group relative overflow-hidden" style="border-radius:1.75rem;">
+          <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-500 to-cyan-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-6 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(139,92,246,0.08),rgba(124,58,237,0.04));border:1px solid rgba(139,92,246,0.12);">📁</div>
           <h3 class="font-bold text-xl text-slate-900 mb-3">Dossiers patients</h3>
           <p class="text-slate-500 text-sm leading-relaxed">Recherche ultra-rapide, vue slide-over riche avec historique complet des consultations sans quitter le planning.</p>
         </div>
@@ -210,30 +284,34 @@
     </div>
   </section>
 
-
-  <section id="comment-ca-marche" class="py-24 bg-slate-50 relative z-10 border-t border-slate-100">
+  <!-- ═══════════ HOW IT WORKS ═══════════ -->
+  <section id="comment-ca-marche" class="py-24 relative z-10" style="background:rgba(248,250,252,0.7);">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto mb-16">
-        <p class="text-primary font-bold uppercase tracking-wider text-sm mb-2">Simple & Rapide</p>
-        <h2 class="text-4xl lg:text-5xl font-extrabold mb-6 tracking-tight text-slate-900">Comment ça marche ?</h2>
+        <div class="oc-section-badge mx-auto mb-6">Simple &amp; Rapide</div>
+        <h2 class="text-4xl lg:text-5xl font-black mb-4 tracking-tight text-slate-900">Comment ça marche ?</h2>
       </div>
       <div class="grid md:grid-cols-3 gap-8 relative">
-        <div class="hidden md:block absolute top-1/2 left-[15%] right-[15%] h-0.5 bg-gradient-to-r from-primary/20 via-primary/40 to-primary/20 -translate-y-1/2 z-0"></div>
-        
+        <div class="hidden md:block absolute top-[40px] left-[22%] right-[22%] h-0.5 z-0"
+             style="background:linear-gradient(to right,rgba(2,132,199,0.2),rgba(2,132,199,0.5),rgba(2,132,199,0.2));"></div>
+
         <div class="relative z-10 flex flex-col items-center text-center group">
-          <div class="w-20 h-20 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center text-2xl font-black text-primary shadow-xl mb-6 group-hover:scale-110 transition-transform">1</div>
+          <div class="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-black text-white mb-6 transition-transform group-hover:scale-110"
+               style="background:linear-gradient(135deg,var(--oc-brand),var(--oc-cyan));box-shadow:var(--oc-shadow-brand);">1</div>
           <h3 class="text-xl font-bold text-slate-900 mb-3">Recherchez</h3>
           <p class="text-slate-500 font-medium">Trouvez le bon spécialiste près de chez vous ou en ligne.</p>
         </div>
-        
+
         <div class="relative z-10 flex flex-col items-center text-center group">
-          <div class="w-20 h-20 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center text-2xl font-black text-primary shadow-xl mb-6 group-hover:scale-110 transition-transform">2</div>
+          <div class="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-black text-white mb-6 transition-transform group-hover:scale-110"
+               style="background:linear-gradient(135deg,var(--oc-brand),var(--oc-cyan));box-shadow:var(--oc-shadow-brand);">2</div>
           <h3 class="text-xl font-bold text-slate-900 mb-3">Prenez RDV</h3>
           <p class="text-slate-500 font-medium">Choisissez le créneau qui vous convient et réservez en 1 clic.</p>
         </div>
-        
+
         <div class="relative z-10 flex flex-col items-center text-center group">
-          <div class="w-20 h-20 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center text-2xl font-black text-primary shadow-xl mb-6 group-hover:scale-110 transition-transform">3</div>
+          <div class="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-black text-white mb-6 transition-transform group-hover:scale-110"
+               style="background:linear-gradient(135deg,var(--oc-brand),var(--oc-cyan));box-shadow:var(--oc-shadow-brand);">3</div>
           <h3 class="text-xl font-bold text-slate-900 mb-3">Consultez</h3>
           <p class="text-slate-500 font-medium">Rendez-vous au cabinet ou consultez en vidéo simplement.</p>
         </div>
@@ -241,164 +319,198 @@
     </div>
   </section>
 
-
-<section id="specialites" class="py-24 relative z-10">
+  <!-- ═══════════ SPECIALTIES ═══════════ -->
+  <section id="specialites" class="py-24 relative z-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-2xl mx-auto mb-16">
-        <h2 class="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Trouvez le bon spécialiste</h2>
-        <p class="text-lg text-slate-500 font-medium">Une offre de soins complète couvrant toutes les spécialités médicales majeures.</p>
+        <div class="oc-section-badge mx-auto mb-6">Spécialités médicales</div>
+        <h2 class="text-4xl font-black text-slate-900 mb-4 tracking-tight">Trouvez le bon spécialiste</h2>
+        <p class="text-lg text-slate-500 font-medium">Une offre de soins complète couvrant toutes les spécialités majeures.</p>
       </div>
 
       <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
-        <!-- 8 Specialites -->
-        <a (click)="onSearch('Médecine Générale', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🩺</div>
-          <h3 class="font-bold text-slate-900 text-lg">Médecine générale</h3>
-          <p class="text-sm text-slate-500">Consultation & suivi</p>
+        <a (click)="onSearch('Médecine Générale', '')" style="cursor:pointer"
+           class="oc-card-glass p-7 text-center group" style="border-radius:1.75rem;">
+          <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-5 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(2,132,199,0.08),rgba(6,182,212,0.05));border:1px solid rgba(2,132,199,0.1);">🩺</div>
+          <h3 class="font-bold text-slate-900 text-base mb-1">Médecine générale</h3>
+          <p class="text-sm text-slate-500 mb-3">Consultation &amp; suivi</p>
+          <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">Disponible →</span>
         </a>
-        <a (click)="onSearch('Cardiologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">❤️</div>
-          <h3 class="font-bold text-slate-900 text-lg">Cardiologie</h3>
-          <p class="text-sm text-slate-500">Coeur & vaisseaux</p>
+        <a (click)="onSearch('Cardiologie', '')" style="cursor:pointer"
+           class="oc-card-glass p-7 text-center group" style="border-radius:1.75rem;">
+          <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-5 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(239,68,68,0.08),rgba(220,38,38,0.04));border:1px solid rgba(239,68,68,0.1);">❤️</div>
+          <h3 class="font-bold text-slate-900 text-base mb-1">Cardiologie</h3>
+          <p class="text-sm text-slate-500 mb-3">Coeur &amp; vaisseaux</p>
+          <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">Disponible →</span>
         </a>
-        <a (click)="onSearch('Dermatologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">✨</div>
-          <h3 class="font-bold text-slate-900 text-lg">Dermatologie</h3>
-          <p class="text-sm text-slate-500">Peau & cheveux</p>
+        <a (click)="onSearch('Dermatologie', '')" style="cursor:pointer"
+           class="oc-card-glass p-7 text-center group" style="border-radius:1.75rem;">
+          <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-5 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(139,92,246,0.08),rgba(124,58,237,0.04));border:1px solid rgba(139,92,246,0.1);">✨</div>
+          <h3 class="font-bold text-slate-900 text-base mb-1">Dermatologie</h3>
+          <p class="text-sm text-slate-500 mb-3">Peau &amp; cheveux</p>
+          <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">Disponible →</span>
         </a>
-        <a (click)="onSearch('Pédiatrie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">👶</div>
-          <h3 class="font-bold text-slate-900 text-lg">Pédiatrie</h3>
-          <p class="text-sm text-slate-500">Enfants & nourrissons</p>
+        <a (click)="onSearch('Pédiatrie', '')" style="cursor:pointer"
+           class="oc-card-glass p-7 text-center group" style="border-radius:1.75rem;">
+          <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-5 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(217,119,6,0.04));border:1px solid rgba(245,158,11,0.1);">👶</div>
+          <h3 class="font-bold text-slate-900 text-base mb-1">Pédiatrie</h3>
+          <p class="text-sm text-slate-500 mb-3">Enfants &amp; nourrissons</p>
+          <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">Disponible →</span>
         </a>
-        <a (click)="onSearch('Dentaire', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🦷</div>
-          <h3 class="font-bold text-slate-900 text-lg">Dentaire</h3>
-          <p class="text-sm text-slate-500">Soins dentaires</p>
+        <a (click)="onSearch('Dentaire', '')" style="cursor:pointer"
+           class="oc-card-glass p-7 text-center group" style="border-radius:1.75rem;">
+          <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-5 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(6,182,212,0.08),rgba(8,145,178,0.04));border:1px solid rgba(6,182,212,0.1);">🦷</div>
+          <h3 class="font-bold text-slate-900 text-base mb-1">Dentaire</h3>
+          <p class="text-sm text-slate-500 mb-3">Soins dentaires</p>
+          <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">Disponible →</span>
         </a>
-        <a (click)="onSearch('Ophtalmologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">👁️</div>
-          <h3 class="font-bold text-slate-900 text-lg">Ophtalmologie</h3>
-          <p class="text-sm text-slate-500">Yeux & vision</p>
+        <a (click)="onSearch('Ophtalmologie', '')" style="cursor:pointer"
+           class="oc-card-glass p-7 text-center group" style="border-radius:1.75rem;">
+          <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-5 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04));border:1px solid rgba(16,185,129,0.1);">👁️</div>
+          <h3 class="font-bold text-slate-900 text-base mb-1">Ophtalmologie</h3>
+          <p class="text-sm text-slate-500 mb-3">Yeux &amp; vision</p>
+          <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">Disponible →</span>
         </a>
-        <a (click)="onSearch('Gynécologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🌷</div>
-          <h3 class="font-bold text-slate-900 text-lg">Gynécologie</h3>
-          <p class="text-sm text-slate-500">Santé féminine</p>
+        <a (click)="onSearch('Gynécologie', '')" style="cursor:pointer"
+           class="oc-card-glass p-7 text-center group" style="border-radius:1.75rem;">
+          <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-5 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(236,72,153,0.08),rgba(219,39,119,0.04));border:1px solid rgba(236,72,153,0.1);">🌷</div>
+          <h3 class="font-bold text-slate-900 text-base mb-1">Gynécologie</h3>
+          <p class="text-sm text-slate-500 mb-3">Santé féminine</p>
+          <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">Disponible →</span>
         </a>
-        <a (click)="onSearch('Neurologie', '')" style="cursor: pointer" class="group p-8 rounded-3xl border border-white bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-2xl transition-all text-center">
-          <div class="text-3xl mb-4 group-hover:scale-110 group-hover:-translate-y-2 transition-transform duration-300">🧠</div>
-          <h3 class="font-bold text-slate-900 text-lg">Neurologie</h3>
-          <p class="text-sm text-slate-500">Système nerveux</p>
+        <a (click)="onSearch('Neurologie', '')" style="cursor:pointer"
+           class="oc-card-glass p-7 text-center group" style="border-radius:1.75rem;">
+          <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-5 transition-all duration-300 group-hover:scale-110"
+               style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(79,70,229,0.04));border:1px solid rgba(99,102,241,0.1);">🧠</div>
+          <h3 class="font-bold text-slate-900 text-base mb-1">Neurologie</h3>
+          <p class="text-sm text-slate-500 mb-3">Système nerveux</p>
+          <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">Disponible →</span>
         </a>
       </div>
     </div>
   </section>
 
-<section id="medecins" class="py-24 bg-white relative z-10 border-t border-slate-100">
+  <!-- ═══════════ DOCTORS ═══════════ -->
+  <section id="medecins" class="py-24 relative z-10" style="background:rgba(248,250,252,0.6);">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-2xl mx-auto mb-16">
-        <p class="text-[#0284c7] font-bold uppercase tracking-widest text-[11px] mb-3">NOS PRATICIENS</p>
-        <h2 class="text-[36px] font-extrabold text-slate-900 tracking-tight">Des médecins de confiance</h2>
+        <div class="oc-section-badge mx-auto mb-6">Nos Praticiens</div>
+        <h2 class="text-4xl font-black text-slate-900 tracking-tight">Des médecins de confiance</h2>
       </div>
 
-      <!-- Skeleton Loaders -->
-      <div *ngIf="isLoading" class="grid md:grid-cols-3 gap-8">
-        <div *ngFor="let i of [1, 2, 3, 4, 5, 6]" class="bg-white p-6 rounded-3xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] animate-pulse">
+      <!-- Skeleton loader -->
+      <div *ngIf="isLoading" class="grid md:grid-cols-3 gap-6">
+        <div *ngFor="let i of [1,2,3,4,5,6]" class="bg-white/80 p-6 rounded-[1.75rem] border border-slate-100 shadow-sm animate-pulse">
           <div class="flex items-center gap-4 mb-6">
-            <div class="w-[52px] h-[52px] rounded-full bg-slate-200"></div>
+            <div class="w-14 h-14 rounded-full bg-slate-200"></div>
             <div class="flex-1">
               <div class="h-4 bg-slate-200 rounded-full w-3/4 mb-2"></div>
               <div class="h-3 bg-slate-100 rounded-full w-1/2"></div>
             </div>
           </div>
-          <div class="flex items-center justify-between mb-5">
-            <div class="h-4 bg-slate-200 rounded-full w-1/4"></div>
-            <div class="h-4 bg-slate-100 rounded-full w-1/3"></div>
-          </div>
-          <div class="h-10 bg-slate-100 rounded-2xl w-full"></div>
+          <div class="h-3 bg-slate-100 rounded-full w-full mb-2"></div>
+          <div class="h-10 bg-slate-100 rounded-2xl w-full mt-4"></div>
         </div>
       </div>
 
-      <!-- Doctor Cards -->
-      <div *ngIf="!isLoading" class="grid md:grid-cols-3 gap-8">
-        <div *ngFor="let doc of doctors" class="group bg-white p-6 rounded-3xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] hover:border-[#0284c7]/20 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer">
-          <div class="flex items-center gap-5 mb-6">
-            <div [class]="'w-[56px] h-[56px] rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0 group-hover:scale-105 transition-transform duration-300 ' + getAvatarColor(doc.prenom + ' ' + doc.nom)">
+      <!-- Doctor cards -->
+      <div *ngIf="!isLoading" class="grid md:grid-cols-3 gap-6">
+        <div *ngFor="let doc of doctors"
+             class="group oc-card-glass p-6 flex flex-col justify-between"
+             style="border-radius:1.75rem;">
+
+          <div class="flex items-center gap-4 mb-5">
+            <div [class]="'w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-xl shrink-0 transition-transform group-hover:scale-105 ' + getAvatarColor(doc.prenom + ' ' + doc.nom)">
               {{ getInitials(doc.prenom + ' ' + doc.nom) }}
             </div>
             <div>
-              <h3 class="font-bold text-slate-900 text-[16px] group-hover:text-[#0284c7] transition-colors">Dr. {{ doc.nom }} {{ doc.prenom }}</h3>
-              <p class="text-[13px] text-slate-500 font-medium mt-0.5">{{ doc.specialite }}</p>
-            </div>
-          </div>
-          
-          <div class="flex items-center justify-between mb-6 px-1">
-            <div class="flex items-center gap-1.5 text-[13px] font-bold">
-              <span class="text-amber-400 text-lg leading-none">★</span>
-              <span class="text-slate-900">{{ getReviews(doc.nom).rating }}</span>
-              <span class="text-slate-400 font-medium">({{ getReviews(doc.nom).count }})</span>
-            </div>
-            <div class="text-[13px] text-slate-500 font-medium flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              {{ getReviews(doc.nom).exp }} ans d'expérience
+              <h3 class="font-bold text-slate-900 text-base group-hover:text-[#0284c7] transition-colors">
+                Dr. {{ doc.nom }} {{ doc.prenom }}
+              </h3>
+              <p class="text-sm text-slate-500 font-medium mt-0.5">{{ doc.specialite }}</p>
             </div>
           </div>
 
-          <button (click)="bookDoctor(doc)" class="w-full py-3 bg-[#f0f9ff] group-hover:bg-[#0284c7] text-[#0284c7] group-hover:text-white font-bold text-[14px] rounded-2xl transition-all duration-300 flex items-center justify-center gap-2">
+          <div class="flex items-center justify-between mb-4 px-1">
+            <div class="flex items-center gap-1.5">
+              <span style="color:#f59e0b;font-size:0.9rem;">★</span>
+              <span class="text-sm font-black text-slate-900">{{ getReviews(doc.nom).rating }}</span>
+              <span class="text-sm text-slate-400">({{ getReviews(doc.nom).count }})</span>
+            </div>
+            <span class="text-xs text-slate-500 font-medium">{{ getReviews(doc.nom).exp }} ans d'exp.</span>
+          </div>
+
+          <!-- Rating bar -->
+          <div style="height:3px;background:#f1f5f9;border-radius:999px;overflow:hidden;margin-bottom:1rem;">
+            <div style="height:100%;background:linear-gradient(to right,#f59e0b,#fbbf24);border-radius:999px;transition:width 0.3s;"
+                 [style.width]="(getReviews(doc.nom).rating / 5 * 100) + '%'"></div>
+          </div>
+
+          <button (click)="bookDoctor(doc)"
+                  class="w-full py-3 font-bold text-sm rounded-2xl transition-all duration-300 flex items-center justify-center gap-2"
+                  style="background:rgba(2,132,199,0.06);color:#0284c7;border:1px solid rgba(2,132,199,0.15);"
+                  onmouseover="this.style.background='#0284c7';this.style.color='white'"
+                  onmouseout="this.style.background='rgba(2,132,199,0.06)';this.style.color='#0284c7'">
             Voir les disponibilités
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </button>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Espace patient personnalisé -->
-  <section id="espace-patient" class="py-24 relative z-10 bg-white/50">
+  <!-- ═══════════ PATIENT PORTAL ═══════════ -->
+  <section id="espace-patient" class="py-24 relative z-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid lg:grid-cols-3 gap-12 items-start">
-
-        <!-- Left: explanation -->
         <div class="lg:col-span-1">
-          <p class="text-primary font-bold uppercase tracking-wider text-sm mb-2">Espace Patient</p>
-          <h2 class="text-4xl font-extrabold text-slate-900 mb-6 tracking-tight">Accédez à votre espace patient</h2>
-          <p class="text-slate-600 mb-8 leading-relaxed">
-            Après la confirmation de votre rendez-vous, vous recevez un email contenant un lien sécurisé vers votre espace patient personnalisé.
-          </p>
-
+          <div class="oc-section-badge mb-6">Espace Patient</div>
+          <h2 class="text-4xl font-black text-slate-900 mb-6 tracking-tight">Accédez à votre espace patient</h2>
+          <p class="text-slate-600 mb-8 leading-relaxed">Après la confirmation de votre rendez-vous, vous recevez un email contenant un lien sécurisé vers votre espace patient personnalisé.</p>
           <ul class="space-y-4 mb-8">
-            <li class="flex items-start gap-3">
-              <span class="text-primary text-xl">✓</span>
+            <li class="flex items-center gap-3">
+              <div class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.2);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
               <span class="text-slate-700 font-medium">Accès instantané et sécurisé</span>
             </li>
-            <li class="flex items-start gap-3">
-              <span class="text-primary text-xl">✓</span>
+            <li class="flex items-center gap-3">
+              <div class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.2);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
               <span class="text-slate-700 font-medium">Toutes vos informations médicales</span>
             </li>
-            <li class="flex items-start gap-3">
-              <span class="text-primary text-xl">✓</span>
+            <li class="flex items-center gap-3">
+              <div class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.2);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
               <span class="text-slate-700 font-medium">Suivi de votre rendez-vous</span>
             </li>
-            <li class="flex items-start gap-3">
-              <span class="text-primary text-xl">✓</span>
+            <li class="flex items-center gap-3">
+              <div class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.2);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
               <span class="text-slate-700 font-medium">Disponible 24h/24, 7j/7</span>
             </li>
           </ul>
         </div>
 
-        <!-- Center: smartphone mockup with email preview -->
         <div class="lg:col-span-1 flex justify-center">
           <div class="relative">
-            <div class="absolute -inset-4 bg-gradient-to-br from-primary/10 to-cyan-400/10 rounded-[2.5rem] blur-2xl"></div>
-            <div class="relative bg-white/90 backdrop-blur-xl rounded-[2.5rem] p-6 border border-white shadow-2xl w-full max-w-sm">
-              <!-- Phone frame -->
-              <div class="bg-slate-900 rounded-[2rem] p-3 shadow-inner">
-                <div class="bg-white rounded-[1.8rem] overflow-hidden">
-                  <!-- Email header -->
-                  <div class="bg-gradient-to-r from-primary to-cyan-500 p-4 text-white">
+            <div class="absolute -inset-4 rounded-[2.5rem] blur-2xl" style="background:linear-gradient(135deg,rgba(2,132,199,0.08),rgba(6,182,212,0.06));"></div>
+            <div class="relative oc-glass-strong rounded-[2.5rem] p-5 w-full max-w-sm" style="box-shadow:var(--oc-shadow-lg);">
+              <div class="bg-slate-900 rounded-[1.8rem] p-3 shadow-inner">
+                <div class="bg-white rounded-[1.4rem] overflow-hidden">
+                  <div class="p-4 text-white" style="background:linear-gradient(135deg,var(--oc-brand),var(--oc-cyan));">
                     <div class="flex items-center gap-2 mb-2">
-                      <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-sm font-bold">OC</div>
+                      <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black" style="background:rgba(255,255,255,0.2);">OC</div>
                       <div>
                         <p class="font-bold text-sm">OptiClinic</p>
                         <p class="text-xs opacity-80">noreply@opticlinic.tn</p>
@@ -406,17 +518,13 @@
                     </div>
                     <p class="text-xs font-semibold opacity-90">Aujourd'hui à 09:30</p>
                   </div>
-                  
-                  <!-- Email body -->
-                  <div class="p-4 space-y-3 text-sm">
-                    <p class="font-bold text-slate-900">Votre rendez-vous OptiClinic est confirmé</p>
-                    <p class="text-slate-600">Bonjour,</p>
-                    <p class="text-slate-600">Votre rendez-vous avec <strong>Dr. Meher Labidi</strong> est confirmé pour le <strong>28 Mai 2026 à 09:00</strong>.</p>
-                    <p class="text-slate-600">Accédez à votre espace patient pour plus de détails:</p>
-                    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                      <p class="text-primary font-semibold text-xs break-all">https://opticlinic.tn/patient/portal/a7f9d3</p>
+                  <div class="p-4 space-y-2 text-sm">
+                    <p class="font-bold text-slate-900">Votre RDV OptiClinic est confirmé</p>
+                    <p class="text-slate-600 text-xs leading-relaxed">Votre rendez-vous avec <strong>Dr. Meher Labidi</strong> est confirmé pour le <strong>28 Mai 2026 à 09:00</strong>.</p>
+                    <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                      <p class="text-[11px] font-semibold break-all" style="color:var(--oc-brand);">https://opticlinic.tn/patient/portal/a7f9d3...</p>
                     </div>
-                    <p class="text-slate-500 text-xs mt-4">OptiClinic — Votre santé, notre priorité</p>
+                    <p class="text-slate-400 text-[10px]">OptiClinic — Votre santé, notre priorité</p>
                   </div>
                 </div>
               </div>
@@ -424,142 +532,129 @@
           </div>
         </div>
 
-        <!-- Right: email delivery cards -->
-        <div class="lg:col-span-1 space-y-6">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900 mb-4">Options d'envoi</h3>
-            <div class="space-y-3">
-              <!-- Email card -->
-              <div class="bg-gradient-to-br from-primary/5 to-cyan-500/5 rounded-2xl p-5 border border-primary/20 shadow-sm">
-                <div class="flex items-center justify-between mb-3">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">📧</div>
-                    <div>
-                      <p class="font-bold text-slate-900">Email (Recommandé)</p>
-                      <p class="text-xs text-slate-500">Livraison instantanée</p>
-                    </div>
-                  </div>
-                  <span class="px-2 py-1 bg-primary text-white text-xs font-bold rounded-full">Recommandé</span>
+        <div class="lg:col-span-1 space-y-4">
+          <h3 class="text-lg font-bold text-slate-900 mb-4">Options d'envoi</h3>
+          <div class="oc-card-glass p-5" style="border-radius:1.5rem;border-color:rgba(2,132,199,0.15);">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style="background:rgba(2,132,199,0.08);">📧</div>
+                <div>
+                  <p class="font-bold text-slate-900 text-sm">Email (Recommandé)</p>
+                  <p class="text-xs text-slate-500">Livraison instantanée</p>
                 </div>
-                <ul class="space-y-2 text-sm text-slate-600">
-                  <li class="flex items-center gap-2">
-                    <span class="text-primary">✓</span>
-                    <span>Livraison instantanée</span>
-                  </li>
-                  <li class="flex items-center gap-2">
-                    <span class="text-primary">✓</span>
-                    <span>Taux d'ouverture > 98%</span>
-                  </li>
-                  <li class="flex items-center gap-2">
-                    <span class="text-primary">✓</span>
-                    <span>Fonctionne sur tous les appareils</span>
-                  </li>
-                </ul>
               </div>
-
-              <!-- SMS card -->
-              <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm opacity-60">
-                <div class="flex items-center gap-3 mb-3">
-                  <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">📱</div>
-                  <div>
-                    <p class="font-bold text-slate-700">SMS (Alternative)</p>
-                    <p class="text-xs text-slate-500">Pour les urgences</p>
-                  </div>
-                </div>
-                <ul class="space-y-2 text-sm text-slate-500">
-                  <li class="flex items-center gap-2">
-                    <span class="text-slate-400">○</span>
-                    <span>Détails complets</span>
-                  </li>
-                  <li class="flex items-center gap-2">
-                    <span class="text-slate-400">○</span>
-                    <span>Pièces jointes possibles</span>
-                  </li>
-                </ul>
-              </div>
+              <span class="oc-badge oc-badge-brand" style="font-size:0.65rem;">Recommandé</span>
             </div>
+            <ul class="space-y-1.5 text-xs text-slate-600">
+              <li class="flex items-center gap-2"><span style="color:#10b981;font-weight:700;">✓</span> Livraison instantanée</li>
+              <li class="flex items-center gap-2"><span style="color:#10b981;font-weight:700;">✓</span> Taux d'ouverture &gt; 98%</li>
+              <li class="flex items-center gap-2"><span style="color:#10b981;font-weight:700;">✓</span> Fonctionne sur tous les appareils</li>
+            </ul>
           </div>
-
-          <!-- Brevo highlighted -->
-          <div>
-            <h3 class="text-lg font-bold text-slate-900 mb-4">Solutions d'envoi en Tunisie</h3>
-            <div class="space-y-3">
-              <div class="bg-gradient-to-r from-primary to-cyan-500 rounded-2xl p-4 text-white shadow-lg">
-                <div class="flex items-center justify-between mb-2">
-                  <p class="font-bold">Brevo</p>
-                  <span class="px-2 py-1 bg-white/20 text-white text-xs font-bold rounded-full">GRATUIT</span>
-                </div>
-                <p class="text-sm opacity-90 mb-2">300 emails/jour gratuits</p>
-                <p class="text-xs opacity-80">API facile à intégrer</p>
-              </div>
-
-              <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
-                <div class="flex items-center justify-between mb-2">
-                  <p class="font-bold text-slate-900">SendGrid</p>
-                  <span class="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">PAYANT</span>
-                </div>
-                <p class="text-sm text-slate-600">100 emails/jour gratuits</p>
-              </div>
-
-              <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
-                <div class="flex items-center justify-between mb-2">
-                  <p class="font-bold text-slate-900">Mailgun</p>
-                  <span class="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">PAYANT</span>
-                </div>
-                <p class="text-sm text-slate-600">5 000 emails/mois gratuits</p>
-              </div>
+          <div class="p-4 rounded-2xl border" style="background:#f0fdf4;border-color:#bbf7d0;">
+            <div class="flex items-center gap-2 mb-1">
+              <span style="font-size:1.25rem;">🔒</span>
+              <p class="font-bold text-emerald-800 text-sm">Sécurité garantie</p>
             </div>
-          </div>
-
-          <!-- Security indicators -->
-          <div class="bg-emerald-50 rounded-2xl p-4 border border-emerald-200">
-            <div class="flex items-center gap-3 mb-2">
-              <span class="text-2xl">🔒</span>
-              <p class="font-bold text-emerald-800">Sécurité garantie</p>
-            </div>
-            <p class="text-sm text-emerald-700">Chiffrement de bout en bout · Conforme RGPD · Pas besoin de VPN</p>
+            <p class="text-xs text-emerald-700">Chiffrement de bout en bout · Conforme RGPD · Pas besoin de VPN</p>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-<section class="py-24 relative z-10">
+  <!-- ═══════════ DOCTOR CTA ═══════════ -->
+  <section class="py-24 relative z-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="bg-primary rounded-[3rem] p-10 md:p-16 text-white flex flex-col md:flex-row items-center justify-between gap-12 relative overflow-hidden shadow-2xl">
-        <div class="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-white opacity-10 rounded-full blur-3xl"></div>
+      <div class="relative rounded-[3rem] p-10 md:p-16 overflow-hidden flex flex-col lg:flex-row items-center justify-between gap-14"
+           style="background:linear-gradient(135deg,#0c4a6e 0%,var(--oc-brand) 45%,var(--oc-cyan) 85%,var(--oc-cyan-dark) 100%);
+                  box-shadow:0 40px 80px rgba(2,132,199,0.28);">
+        <div class="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 rounded-full blur-3xl" style="background:rgba(255,255,255,0.08);"></div>
+        <div class="absolute bottom-0 left-1/3 w-64 h-64 rounded-full blur-3xl" style="background:rgba(6,182,212,0.12);"></div>
+
         <div class="max-w-xl relative z-10">
-          <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full text-sm font-bold tracking-wide border border-white/10 mb-8 backdrop-blur-md">
+          <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold tracking-wide border mb-8"
+               style="background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.2);backdrop-filter:blur(8px);color:white;">
             Pour les médecins
           </div>
-          <h2 class="text-4xl lg:text-5xl font-extrabold mb-6 leading-tight">Le cockpit clinique qui rend votre journée fluide.</h2>
-          <p class="text-primary-light text-lg mb-10 font-medium leading-relaxed max-w-lg">Planning intelligent, dossiers patients, mode urgence et analytics — tout est à portée d'un clic, sur desktop comme sur tablette.</p>
-          <div class="flex gap-4">
-            <a routerLink="/medical-staff/login" class="bg-white text-primary font-bold px-8 py-4 rounded-full hover:bg-slate-50 hover:scale-105 transition-all shadow-xl">Accéder au cockpit</a>
-            <a href="#" class="bg-transparent text-white border border-white/30 font-bold px-8 py-4 rounded-full hover:bg-white/10 transition-all">Demander une démo</a>
+          <h2 class="text-4xl lg:text-5xl font-black mb-6 leading-tight text-white">Le cockpit clinique qui rend votre journée fluide.</h2>
+          <p class="text-lg mb-10 font-medium leading-relaxed max-w-lg" style="color:rgba(186,230,253,0.9);">Planning intelligent, dossiers patients, mode urgence et analytics — tout à portée d'un clic.</p>
+          <div class="flex flex-wrap gap-4">
+            <a routerLink="/medical-staff/authenticate"
+               class="bg-white font-bold px-8 py-4 rounded-full hover:bg-slate-50 hover:scale-105 transition-all shadow-xl"
+               style="color:var(--oc-brand);">Accéder au cockpit</a>
+            <a href="#" class="font-bold px-8 py-4 rounded-full transition-all text-white"
+               style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);backdrop-filter:blur(8px);">Demander une démo</a>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 relative z-10 flex-shrink-0 w-full md:w-auto">
-          <div class="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20">
-            <div class="text-3xl font-black mb-2 text-white">42</div>
-            <div class="text-sm text-primary-light font-medium">RDV cette semaine</div>
+        <div class="grid grid-cols-2 gap-4 relative z-10 flex-shrink-0">
+          <div class="p-6 rounded-3xl text-center" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(8px);">
+            <div class="text-3xl font-black text-white mb-1">42</div>
+            <div class="text-sm font-medium" style="color:rgba(186,230,253,0.85);">RDV cette semaine</div>
           </div>
-          <div class="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20">
-            <div class="text-3xl font-black mb-2 text-white">98%</div>
-            <div class="text-sm text-primary-light font-medium">taux de présence</div>
+          <div class="p-6 rounded-3xl text-center" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(8px);">
+            <div class="text-3xl font-black text-white mb-1">98%</div>
+            <div class="text-sm font-medium" style="color:rgba(186,230,253,0.85);">Taux de présence</div>
           </div>
-          <div class="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20">
-            <div class="text-3xl font-black mb-2 text-white">6min</div>
-            <div class="text-sm text-primary-light font-medium">temps moyen</div>
+          <div class="p-6 rounded-3xl text-center" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(8px);">
+            <div class="text-3xl font-black text-white mb-1">6min</div>
+            <div class="text-sm font-medium" style="color:rgba(186,230,253,0.85);">Temps moyen</div>
           </div>
-          <div class="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20">
-            <div class="text-3xl font-black mb-2 text-white">12</div>
-            <div class="text-sm text-primary-light font-medium">patients critiques</div>
+          <div class="p-6 rounded-3xl text-center" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(8px);">
+            <div class="text-3xl font-black text-white mb-1">12</div>
+            <div class="text-sm font-medium" style="color:rgba(186,230,253,0.85);">Patients critiques</div>
           </div>
         </div>
       </div>
     </div>
   </section>
+
+  <!-- ═══════════ FOOTER ═══════════ -->
+  <footer class="relative z-10 py-14 border-t border-slate-100/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid md:grid-cols-4 gap-12 mb-12">
+        <div class="md:col-span-2">
+          <app-logo size="md"></app-logo>
+          <p class="text-slate-400 text-sm font-medium mt-4 max-w-xs leading-relaxed">
+            La plateforme médicale intelligente de Tunisie. Sécurisée, rapide, certifiée RGPD.
+          </p>
+          <div class="flex gap-3 mt-6">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                 style="background:rgba(2,132,199,0.06);border:1px solid rgba(2,132,199,0.12);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.71 3.45 2 2 0 0 1 3.69 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l.86-.86a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </div>
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                 style="background:rgba(2,132,199,0.06);border:1px solid rgba(2,132,199,0.12);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h4 class="font-black text-slate-900 text-xs mb-4 uppercase tracking-widest">Patients</h4>
+          <ul class="space-y-2.5 text-sm text-slate-400 font-medium">
+            <li><a routerLink="/patient/booking" class="hover:text-slate-700 transition-colors">Prendre RDV</a></li>
+            <li><a routerLink="/doctors" class="hover:text-slate-700 transition-colors">Nos médecins</a></li>
+            <li><a href="#specialites" class="hover:text-slate-700 transition-colors">Spécialités</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-black text-slate-900 text-xs mb-4 uppercase tracking-widest">Médecins</h4>
+          <ul class="space-y-2.5 text-sm text-slate-400 font-medium">
+            <li><a routerLink="/medical-staff/authenticate" class="hover:text-slate-700 transition-colors">Espace médecin</a></li>
+            <li><a href="#" class="hover:text-slate-700 transition-colors">Rejoindre OptiClinic</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-slate-100 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <p class="text-slate-400 text-sm font-medium">© 2026 OptiClinic. Tous droits réservés.</p>
+        <div class="flex gap-6 text-sm text-slate-400 font-medium">
+          <a href="#" class="hover:text-slate-700 transition-colors">Confidentialité</a>
+          <a href="#" class="hover:text-slate-700 transition-colors">Mentions légales</a>
+          <a href="#" class="hover:text-slate-700 transition-colors">RGPD</a>
+        </div>
+      </div>
+    </div>
+  </footer>
 
 </main>

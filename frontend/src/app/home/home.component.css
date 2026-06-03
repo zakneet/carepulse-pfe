@@ -1,267 +1,54 @@
-.home-shell {
-  min-height: 100vh;
-  padding: 0 0 48px;
-  color: #e6eef8;
+/* OptiClinic Home — Component Styles */
+:host { display: block; }
+
+/* Sticky header glassmorphism */
+.oc-home-header {
+  background: rgba(255,255,255,0.80);
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  border-bottom: 1px solid rgba(148,163,184,0.12);
+  box-shadow: 0 1px 24px rgba(0,0,0,0.04);
 }
 
-.home-dark-shell {
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(15, 118, 110, 0.20), transparent 30%),
-    #0f172a;
-}
-
-.hero-card,
-.section-card,
-.weather-card,
-.actions-card,
-.stat-card,
-.appointment-card,
-.hero-panel,
-.dark-feature-card {
-  border-radius: 16px;
-  background: #111827;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.35);
-}
-
-.dark-topbar {
-  max-width: 1200px;
-  margin-bottom: 32px;
-}
-
-.hero-section,
-.content-section {
-  width: min(1200px, 92vw);
-  margin: 0 auto;
-}
-
-.hero-dark {
-  padding: 18px 0 12px;
-}
-
-.hero-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 2rem;
-  align-items: center;
-}
-
-.hero-slogan {
-  padding: 0;
-}
-
-.hero-copy-dark {
-  background: transparent;
-}
-
-.hero-visual-dark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.hero-panel {
-  width: 100%;
-  padding: 18px;
-  display: grid;
-  gap: 12px;
-  background: linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(11, 18, 32, 0.96));
-}
-
-.panel-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.panel-status {
-  color: #9aa7bf;
-  font-size: 0.9rem;
-}
-
-.panel-card {
-  padding: 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.panel-card strong {
-  display: block;
-  margin-bottom: 4px;
-  color: #f8fafc;
-}
-
-.panel-card p {
-  margin: 0;
-  color: #9aa7bf;
-}
-
-.panel-card-small {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.panel-card-small span {
-  font-size: 1.35rem;
-}
-
-.panel-card-large {
-  min-height: 100px;
-  display: grid;
-  align-content: center;
-}
-
-.panel-card.accent {
-  background: linear-gradient(135deg, rgba(15, 118, 110, 0.2), rgba(37, 99, 235, 0.14));
-}
-
-.content-dark {
-  padding-top: 3rem;
-}
-
-.dark-heading h2,
-.section-head h2,
-.actions-card h2,
-.weather-card h3 {
-  color: #f8fafc;
-}
-
-.dark-heading p {
-  color: #9aa7bf;
-}
-
-.dark-feature-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2rem;
-}
-
-.dark-feature-card {
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.dark-feature-card p,
-.dark-feature-card h3 {
-  color: #f8fafc;
-}
-
-.dark-feature-card p {
-  color: #9aa7bf;
-}
-
-.eyebrow {
-  margin: 0 0 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.78rem;
-  color: #7dd3fc;
-  font-weight: 800;
-}
-
-.eyebrow {
-  margin: 0 0 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.78rem;
-  color: #7dd3fc;
-  font-weight: 800;
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 3.2rem);
-  letter-spacing: -0.04em;
-}
-
-.subtitle,
-.section-head p,
-.empty-state,
-.actions-card p,
-.hero-text {
-  color: #9aa7bf;
-}
-
-.hero-actions,
-.actions-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.primary-action,
-.secondary-action,
-.link-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 46px;
-  padding: 0.85rem 1.4rem;
-  border-radius: 999px;
-  font-weight: 800;
+/* Nav link animated underline */
+.oc-nav-link {
+  position: relative;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
   text-decoration: none;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  border-radius: 0.75rem;
+  transition: color 0.2s ease, background 0.2s ease;
 }
+.oc-nav-link:hover { color: #0f172a; background: rgba(248,250,252,0.8); }
 
-.primary-action {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  color: #fff;
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24);
+/* Avatar color helpers used in *ngFor trust row */
+.bg-\[\#ef4444\] { background: #ef4444; }
+.bg-\[\#0284c7\] { background: #0284c7; }
+.bg-\[\#10b981\] { background: #10b981; }
+.bg-\[\#f59e0b\] { background: #f59e0b; }
+.bg-\[\#8b5cf6\] { background: #8b5cf6; }
+
+/* Doctor avatar colors — must match getAvatarColor() output */
+.bg-\[\#0ea5e9\] { background: #0ea5e9; }
+.bg-\[\#ef4444\] { background: #ef4444; }
+.bg-\[\#a855f7\] { background: #a855f7; }
+.bg-\[\#10b981\] { background: #10b981; }
+.bg-\[\#f59e0b\] { background: #f59e0b; }
+.bg-\[\#3b82f6\] { background: #3b82f6; }
+
+/* Floating CTA scroll indicator */
+@keyframes oc-bounce {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(8px); }
 }
+.oc-scroll-indicator { animation: oc-bounce 2s ease-in-out infinite; }
 
-.secondary-action,
-.link-pill {
-  color: #d1fae5;
-  border: 1px solid rgba(45, 212, 191, 0.22);
-  background: rgba(15, 118, 110, 0.18);
+/* Responsive */
+@media (max-width: 1024px) {
+  .oc-home-header nav { display: none; }
 }
-
-.primary-action:hover,
-.secondary-action:hover,
-.link-pill:hover {
-  transform: translateY(-1px);
-}
-
-@media (max-width: 900px) {
-  .hero-grid,
-  .dark-feature-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-actions,
-  .actions-row {
-    justify-content: flex-start;
-  }
-
-  .hero-panel {
-    max-width: 560px;
-  }
-}
-
-@media (max-width: 640px) {
-  .hero-section,
-  .content-section {
-    width: min(1200px, calc(100% - 24px));
-  }
-
-  .hero-shell,
-  .content-dark {
-    padding-top: 1.5rem;
-  }
-
-  .hero-grid {
-    gap: 1.25rem;
-  }
-
-  .dark-feature-card {
-    padding: 1.25rem;
-  }
+@media (max-width: 768px) {
+  .oc-card-glass { border-radius: 1.25rem !important; }
 }

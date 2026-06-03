@@ -24,7 +24,10 @@
             "tsConfig": "tsconfig.app.json",
             "allowedCommonJsDependencies": [
               "debug",
-              "socket.io-parser"
+              "socket.io-parser",
+              "aos",
+              "vanilla-tilt",
+              "countup.js"
             ],
             "assets": [
               "src/favicon.ico",
@@ -33,9 +36,15 @@
             ],
             "styles": [
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
+              "node_modules/animate.css/animate.min.css",
+              "node_modules/aos/dist/aos.css",
               "src/styles.css"
             ],
-            "scripts": [],
+            "scripts": [
+              "node_modules/aos/dist/aos.js",
+              "node_modules/vanilla-tilt/dist/vanilla-tilt.min.js",
+              "node_modules/countup.js/dist/countUp.umd.js"
+            ],
             "serviceWorker": true,
             "ngswConfigPath": "ngsw-config.json"
           },
@@ -44,13 +53,13 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "1200kb",
-                  "maximumError": "1500kb"
+                  "maximumWarning": "1500kb",
+                  "maximumError": "2500kb"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "12kb",
-                  "maximumError": "20kb"
+                  "maximumWarning": "20kb",
+                  "maximumError": "40kb"
                 }
               ],
               "fileReplacements": [

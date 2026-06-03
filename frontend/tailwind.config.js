@@ -17,12 +17,16 @@ module.exports = {
         warning: '#F59E0B',
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['DM Sans', 'Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       animation: {
         blob: "blob 7s infinite",
         float: "float 6s ease-in-out infinite",
         pulseFast: "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        'fade-up': 'fadeUp 0.6s ease-out both',
+        'slide-in': 'slideIn 0.4s ease-out both',
+        'gradient-shift': 'gradientShift 4s ease infinite',
       },
       keyframes: {
         blob: {
