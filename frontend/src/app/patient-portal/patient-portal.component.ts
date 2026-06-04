@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import {
   PatientPortalData,
@@ -53,6 +53,7 @@ export class PatientPortalComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private portalService: PatientPortalService,
     private http: HttpClient
   ) {}
@@ -174,5 +175,16 @@ export class PatientPortalComponent implements OnInit {
 
   get unreadNotifications(): number {
     return (this.data?.notifications || []).filter((n) => !n.read).length;
+  }
+
+  rebookAppointment(): void {
+    if (!this.data || !this.data.doctor || !this.data.token) return;
+    this.router.navigate(['/patient/booking'], {
+      queryParams: {
+        doctorId: this.data.doctor.idPersonnel || this.data.doctor.id,
+        fromPortal: 'true',
+        portalToken: this.data.token
+      }
+    });
   }
 }

@@ -163,6 +163,21 @@ export class PlanningComponent implements OnInit, OnDestroy {
           Math.max(1, Math.round(event.longAbsenceValue || 1)),
           event.longAbsenceUnit || 'day'
         );
+        return;
+      }
+    });
+
+    this.route.queryParams.subscribe(params => {
+      if (params['emergency'] === 'patient-on-site') {
+        setTimeout(() => this.integrateUrgentPatient(), 100);
+        
+        // Remove query param to prevent reopening on refresh
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { emergency: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true
+        });
       }
     });
 

@@ -68,6 +68,8 @@ export interface NewRdv {
   nom?: string;
   prenom?: string;
   telephone?: string;
+  email?: string;
+  agePatient?: number;
 }
 
 export interface MedicalStaff {

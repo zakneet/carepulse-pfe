@@ -100,6 +100,35 @@
         <label class="text-sm font-bold text-slate-700 ml-1">Téléphone</label>
         <input class="w-full h-12 px-4 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#0284c7] transition-all text-slate-900 placeholder:text-slate-400 font-medium" type="tel" name="telephone" [(ngModel)]="patientForm.telephone" placeholder="Téléphone du patient">
       </div>
+
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-bold text-slate-700 ml-1">Email</label>
+        <input class="w-full h-12 px-4 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#0284c7] transition-all text-slate-900 placeholder:text-slate-400 font-medium" type="email" name="email" [(ngModel)]="patientForm.email" placeholder="Email du patient (pour espace patient)">
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-bold text-slate-700 ml-1">Âge</label>
+        <input class="w-full h-12 px-4 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#0284c7] transition-all text-slate-900 placeholder:text-slate-400 font-medium" type="number" name="agePatient" [(ngModel)]="patientForm.agePatient" placeholder="Âge du patient">
+      </div>
+
+      <div class="flex flex-col gap-2 md:col-span-2">
+        <label class="text-sm font-bold text-slate-700 ml-1">Date du rendez-vous (Optionnel)</label>
+        <input class="w-full h-12 px-4 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#0284c7] transition-all text-slate-900 placeholder:text-slate-400 font-medium" type="date" name="dateRDV" [(ngModel)]="patientForm.dateRDV">
+      </div>
+
+      <div class="flex flex-col gap-2" *ngIf="patientForm.dateRDV">
+        <label class="text-sm font-bold text-slate-700 ml-1">Heure</label>
+        <input class="w-full h-12 px-4 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#0284c7] transition-all text-slate-900 placeholder:text-slate-400 font-medium" type="time" name="heureDebut" [(ngModel)]="patientForm.heureDebut" required>
+      </div>
+
+      <div class="flex flex-col gap-2 md:col-span-2" *ngIf="patientForm.dateRDV">
+        <label class="text-sm font-bold text-slate-700 ml-1">Motif de consultation</label>
+        <select class="w-full h-12 px-4 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#0284c7] transition-all text-slate-900 font-medium" name="motifConsultation" [(ngModel)]="patientForm.motifConsultation">
+          <option value="consultation">Consultation</option>
+          <option value="controle">Contrôle</option>
+          <option value="urgence">Urgence</option>
+        </select>
+      </div>
     </form>
   </div>
 </div>

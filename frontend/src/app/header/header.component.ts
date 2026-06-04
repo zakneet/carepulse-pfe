@@ -81,6 +81,15 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
     this.selectedEmergencyType = type;
     console.log('[Header] activateEmergency', type);
+
+    if (type === 'patient-on-site') {
+      if (!this.router.url.includes('/planning')) {
+        const baseRoute = this.router.url.includes('/nurse') ? '/medical-staff/nurse' : '/medical-staff/doctor';
+        this.router.navigate([baseRoute, 'planning'], { queryParams: { emergency: 'patient-on-site' } });
+        return; // Don't trigger the event here, the planning component will handle it after routing
+      }
+    }
+
     this.emergencyEvents.trigger({ type });
   }
 

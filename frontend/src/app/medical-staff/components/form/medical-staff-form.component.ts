@@ -25,7 +25,12 @@ export class MedicalStaffFormComponent implements OnInit {
     nom: '',
     prenom: '',
     cin: '',
-    telephone: ''
+    telephone: '',
+    email: '',
+    agePatient: '',
+    dateRDV: '',
+    heureDebut: '',
+    motifConsultation: 'consultation'
   };
 
   constructor(
@@ -55,6 +60,8 @@ export class MedicalStaffFormComponent implements OnInit {
     const prenom = this.patientForm.prenom.trim();
     const cin = this.patientForm.cin.trim();
     const telephone = this.patientForm.telephone.trim();
+    const email = this.patientForm.email.trim();
+    const agePatient = Number(this.patientForm.agePatient);
 
     if (!nom || !prenom || !cin) {
       this.saveError = 'Nom, prenom et CIN sont obligatoires.';
@@ -71,20 +78,49 @@ export class MedicalStaffFormComponent implements OnInit {
         nom,
         prenom,
         cin,
-        telephone: telephone || null
+        telephone: telephone || null,
+        email: email || null
       }
     }).subscribe({
       next: (response) => {
-        this.saving = false;
-        this.saveMessage = response.created
-          ? 'Patient enregistre avec succes dans la base de donnees.'
-          : 'Patient mis a jour avec succes dans la base de donnees.';
-
         const savedPatientId = response.patient?.id;
-        this.clearPatientForm();
 
-        if (savedPatientId) {
-          this.router.navigate([this.baseRoute, 'patient-profile', savedPatientId]);
+        if (savedPatientId && this.patientForm.dateRDV) {
+          // If RDV info is provided, create the RDV
+          this.rdvService.addRdv({
+            idPatient: savedPatientId,
+            idPersonnel: idPersonnel,
+            dateRDV: this.patientForm.dateRDV,
+            heureDebut: this.patientForm.heureDebut,
+            heureFin: this.patientForm.heureDebut, // Same as start if not provided
+            motifConsultation: this.patientForm.motifConsultation,
+            statut: this.patientForm.motifConsultation === 'urgence' ? 'Urgent' : 'Confirme',
+            isUrgent: this.patientForm.motifConsultation === 'urgence',
+            nom,
+            prenom,
+            telephone,
+            email,
+            agePatient
+          }).subscribe({
+            next: () => {
+              this.saving = false;
+              this.clearPatientForm();
+              this.router.navigate([this.baseRoute, 'planning']);
+            },
+            error: (err) => {
+              this.saving = false;
+              this.saveError = err?.error?.error || 'Patient enregistré, mais échec lors de la création du RDV.';
+            }
+          });
+        } else {
+          this.saving = false;
+          this.saveMessage = response.created
+            ? 'Patient enregistré avec succès dans la base de données.'
+            : 'Patient mis à jour avec succès dans la base de données.';
+          this.clearPatientForm();
+          if (savedPatientId) {
+            this.router.navigate([this.baseRoute, 'patient-profile', savedPatientId]);
+          }
         }
       },
       error: (error) => {
@@ -140,7 +176,12 @@ export class MedicalStaffFormComponent implements OnInit {
       nom: '',
       prenom: '',
       cin: '',
-      telephone: ''
+      telephone: '',
+      email: '',
+      agePatient: '',
+      dateRDV: '',
+      heureDebut: '',
+      motifConsultation: 'consultation'
     };
     this.saveError = '';
     this.saveMessage = '';

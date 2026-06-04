@@ -59,13 +59,19 @@ export class MedicalStaffPatientsComponent {
     this.rdvService.getMedicalStaffPatients(idPersonnel).subscribe({
       next: (rows) => {
         this.loading = false;
-        this.patients = (rows || []).map((p) => ({
-          ...p,
-          lastVisit: this.formatDate(p.lastVisit),
-          nextVisit: this.formatDate(p.nextVisit),
-          condition: p.condition || 'Consultation',
-          risk: p.risk || 'LOW'
-        }));
+        this.patients = (rows || []).map((p) => {
+          let translatedRisk = 'FAIBLE';
+          if (p.risk?.toUpperCase() === 'HIGH') translatedRisk = 'ÉLEVÉ';
+          else if (p.risk?.toUpperCase() === 'MODERATE') translatedRisk = 'MODÉRÉ';
+          
+          return {
+            ...p,
+            lastVisit: this.formatDate(p.lastVisit),
+            nextVisit: this.formatDate(p.nextVisit),
+            condition: p.condition || 'Consultation',
+            risk: translatedRisk as 'LOW' | 'MODERATE' | 'HIGH' // Cast to satisfy interface, though it's French now
+          };
+        });
         this.newThisMonth = this.patients.filter((p) => p.newThisMonth).length;
       },
       error: () => {
@@ -84,7 +90,7 @@ export class MedicalStaffPatientsComponent {
     if (!value) return undefined;
     const d = new Date(`${value}T00:00:00`);
     if (Number.isNaN(d.getTime())) return undefined;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
   }
 
   get filteredPatients(): EnrichedPatient[] {
@@ -114,8 +120,10 @@ export class MedicalStaffPatientsComponent {
   }
 
   getRiskClass(risk: string | undefined): string {
-    switch ((risk || 'LOW').toUpperCase()) {
+    switch ((risk || 'FAIBLE').toUpperCase()) {
+      case 'ÉLEVÉ':
       case 'HIGH': return 'pts-risk-badge--high';
+      case 'MODÉRÉ':
       case 'MODERATE': return 'pts-risk-badge--moderate';
       default: return 'pts-risk-badge--low';
     }

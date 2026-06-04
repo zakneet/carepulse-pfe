@@ -53,14 +53,38 @@ export class BookingComponent implements OnInit {
     });
 
     this.route.queryParams.subscribe(q => {
-      if (q['doctorId']) {
+      if (q['fromPortal'] === 'true' && q['portalToken']) {
+        this.handlePortalToken(q['portalToken']);
+      } else if (q['doctorId']) {
         this.doctorId = String(q['doctorId']);
       }
-      if (q['specialite']) {
+
+      if (!q['portalToken'] && q['specialite']) {
         this.formData.specialite = q['specialite'];
         this.loadDoctors(q['specialite']);
-      } else if (this.doctorId) {
+      } else if (!q['portalToken'] && this.doctorId) {
         this.loadDoctors();
+      }
+    });
+  }
+
+  handlePortalToken(token: string): void {
+    this.http.get<any>(`http://localhost:5000/patient/portal/${token}/booking-context`).subscribe({
+      next: (res) => {
+        if (res.patient) {
+          this.formData.firstName = res.patient.firstName || '';
+          this.formData.lastName = res.patient.lastName || '';
+          this.formData.phone = res.patient.phone || '';
+          this.formData.email = res.patient.email || '';
+        }
+        if (res.doctor) {
+          this.doctorId = String(res.doctor.idPersonnel);
+          this.formData.specialite = res.doctor.specialty || '';
+          this.doctorDetails = res.doctor;
+        }
+      },
+      error: (err) => {
+        console.error('Invalid portal token', err);
       }
     });
   }

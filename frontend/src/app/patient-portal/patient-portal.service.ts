@@ -13,6 +13,8 @@ export interface PortalPatient {
 }
 
 export interface PortalDoctor {
+  id?: number;
+  idPersonnel?: number;
   name: string;
   specialite: string;
   clinicName: string;

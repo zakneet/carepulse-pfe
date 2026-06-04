@@ -165,6 +165,13 @@
     <!-- Appointments -->
     <div class="pp-content" *ngIf="activeSection==='appointments'">
       <h2 class="pp-section-title">Mes rendez-vous</h2>
+      
+      <div class="pp-card mb-6" style="background: linear-gradient(to right, #eff6ff, #e0e7ff); border-color: #bfdbfe;" *ngIf="data.doctor">
+        <h3 style="color: #1e3a8a; font-weight: 800; font-size: 1.125rem; margin-bottom: 0.25rem;">Prendre un autre rendez-vous avec mon médecin</h3>
+        <p style="color: #475569; font-size: 0.875rem; margin-bottom: 1rem; font-weight: 500;">Planifiez rapidement une nouvelle consultation avec Dr. {{ data.doctor.name }}.</p>
+        <button type="button" (click)="rebookAppointment()" style="background-color: #0284c7; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.75rem; font-weight: 700; font-size: 0.875rem; cursor: pointer;">Choisir un créneau</button>
+      </div>
+
       <h3>À venir</h3>
       <div *ngIf="!data.upcomingAppointments.length" class="pp-empty">Aucun rendez-vous à venir.</div>
       <div class="pp-appt-list">
