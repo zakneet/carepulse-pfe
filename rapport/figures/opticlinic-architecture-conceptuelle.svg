@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="900" viewBox="0 0 1100 900"
+     font-family="Arial, Helvetica, sans-serif">
+
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1a237e"/>
+      <stop offset="100%" stop-color="#283593"/>
+    </linearGradient>
+    <linearGradient id="actorFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f3f4f6"/>
+    </linearGradient>
+    <linearGradient id="compFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#EEF2FF"/>
+    </linearGradient>
+    <linearGradient id="extFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#F0FDF4"/>
+    </linearGradient>
+    <linearGradient id="dbFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#EFF6FF"/>
+    </linearGradient>
+    <!-- Shadows -->
+    <filter id="drop" x="-8%" y="-8%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#1a237e22"/>
+    </filter>
+    <!-- Arrow markers -->
+    <marker id="arrowDep" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151"/>
+    </marker>
+    <marker id="arrowUse" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1a237e"/>
+    </marker>
+    <marker id="arrowExt" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#065f46"/>
+    </marker>
+    <marker id="arrowData" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1e40af"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="900" fill="#FAFAFA"/>
+
+  <!-- ═══ HEADER ═══ -->
+  <rect x="0" y="0" width="1100" height="52" fill="url(#headerGrad)"/>
+  <text x="550" y="30" text-anchor="middle" fill="white" font-size="16" font-weight="bold" letter-spacing="0.3">
+    Figure 4.1 — Architecture conceptuelle du système OptiClinic
+  </text>
+  <text x="550" y="46" text-anchor="middle" fill="#c7d2fe" font-size="10">
+    Diagramme de composants UML — «component diagram»
+  </text>
+
+  <!-- ════════════════════════════════════════════════════════
+       SYSTEM BOUNDARY BOX
+  ════════════════════════════════════════════════════════ -->
+  <rect x="30" y="65" width="1040" height="800" rx="4"
+        fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="10,4"/>
+  <rect x="30" y="57" width="190" height="20" rx="3" fill="#f9fafb" stroke="#9ca3af" stroke-width="1"/>
+  <text x="40" y="71" fill="#374151" font-size="10" font-style="italic">«system» OptiClinic</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       ACTORS (UML stick figures)
+  ════════════════════════════════════════════════════════ -->
+
+  <!-- Actor: Patient -->
+  <g id="actor-patient">
+    <circle cx="100" cy="125" r="14" fill="none" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="100" y1="139" x2="100" y2="175" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="72"  y1="152" x2="128" y2="152" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="100" y1="175" x2="78"  y2="198" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="100" y1="175" x2="122" y2="198" stroke="#1a237e" stroke-width="1.8"/>
+    <text x="100" y="215" text-anchor="middle" fill="#1a237e" font-size="12" font-weight="bold">Patient</text>
+    <text x="100" y="228" text-anchor="middle" fill="#6b7280" font-size="9">«actor»</text>
+  </g>
+
+  <!-- Actor: Médecin -->
+  <g id="actor-medecin">
+    <circle cx="490" cy="125" r="14" fill="none" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="490" y1="139" x2="490" y2="175" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="462" y1="152" x2="518" y2="152" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="490" y1="175" x2="468" y2="198" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="490" y1="175" x2="512" y2="198" stroke="#1a237e" stroke-width="1.8"/>
+    <text x="490" y="215" text-anchor="middle" fill="#1a237e" font-size="12" font-weight="bold">Médecin /</text>
+    <text x="490" y="228" text-anchor="middle" fill="#1a237e" font-size="12" font-weight="bold">Personnel de santé</text>
+    <text x="490" y="241" text-anchor="middle" fill="#6b7280" font-size="9">«actor»</text>
+  </g>
+
+  <!-- Actor: Admin -->
+  <g id="actor-admin">
+    <circle cx="990" cy="125" r="14" fill="none" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="990" y1="139" x2="990" y2="175" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="962" y1="152" x2="1018" y2="152" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="990" y1="175" x2="968" y2="198" stroke="#1a237e" stroke-width="1.8"/>
+    <line x1="990" y1="175" x2="1012" y2="198" stroke="#1a237e" stroke-width="1.8"/>
+    <text x="990" y="215" text-anchor="middle" fill="#1a237e" font-size="12" font-weight="bold">Administrateur</text>
+    <text x="990" y="228" text-anchor="middle" fill="#6b7280" font-size="9">«actor»</text>
+  </g>
+
+  <!-- ════════════════════════════════════════════════════════
+       COMPONENT: Interface Web Angular
+  ════════════════════════════════════════════════════════ -->
+  <g filter="url(#drop)" id="comp-angular">
+    <rect x="180" y="270" width="460" height="130" rx="5"
+          fill="url(#compFill)" stroke="#3730a3" stroke-width="2"/>
+    <!-- UML component icon (top-right) -->
+    <rect x="615" y="275" width="18" height="14" rx="1" fill="none" stroke="#3730a3" stroke-width="1.5"/>
+    <rect x="609" y="279" width="9" height="4" rx="1" fill="#3730a3"/>
+    <rect x="609" y="285" width="9" height="4" rx="1" fill="#3730a3"/>
+    <!-- Stereotype + name -->
+    <text x="272" y="296" text-anchor="middle" fill="#4338ca" font-size="10" font-style="italic">«component»</text>
+    <text x="272" y="313" text-anchor="middle" fill="#1e1b4b" font-size="14" font-weight="bold">Interface Web Angular</text>
+    <!-- Separator -->
+    <line x1="183" y1="320" x2="637" y2="320" stroke="#c7d2fe" stroke-width="1"/>
+    <!-- Sub-components as notes -->
+    <rect x="195" y="330" width="128" height="55" rx="3" fill="#e0e7ff" stroke="#6366f1" stroke-width="1"/>
+    <text x="259" y="348" text-anchor="middle" fill="#3730a3" font-size="10" font-weight="bold">Réservation en ligne</text>
+    <text x="259" y="363" text-anchor="middle" fill="#4338ca" font-size="9">+ Prise de rendez-vous</text>
+    <text x="259" y="376" text-anchor="middle" fill="#4338ca" font-size="9">+ Espace Patient</text>
+
+    <rect x="340" y="330" width="128" height="55" rx="3" fill="#e0e7ff" stroke="#6366f1" stroke-width="1"/>
+    <text x="404" y="348" text-anchor="middle" fill="#3730a3" font-size="10" font-weight="bold">Tableau de bord</text>
+    <text x="404" y="363" text-anchor="middle" fill="#4338ca" font-size="9">+ Gestion planning</text>
+    <text x="404" y="376" text-anchor="middle" fill="#4338ca" font-size="9">+ Gestion urgences</text>
+
+    <rect x="485" y="330" width="128" height="55" rx="3" fill="#e0e7ff" stroke="#6366f1" stroke-width="1"/>
+    <text x="549" y="348" text-anchor="middle" fill="#3730a3" font-size="10" font-weight="bold">Administration</text>
+    <text x="549" y="363" text-anchor="middle" fill="#4338ca" font-size="9">+ Gestion utilisateurs</text>
+    <text x="549" y="376" text-anchor="middle" fill="#4338ca" font-size="9">+ Paramétrage</text>
+  </g>
+
+  <!-- PROVIDED interface (lollipop) on Angular — right side -->
+  <circle cx="641" cy="335" r="6" fill="white" stroke="#3730a3" stroke-width="1.8"/>
+  <line x1="641" y1="341" x2="641" y2="362" stroke="#3730a3" stroke-width="1.5"/>
+  <text x="655" y="352" fill="#3730a3" font-size="8" font-style="italic">IWebUI</text>
+
+  <!-- REQUIRED interface (socket) on Angular — bottom-left -->
+  <line x1="260" y1="400" x2="260" y2="428" stroke="#6366f1" stroke-width="1.5"/>
+  <path d="M248 428 Q260 418 272 428" fill="none" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="276" y="436" fill="#6366f1" font-size="8" font-style="italic">ISocketClient</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       COMPONENT: API Backend Flask
+  ════════════════════════════════════════════════════════ -->
+  <g filter="url(#drop)" id="comp-flask">
+    <rect x="360" y="470" width="270" height="130" rx="5"
+          fill="url(#compFill)" stroke="#3730a3" stroke-width="2"/>
+    <rect x="605" y="475" width="18" height="14" rx="1" fill="none" stroke="#3730a3" stroke-width="1.5"/>
+    <rect x="599" y="479" width="9" height="4" rx="1" fill="#3730a3"/>
+    <rect x="599" y="485" width="9" height="4" rx="1" fill="#3730a3"/>
+    <text x="492" y="495" text-anchor="middle" fill="#4338ca" font-size="10" font-style="italic">«component»</text>
+    <text x="492" y="512" text-anchor="middle" fill="#1e1b4b" font-size="14" font-weight="bold">API Backend Flask</text>
+    <line x1="363" y1="518" x2="627" y2="518" stroke="#c7d2fe" stroke-width="1"/>
+    <text x="492" y="535" text-anchor="middle" fill="#374151" font-size="10">+ Authentification JWT</text>
+    <text x="492" y="551" text-anchor="middle" fill="#374151" font-size="10">+ Gestion des rendez-vous</text>
+    <text x="492" y="567" text-anchor="middle" fill="#374151" font-size="10">+ Logique métier</text>
+    <text x="492" y="583" text-anchor="middle" fill="#374151" font-size="10">+ Orchestration services</text>
+  </g>
+
+  <!-- PROVIDED interface top of Flask (receives from Angular) -->
+  <circle cx="492" cy="470" r="6" fill="white" stroke="#3730a3" stroke-width="1.8"/>
+  <text x="510" y="467" fill="#3730a3" font-size="8" font-style="italic">IREST</text>
+
+  <!-- REQUIRED interfaces of Flask -->
+  <!-- Left → OR-Tools -->
+  <line x1="363" y1="530" x2="335" y2="530" stroke="#6366f1" stroke-width="1.5"/>
+  <path d="M335 518 Q325 530 335 542" fill="none" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="278" y="527" fill="#6366f1" font-size="8" font-style="italic">IOptimizer</text>
+
+  <!-- Bottom-left → MySQL -->
+  <line x1="420" y1="600" x2="420" y2="630" stroke="#6366f1" stroke-width="1.5"/>
+  <path d="M408 630 Q420 620 432 630" fill="none" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="435" y="630" fill="#6366f1" font-size="8" font-style="italic">ISQL</text>
+
+  <!-- Bottom-right → Brevo -->
+  <line x1="570" y1="600" x2="570" y2="630" stroke="#6366f1" stroke-width="1.5"/>
+  <path d="M558 630 Q570 620 582 630" fill="none" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="585" y="630" fill="#6366f1" font-size="8" font-style="italic">IEmailSvc</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       COMPONENT: Canal temps réel Socket.IO
+  ════════════════════════════════════════════════════════ -->
+  <g filter="url(#drop)" id="comp-socket">
+    <rect x="700" y="270" width="250" height="120" rx="5"
+          fill="url(#compFill)" stroke="#0f766e" stroke-width="2"/>
+    <rect x="925" y="275" width="18" height="14" rx="1" fill="none" stroke="#0f766e" stroke-width="1.5"/>
+    <rect x="919" y="279" width="9" height="4" rx="1" fill="#0f766e"/>
+    <rect x="919" y="285" width="9" height="4" rx="1" fill="#0f766e"/>
+    <text x="820" y="295" text-anchor="middle" fill="#0f766e" font-size="10" font-style="italic">«component»</text>
+    <text x="820" y="312" text-anchor="middle" fill="#134e4a" font-size="13" font-weight="bold">Canal temps réel</text>
+    <text x="820" y="328" text-anchor="middle" fill="#134e4a" font-size="13" font-weight="bold">Socket.IO</text>
+    <line x1="703" y1="335" x2="947" y2="335" stroke="#99f6e4" stroke-width="1"/>
+    <text x="820" y="352" text-anchor="middle" fill="#374151" font-size="10">+ WebSocket bidirectionnel</text>
+    <text x="820" y="368" text-anchor="middle" fill="#374151" font-size="10">+ Diffusion notifications</text>
+  </g>
+
+  <!-- PROVIDED interface on Socket.IO (left, connects to Angular) -->
+  <circle cx="700" cy="310" r="6" fill="white" stroke="#0f766e" stroke-width="1.8"/>
+  <text x="650" y="308" text-anchor="end" fill="#0f766e" font-size="8" font-style="italic">ISocket</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       COMPONENT: Module d'optimisation OR-Tools
+  ════════════════════════════════════════════════════════ -->
+  <g filter="url(#drop)" id="comp-ortools">
+    <rect x="50" y="470" width="260" height="120" rx="5"
+          fill="url(#compFill)" stroke="#7c3aed" stroke-width="2"/>
+    <rect x="283" y="475" width="18" height="14" rx="1" fill="none" stroke="#7c3aed" stroke-width="1.5"/>
+    <rect x="277" y="479" width="9" height="4" rx="1" fill="#7c3aed"/>
+    <rect x="277" y="485" width="9" height="4" rx="1" fill="#7c3aed"/>
+    <text x="178" y="493" text-anchor="middle" fill="#7c3aed" font-size="10" font-style="italic">«component»</text>
+    <text x="178" y="510" text-anchor="middle" fill="#3b0764" font-size="13" font-weight="bold">Module optimisation</text>
+    <text x="178" y="526" text-anchor="middle" fill="#3b0764" font-size="13" font-weight="bold">OR-Tools</text>
+    <line x1="53" y1="532" x2="307" y2="532" stroke="#ddd6fe" stroke-width="1"/>
+    <text x="178" y="549" text-anchor="middle" fill="#374151" font-size="10">+ Optimisation des créneaux</text>
+    <text x="178" y="565" text-anchor="middle" fill="#374151" font-size="10">+ Réorganisation planning</text>
+    <text x="178" y="581" text-anchor="middle" fill="#374151" font-size="10">+ Résolution de conflits</text>
+  </g>
+
+  <!-- PROVIDED interface on OR-Tools (right, serves Flask) -->
+  <circle cx="310" cy="510" r="6" fill="white" stroke="#7c3aed" stroke-width="1.8"/>
+  <text x="320" y="507" fill="#7c3aed" font-size="8" font-style="italic">IOptimizer</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       COMPONENT: Base de données MySQL
+  ════════════════════════════════════════════════════════ -->
+  <g filter="url(#drop)" id="comp-mysql">
+    <rect x="200" y="680" width="280" height="140" rx="5"
+          fill="url(#dbFill)" stroke="#1d4ed8" stroke-width="2"/>
+    <rect x="453" y="685" width="18" height="14" rx="1" fill="none" stroke="#1d4ed8" stroke-width="1.5"/>
+    <rect x="447" y="689" width="9" height="4" rx="1" fill="#1d4ed8"/>
+    <rect x="447" y="695" width="9" height="4" rx="1" fill="#1d4ed8"/>
+    <text x="325" y="703" text-anchor="middle" fill="#1d4ed8" font-size="10" font-style="italic">«database»</text>
+    <text x="325" y="720" text-anchor="middle" fill="#1e3a8a" font-size="13" font-weight="bold">Base de données MySQL</text>
+    <!-- Cylinder shape -->
+    <ellipse cx="240" cy="746" rx="22" ry="8" fill="#bfdbfe" stroke="#1d4ed8" stroke-width="1"/>
+    <rect x="218" y="746" width="44" height="34" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1"/>
+    <ellipse cx="240" cy="780" rx="22" ry="8" fill="#93c5fd" stroke="#1d4ed8" stroke-width="1"/>
+    <line x1="340" y1="728" x2="460" y2="728" stroke="#bfdbfe" stroke-width="1"/>
+    <text x="405" y="745" text-anchor="middle" fill="#374151" font-size="10">patients</text>
+    <text x="405" y="760" text-anchor="middle" fill="#374151" font-size="10">rendez-vous</text>
+    <text x="405" y="775" text-anchor="middle" fill="#374151" font-size="10">plannings</text>
+    <text x="405" y="790" text-anchor="middle" fill="#374151" font-size="10">notifications</text>
+    <text x="405" y="805" text-anchor="middle" fill="#374151" font-size="10">paramètres</text>
+  </g>
+
+  <!-- PROVIDED interface on MySQL (top) -->
+  <circle cx="325" cy="680" r="6" fill="white" stroke="#1d4ed8" stroke-width="1.8"/>
+  <text x="343" y="677" fill="#1d4ed8" font-size="8" font-style="italic">ISQL</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       COMPONENT: Service Email Brevo
+  ════════════════════════════════════════════════════════ -->
+  <g filter="url(#drop)" id="comp-brevo">
+    <rect x="640" y="680" width="280" height="140" rx="5"
+          fill="url(#extFill)" stroke="#059669" stroke-width="2"/>
+    <rect x="893" y="685" width="18" height="14" rx="1" fill="none" stroke="#059669" stroke-width="1.5"/>
+    <rect x="887" y="689" width="9" height="4" rx="1" fill="#059669"/>
+    <rect x="887" y="695" width="9" height="4" rx="1" fill="#059669"/>
+    <text x="778" y="703" text-anchor="middle" fill="#059669" font-size="10" font-style="italic">«external service»</text>
+    <text x="778" y="720" text-anchor="middle" fill="#064e3b" font-size="13" font-weight="bold">Service Email Brevo</text>
+    <!-- envelope icon -->
+    <rect x="655" y="738" width="48" height="34" rx="3" fill="#d1fae5" stroke="#059669" stroke-width="1.3"/>
+    <path d="M655 738 L679 756 L703 738" stroke="#059669" stroke-width="1.5" fill="none"/>
+    <line x1="735" y1="728" x2="913" y2="728" stroke="#a7f3d0" stroke-width="1"/>
+    <text x="820" y="748" text-anchor="middle" fill="#374151" font-size="10">+ Email de confirmation</text>
+    <text x="820" y="764" text-anchor="middle" fill="#374151" font-size="10">+ Lien espace patient</text>
+    <text x="820" y="780" text-anchor="middle" fill="#374151" font-size="10">+ Notification rendez-vous</text>
+  </g>
+
+  <!-- PROVIDED interface on Brevo (top) -->
+  <circle cx="778" cy="680" r="6" fill="white" stroke="#059669" stroke-width="1.8"/>
+  <text x="796" y="677" fill="#059669" font-size="8" font-style="italic">IEmailSvc</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       DEPENDENCIES (dashed arrows with «use» stereotype)
+  ════════════════════════════════════════════════════════ -->
+
+  <!-- Patient → Interface Web (use) -->
+  <line x1="133" y1="200" x2="220" y2="305"
+        stroke="#374151" stroke-width="1.5" stroke-dasharray="7,4"
+        marker-end="url(#arrowDep)"/>
+  <rect x="115" y="238" width="90" height="14" rx="3" fill="#f9fafb" opacity="0.9"/>
+  <text x="160" y="249" text-anchor="middle" fill="#374151" font-size="9" font-style="italic">«use»</text>
+
+  <!-- Médecin → Interface Web (use) -->
+  <line x1="490" y1="248" x2="490" y2="268"
+        stroke="#374151" stroke-width="1.5" stroke-dasharray="7,4"
+        marker-end="url(#arrowDep)"/>
+  <rect x="444" y="252" width="38" height="14" rx="3" fill="#f9fafb" opacity="0.9"/>
+  <text x="463" y="263" text-anchor="middle" fill="#374151" font-size="9" font-style="italic">«use»</text>
+
+  <!-- Admin → Interface Web (use) -->
+  <line x1="990" y1="235" x2="900" y2="340"
+        stroke="#374151" stroke-width="1.5" stroke-dasharray="7,4"
+        marker-end="url(#arrowDep)"/>
+  <rect x="930" y="272" width="42" height="14" rx="3" fill="#f9fafb" opacity="0.9"/>
+  <text x="951" y="283" text-anchor="middle" fill="#374151" font-size="9" font-style="italic">«use»</text>
+
+  <!-- Angular → Flask (REST) — dependency -->
+  <line x1="492" y1="400" x2="492" y2="464"
+        stroke="#1a237e" stroke-width="1.8" stroke-dasharray="8,4"
+        marker-end="url(#arrowUse)"/>
+  <rect x="420" y="423" width="130" height="14" rx="3" fill="#f9fafb" opacity="0.92"/>
+  <text x="485" y="434" text-anchor="middle" fill="#1a237e" font-size="9" font-style="italic">«use» API REST</text>
+
+  <!-- Angular → Socket.IO (use websocket) -->
+  <line x1="641" y1="320" x2="694" y2="310"
+        stroke="#0f766e" stroke-width="1.8" stroke-dasharray="8,4"
+        marker-end="url(#arrowExt)"/>
+  <rect x="635" y="302" width="56" height="14" rx="3" fill="#f9fafb" opacity="0.92"/>
+  <text x="663" y="313" text-anchor="middle" fill="#0f766e" font-size="9" font-style="italic">«use»</text>
+
+  <!-- Flask → OR-Tools -->
+  <line x1="363" y1="530" x2="316" y2="522"
+        stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="8,4"
+        marker-end="url(#arrowUse)"/>
+  <rect x="295" y="514" width="80" height="14" rx="3" fill="#f9fafb" opacity="0.92"/>
+  <text x="335" y="525" text-anchor="middle" fill="#7c3aed" font-size="9" font-style="italic">«use»</text>
+
+  <!-- Flask → MySQL -->
+  <line x1="420" y1="600" x2="360" y2="674"
+        stroke="#1d4ed8" stroke-width="1.8" stroke-dasharray="8,4"
+        marker-end="url(#arrowData)"/>
+  <rect x="340" y="628" width="78" height="14" rx="3" fill="#f9fafb" opacity="0.92"/>
+  <text x="379" y="639" text-anchor="middle" fill="#1d4ed8" font-size="9" font-style="italic">«use» SQL</text>
+
+  <!-- Flask → Brevo -->
+  <line x1="570" y1="600" x2="700" y2="674"
+        stroke="#059669" stroke-width="1.8" stroke-dasharray="8,4"
+        marker-end="url(#arrowExt)"/>
+  <rect x="590" y="626" width="90" height="14" rx="3" fill="#f9fafb" opacity="0.92"/>
+  <text x="635" y="637" text-anchor="middle" fill="#059669" font-size="9" font-style="italic">«use» SMTP</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       LEGEND
+  ════════════════════════════════════════════════════════ -->
+  <rect x="50" y="680" width="130" height="130" rx="6"
+        fill="white" stroke="#d1d5db" stroke-width="1.2"/>
+  <text x="115" y="698" text-anchor="middle" fill="#111827" font-size="10" font-weight="bold">Légende</text>
+  <line x1="58" y1="704" x2="173" y2="704" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- Actor symbol -->
+  <circle cx="72" cy="719" r="5" fill="none" stroke="#1a237e" stroke-width="1.5"/>
+  <line x1="72" y1="724" x2="72" y2="735" stroke="#1a237e" stroke-width="1.5"/>
+  <line x1="62" y1="729" x2="82" y2="729" stroke="#1a237e" stroke-width="1.5"/>
+  <text x="90" y="733" fill="#374151" font-size="9">Acteur (Actor)</text>
+
+  <!-- Component symbol -->
+  <rect x="63" y="743" width="16" height="11" rx="1" fill="none" stroke="#3730a3" stroke-width="1.3"/>
+  <rect x="58" y="746" width="8" height="3" rx="1" fill="#3730a3"/>
+  <rect x="58" y="751" width="8" height="3" rx="1" fill="#3730a3"/>
+  <text x="90" y="752" fill="#374151" font-size="9">Composant</text>
+
+  <!-- Provided interface (lollipop) -->
+  <circle cx="72" cy="770" r="5" fill="white" stroke="#3730a3" stroke-width="1.5"/>
+  <line x1="72" y1="775" x2="72" y2="782" stroke="#3730a3" stroke-width="1.3"/>
+  <text x="90" y="776" fill="#374151" font-size="9">Interface fournie</text>
+
+  <!-- Required interface (socket) -->
+  <line x1="65" y1="795" x2="72" y2="795" stroke="#6366f1" stroke-width="1.3"/>
+  <path d="M72 789 Q80 795 72 801" fill="none" stroke="#6366f1" stroke-width="1.3"/>
+  <text x="90" y="799" fill="#374151" font-size="9">Interface requise</text>
+
+  <!-- Dependency arrow -->
+  <line x1="58" y1="815" x2="88" y2="815" stroke="#374151" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowDep)"/>
+  <text x="98" y="819" fill="#374151" font-size="9">Dépendance</text>
+
+  <!-- ════════════════════════════════════════════════════════
+       FOOTER
+  ════════════════════════════════════════════════════════ -->
+  <rect x="0" y="878" width="1100" height="22" fill="#1a237e" fill-opacity="0.06"/>
+  <text x="550" y="893" text-anchor="middle" fill="#6b7280" font-size="9">
+    OptiClinic — Diagramme de composants UML — Projet PFE 2025-2026
+  </text>
+
+</svg>

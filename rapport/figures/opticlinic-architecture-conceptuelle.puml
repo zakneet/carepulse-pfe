@@ -1,0 +1,210 @@
+@startuml opticlinic-architecture-conceptuelle
+
+' ============================================================
+' OptiClinic — Diagramme de composants UML
+' Figure 4.1 — Architecture conceptuelle du système OptiClinic
+' Projet PFE 2025-2026
+' ============================================================
+
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+skinparam title {
+  FontSize 15
+  FontStyle bold
+  FontColor #1a237e
+  BorderColor #1a237e
+  BackgroundColor #EEF2FF
+}
+
+skinparam actor {
+  BackgroundColor #FFFFFF
+  BorderColor #0288d1
+  FontColor #1a237e
+  FontStyle bold
+  FontSize 11
+}
+
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #3730a3
+  FontColor #1e1b4b
+  FontStyle bold
+  FontSize 11
+  ArrowColor #374151
+  ArrowFontSize 9
+  ArrowFontStyle italic
+}
+
+skinparam database {
+  BackgroundColor #EFF6FF
+  BorderColor #1d4ed8
+  FontColor #1e3a8a
+  FontStyle bold
+}
+
+skinparam interface {
+  BackgroundColor #FFFFFF
+  BorderColor #3730a3
+}
+
+skinparam note {
+  BackgroundColor #f9fafb
+  BorderColor #d1d5db
+  FontColor #374151
+  FontSize 9
+}
+
+skinparam arrow {
+  Color #374151
+  FontColor #374151
+  FontSize 9
+  FontStyle italic
+}
+
+skinparam linetype ortho
+
+title Figure 4.1 — Architecture conceptuelle du système OptiClinic\nDiagramme de composants UML
+
+' ============================================================
+' ACTEURS
+' ============================================================
+
+actor "Patient" as Patient <<actor>>
+actor "Médecin /\nPersonnel de santé" as Medecin <<actor>>
+actor "Administrateur" as Admin <<actor>>
+
+' ============================================================
+' COMPOSANTS FRONTEND
+' ============================================================
+
+package "Interface Web Angular" <<component>> #EEF2FF {
+
+  component "Réservation en ligne" as Reservation <<component>> #e0e7ff {
+    portin " " as p_resa
+  }
+
+  component "Espace Patient" as EspacePatient <<component>> #e0e7ff {
+    portin " " as p_ep
+  }
+
+  component "Tableau de bord médical" as TableauBord <<component>> #e0e7ff {
+    portin " " as p_tb
+  }
+
+  component "Administration" as AdminUI <<component>> #e0e7ff {
+    portin " " as p_admin_ui
+  }
+
+}
+
+' ============================================================
+' COMPOSANTS BACKEND
+' ============================================================
+
+package "Système OptiClinic — Backend" <<component>> #EEF2FF {
+
+  component "API Backend Flask" as Flask <<component>> {
+    portin  "IREST"      as prov_rest
+    portout "IOptimizer" as req_opt
+    portout "ISQL"       as req_sql
+    portout "IEmailSvc"  as req_email
+    portout "ISocket"    as req_socket
+  }
+
+  component "Canal temps réel\nSocket.IO" as SocketIO <<component>> #E0FDF4 {
+    portin  "ISocket"    as prov_socket
+    note right : WebSocket bidirectionnel\nDiffusion notifications
+  }
+
+  component "Module d'optimisation\nOR-Tools" as ORTools <<component>> #F5F3FF {
+    portin  "IOptimizer" as prov_opt
+    note right : Optimisation des créneaux\nRéorganisation planning\nRésolution de conflits
+  }
+
+}
+
+' ============================================================
+' DONNÉES & SERVICES EXTERNES
+' ============================================================
+
+database "Base de données MySQL" as MySQL <<database>> {
+  portin "ISQL" as prov_sql
+  note right
+    patients
+    rendez-vous
+    plannings
+    notifications
+    paramètres
+  end note
+}
+
+component "Service Email Brevo" as Brevo <<external service>> #F0FDF4 {
+  portin "IEmailSvc" as prov_email
+  note right : Email de confirmation\nLien espace patient\nNotification rendez-vous
+}
+
+' ============================================================
+' DÉPENDANCES — ACTEURS → FRONTEND
+' ============================================================
+
+Patient  ..>  Reservation   : <<use>>\nDemande de rendez-vous
+Patient  ..>  EspacePatient : <<use>>\nConsultation espace patient
+
+Medecin  ..>  TableauBord   : <<use>>\nGestion planning\nGestion urgences\nSuivi patients
+
+Admin    ..>  AdminUI       : <<use>>\nAdministration
+
+' ============================================================
+' DÉPENDANCES — FRONTEND → BACKEND
+' ============================================================
+
+Reservation   ..>  Flask    : <<use>>\nAPI REST sécurisée
+EspacePatient ..>  Flask    : <<use>>\nAPI REST sécurisée
+TableauBord   ..>  Flask    : <<use>>\nAPI REST sécurisée
+AdminUI       ..>  Flask    : <<use>>\nAPI REST sécurisée
+
+TableauBord   ..>  SocketIO : <<use>>\nNotifications temps réel
+Reservation   ..>  SocketIO : <<use>>\nNotifications temps réel
+
+' ============================================================
+' DÉPENDANCES — BACKEND → SERVICES
+' ============================================================
+
+Flask ..>  ORTools : <<use>>\nOptimisation des créneaux
+ORTools ..>  Flask  : <<use>>\nRésultats d\'optimisation
+
+Flask ..>  MySQL   : <<use>>\nLecture / écriture des données
+
+Flask ..>  Brevo   : <<use>>\nEnvoi confirmation email
+
+' ============================================================
+' INTERFACES (PROVIDED / REQUIRED)
+' ============================================================
+
+prov_rest   -  req_rest
+req_opt     -  prov_opt
+req_sql     -  prov_sql
+req_email   -  prov_email
+req_socket  -  prov_socket
+
+' ============================================================
+' LÉGENDE
+' ============================================================
+
+legend bottom left
+  |= Notation        |= Signification              |
+  | <<actor>>        | Acteur externe              |
+  | <<component>>    | Composant logiciel UML      |
+  | <<database>>     | Base de données             |
+  | <<external service>> | Service externe         |
+  | ●— Interface fournie | Interface provided      |
+  | —◐ Interface requise | Interface required      |
+  | - - → «use»     | Dépendance / utilisation    |
+end legend
+
+footer OptiClinic — Diagramme de composants UML — Projet PFE 2025-2026
+
+@enduml
