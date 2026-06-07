@@ -1,19 +1,22 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import {
   PatientPortalData,
   PatientPortalService,
-  PortalDocument
+  PortalDocument,
+  EmergencyNotification
 } from './patient-portal.service';
 import { environment } from 'src/environments/environment';
+import { SocketService } from '../services/socket.service';
+import { NotificationService } from '../services/notification.service';
 
 @Component({
   selector: 'app-patient-portal',
   templateUrl: './patient-portal.component.html',
   styleUrls: ['./patient-portal.component.css']
 })
-export class PatientPortalComponent implements OnInit {
+export class PatientPortalComponent implements OnInit, OnDestroy {
   loading = true;
   errorMessage = '';
   data: PatientPortalData | null = null;
@@ -27,6 +30,21 @@ export class PatientPortalComponent implements OnInit {
   isTrackingActive = false;
   timeRemaining = '';
   trackingInterval: any;
+  
+  // Reschedule / Action states
+  isActionLoading = false;
+  showModifyModal = false;
+  modifyModalMode: 'emergency' | 'standard' = 'standard';
+  selectedAppointmentForModify: any = null;
+  modifyFormData = {
+     newDate: '',
+     newStart: '',
+     newEnd: ''
+  };
+  
+  // To avoid duplicate toasts
+  processedNotificationIds = new Set<string>();
+  private socketSub: any;
 
   @HostListener('window:beforeinstallprompt', ['$event'])
   onbeforeinstallprompt(e: Event) {
@@ -36,7 +54,6 @@ export class PatientPortalComponent implements OnInit {
 
   installApp() {
     if (!this.deferredPrompt) {
-      // Native prompt unavailable: show manual instructions
       this.showInstallHelpModal = true;
       return;
     }
@@ -55,7 +72,10 @@ export class PatientPortalComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private portalService: PatientPortalService,
-    private http: HttpClient
+    private http: HttpClient,
+    private socketService: SocketService,
+    private notificationService: NotificationService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -119,12 +139,42 @@ export class PatientPortalComponent implements OnInit {
 
         this.loadWeather(res.clinic?.address || 'Tunis');
         this.startTrackingInterval();
+        
+        // Setup Socket.IO for patient room
+        this.setupSocketConnection(token);
       },
       error: (err) => {
         this.loading = false;
         this.errorMessage = err.error?.error || 'Impossible d\'accéder à votre espace patient.';
       }
     });
+  }
+  
+  private setupSocketConnection(token: string): void {
+     if (this.socketSub) this.socketSub.unsubscribe();
+     
+     this.socketService.joinRoom('join_patient_room', { token });
+     
+     this.socketSub = this.socketService.onEvent('patient_portal_notification').subscribe((payload: any) => {
+        if (payload && payload.type === 'emergency') {
+           const notifId = payload.idRdv ? payload.idRdv.toString() : Date.now().toString();
+           if (!this.processedNotificationIds.has(notifId)) {
+               this.processedNotificationIds.add(notifId);
+               this.notificationService.info('Alerte médicale', 'Le médecin a déclaré une urgence. Vos rendez-vous peuvent être impactés.');
+               
+               // Fetch new data to show banner
+               this.refreshData();
+           }
+        }
+     });
+  }
+  
+  private refreshData(): void {
+      if (!this.data || !this.data.token) return;
+      this.portalService.getPortal(this.data.token).subscribe(res => {
+          this.data = res;
+          this.cdr.detectChanges();
+      });
   }
 
   private loadWeather(location: string): void {
@@ -186,5 +236,96 @@ export class PatientPortalComponent implements OnInit {
         portalToken: this.data.token
       }
     });
+  }
+  
+  // ==========================================
+  // ACTIONS: Reschedule & Cancel
+  // ==========================================
+  
+  acceptProposedSlot(rdvId: number): void {
+     if (!this.data || !this.data.token || this.isActionLoading) return;
+     this.isActionLoading = true;
+     this.portalService.acceptProposedSlot(this.data.token, rdvId).subscribe({
+         next: () => {
+             this.notificationService.success('Créneau accepté avec succès.');
+             this.isActionLoading = false;
+             this.refreshData();
+         },
+         error: (err) => {
+             this.isActionLoading = false;
+             this.notificationService.error(err.error?.error || 'Erreur lors de la validation.');
+         }
+     });
+  }
+  
+  cancelAppointment(rdvId: number): void {
+     if (!this.data || !this.data.token || this.isActionLoading) return;
+     if (!confirm('Êtes-vous sûr de vouloir annuler ce rendez-vous ?')) return;
+     
+     this.isActionLoading = true;
+     this.portalService.cancelAppointment(this.data.token, rdvId).subscribe({
+         next: () => {
+             this.notificationService.success('Rendez-vous annulé.');
+             this.isActionLoading = false;
+             this.refreshData();
+         },
+         error: (err) => {
+             this.isActionLoading = false;
+             this.notificationService.error(err.error?.error || 'Erreur lors de l\'annulation.');
+         }
+     });
+  }
+  
+  openEmergencyRescheduleModal(notif: EmergencyNotification): void {
+     this.modifyModalMode = 'emergency';
+     this.selectedAppointmentForModify = notif;
+     this.modifyFormData = {
+         newDate: notif.proposedDateRDV || '',
+         newStart: notif.proposedHeureDebut || '',
+         newEnd: notif.proposedHeureFin || ''
+     };
+     this.showModifyModal = true;
+  }
+  
+  openModifyAppointmentModal(appt: any): void {
+     this.modifyModalMode = 'standard';
+     this.selectedAppointmentForModify = appt;
+     this.modifyFormData = {
+         newDate: appt.dateRDV || '',
+         newStart: appt.heureDebut || '',
+         newEnd: appt.heureFin || ''
+     };
+     this.showModifyModal = true;
+  }
+  
+  closeModifyModal(): void {
+     this.showModifyModal = false;
+     this.selectedAppointmentForModify = null;
+  }
+  
+  submitModification(): void {
+     if (!this.data || !this.data.token || this.isActionLoading || !this.selectedAppointmentForModify) return;
+     
+     const rdvId = this.selectedAppointmentForModify.idRdv || this.selectedAppointmentForModify.id;
+     
+     this.isActionLoading = true;
+     this.portalService.rescheduleAppointment(
+         this.data.token, 
+         rdvId, 
+         this.modifyFormData.newDate, 
+         this.modifyFormData.newStart, 
+         this.modifyFormData.newEnd
+     ).subscribe({
+         next: () => {
+             this.notificationService.success('Rendez-vous modifié avec succès.');
+             this.isActionLoading = false;
+             this.closeModifyModal();
+             this.refreshData();
+         },
+         error: (err) => {
+             this.isActionLoading = false;
+             this.notificationService.error(err.error?.error || 'Erreur lors de la modification.');
+         }
+     });
   }
 }

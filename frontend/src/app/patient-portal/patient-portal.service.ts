@@ -45,6 +45,21 @@ export interface PortalDocument {
   createdAt?: string;
 }
 
+export interface EmergencyNotification {
+  id: number;
+  idRdv: number;
+  idPersonnel: number;
+  emergencyType: string;
+  oldDateRDV: string;
+  oldHeureDebut: string;
+  oldHeureFin: string;
+  proposedDateRDV?: string;
+  proposedHeureDebut?: string;
+  proposedHeureFin?: string;
+  status: string;
+  actionRequired: string;
+}
+
 export interface PortalNotification {
   type: string;
   title: string;
@@ -61,6 +76,7 @@ export interface PatientPortalData {
   documents: PortalDocument[];
   prescriptions: PortalDocument[];
   notifications: PortalNotification[];
+  emergencyNotifications?: EmergencyNotification[];
   clinic: { name: string; address: string; mapQuery: string };
   tracking?: {
     weather: any;
@@ -85,5 +101,23 @@ export class PatientPortalService {
     return this.http.get<{ id: number; title: string; type: string; content: string }>(
       `${this.apiUrl}/patient/portal/${encodeURIComponent(token)}/documents/${docId}`
     );
+  }
+
+  getEmergencyNotifications(token: string): Observable<EmergencyNotification[]> {
+    return this.http.get<EmergencyNotification[]>(`${this.apiUrl}/patient/portal/${encodeURIComponent(token)}/emergency-notifications`);
+  }
+
+  acceptProposedSlot(token: string, rdvId: number): Observable<{success: boolean}> {
+    return this.http.post<{success: boolean}>(`${this.apiUrl}/patient/portal/${encodeURIComponent(token)}/appointments/${rdvId}/accept-proposed-slot`, {});
+  }
+
+  rescheduleAppointment(token: string, rdvId: number, newDateRDV: string, newHeureDebut: string, newHeureFin: string): Observable<{success: boolean}> {
+    return this.http.post<{success: boolean}>(`${this.apiUrl}/patient/portal/${encodeURIComponent(token)}/appointments/${rdvId}/reschedule`, {
+      newDateRDV, newHeureDebut, newHeureFin
+    });
+  }
+
+  cancelAppointment(token: string, rdvId: number): Observable<{success: boolean}> {
+    return this.http.post<{success: boolean}>(`${this.apiUrl}/patient/portal/${encodeURIComponent(token)}/appointments/${rdvId}/cancel`, {});
   }
 }

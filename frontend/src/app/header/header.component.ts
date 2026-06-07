@@ -86,8 +86,35 @@ export class HeaderComponent implements OnInit, OnDestroy {
       if (!this.router.url.includes('/planning')) {
         const baseRoute = this.router.url.includes('/nurse') ? '/medical-staff/nurse' : '/medical-staff/doctor';
         this.router.navigate([baseRoute, 'planning'], { queryParams: { emergency: 'patient-on-site' } });
-        return; // Don't trigger the event here, the planning component will handle it after routing
       }
+      
+      let idPersonnel = 1;
+      const userStr = localStorage.getItem('currentUser');
+      if (userStr) {
+        try {
+          const u = JSON.parse(userStr);
+          if (u && u.id) idPersonnel = u.id;
+        } catch (e) {}
+      }
+      
+      const now = new Date();
+      fetch('http://127.0.0.1:5000/medical-staff/emergencies/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idPersonnel: idPersonnel,
+          emergencyType: 'patient-on-site',
+          startDateTime: now.toISOString(),
+          durationMinutes: 60
+        })
+      }).then(res => res.json()).then(res => {
+         if (res.impactedAppointments && res.impactedAppointments.length > 0) {
+            this.notifications.info(`Urgence cabinet activée. ${res.impactedAppointments.length} RDV(s) marqués à reprogrammer.`);
+         } else {
+            this.notifications.success('Urgence cabinet activée. Aucun RDV n\'a été impacté.');
+         }
+      });
+      return;
     }
 
     this.emergencyEvents.trigger({ type });
@@ -113,27 +140,49 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
     const safeHours = Number.isFinite(this.absenceHours) ? Math.max(1, Math.min(12, Math.round(this.absenceHours))) : 1;
     this.shortEmergencyLoading = true;
-    console.log('Urgence déclenchée', {
-      type: 'doctor-left-short',
-      interval: this.selectedShortInterval,
-      absenceHours: safeHours
-    });
-    this.showDoctorShortPopup = false;
-    this.emergencyEvents.trigger({
-      type: 'doctor-left-short',
-      interval: this.selectedShortInterval,
-      absenceHours: safeHours
-    });
-    this.notifications.success('Urgence medecin courte envoyee.');
-
-    if (this.shortEmergencyResetTimer) {
-      clearTimeout(this.shortEmergencyResetTimer);
+    
+    // Attempt to get idPersonnel from auth or path (simplification for this component which lacks direct input)
+    let idPersonnel = 1; // Fallback
+    const userStr = localStorage.getItem('currentUser');
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u && u.id) idPersonnel = u.id;
+      } catch (e) {}
     }
 
-    // Keep a short guard window to avoid duplicate dispatch on repeated clicks.
-    this.shortEmergencyResetTimer = window.setTimeout(() => {
+    const durationMinutes = safeHours * 60;
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+
+    // Dynamic import to avoid circular dep if any, or just use fetch
+    fetch('http://127.0.0.1:5000/medical-staff/emergencies/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idPersonnel: idPersonnel,
+        emergencyType: 'doctor-left-short',
+        startDateTime: now.toISOString(),
+        durationMinutes: durationMinutes
+      })
+    }).then(res => res.json()).then(res => {
       this.shortEmergencyLoading = false;
-    }, 1200);
+      this.showDoctorShortPopup = false;
+      if (res.impactedAppointments && res.impactedAppointments.length > 0) {
+        this.notifications.info(`Urgence courte envoyée. ${res.impactedAppointments.length} RDV(s) marqués à reprogrammer.`);
+      } else {
+        this.notifications.success('Urgence courte envoyée. Aucun RDV n\'a été impacté.');
+      }
+      this.emergencyEvents.trigger({
+        type: 'doctor-left-short',
+        interval: this.selectedShortInterval,
+        absenceHours: safeHours
+      });
+    }).catch(err => {
+      this.shortEmergencyLoading = false;
+      this.notifications.error('Erreur lors du déclenchement de l\'urgence');
+      this.showDoctorShortPopup = false;
+    });
   }
 
   setDoctorShortInterval(interval: DoctorShortEmergencyInterval): void {
@@ -160,27 +209,50 @@ export class HeaderComponent implements OnInit, OnDestroy {
       : 1;
 
     this.shortEmergencyLoading = true;
-    this.showDoctorLongPopup = false;
-    console.log('Urgence déclenchée', {
-      type: 'doctor-left-long',
-      longAbsenceValue: safeValue,
-      longAbsenceUnit: this.longAbsenceUnit
-    });
-
-    this.emergencyEvents.trigger({
-      type: 'doctor-left-long',
-      longAbsenceValue: safeValue,
-      longAbsenceUnit: this.longAbsenceUnit
-    });
-    this.notifications.success('Urgence medecin longue envoyee.');
-
-    if (this.shortEmergencyResetTimer) {
-      clearTimeout(this.shortEmergencyResetTimer);
+    
+    let idPersonnel = 1;
+    const userStr = localStorage.getItem('currentUser');
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u && u.id) idPersonnel = u.id;
+      } catch (e) {}
     }
 
-    this.shortEmergencyResetTimer = window.setTimeout(() => {
+    let durationMinutes = safeValue * 24 * 60;
+    if (this.longAbsenceUnit === 'week') {
+      durationMinutes *= 7;
+    }
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+
+    fetch('http://127.0.0.1:5000/medical-staff/emergencies/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idPersonnel: idPersonnel,
+        emergencyType: 'doctor-left-long',
+        startDateTime: now.toISOString(),
+        durationMinutes: durationMinutes
+      })
+    }).then(res => res.json()).then(res => {
       this.shortEmergencyLoading = false;
-    }, 1200);
+      this.showDoctorLongPopup = false;
+      if (res.impactedAppointments && res.impactedAppointments.length > 0) {
+        this.notifications.info(`Absence prolongée enregistrée. ${res.impactedAppointments.length} RDV(s) marqués à reprogrammer.`);
+      } else {
+        this.notifications.success('Absence prolongée enregistrée. Aucun RDV n\'a été impacté aujourd\'hui.');
+      }
+      this.emergencyEvents.trigger({
+        type: 'doctor-left-long',
+        longAbsenceValue: safeValue,
+        longAbsenceUnit: this.longAbsenceUnit
+      });
+    }).catch(err => {
+      this.shortEmergencyLoading = false;
+      this.notifications.error('Erreur lors de la déclaration d\'absence');
+      this.showDoctorLongPopup = false;
+    });
   }
 
   onAbsenceHoursChange(rawValue: string): void {

@@ -71,6 +71,13 @@ export class SocketService {
     this.socket.send(message);
   }
 
+  joinRoom(event: string, payload?: any): void {
+     if (!this.socket?.connected) {
+       this.connect();
+     }
+     this.socket?.emit(event, payload || {});
+  }
+
   disconnect(): void {
     this.socket?.disconnect();
     this.socket = null;

@@ -672,7 +672,7 @@ class Planning(db.Model):
 class Rdv(db.Model):
     __tablename__ = 'rdv'
     __table_args__ = {'mysql_engine': 'InnoDB'}
-    
+
     idRdv = db.Column("idRDV", db.Integer, primary_key=True, autoincrement=True)
     idPatient = db.Column(db.Integer, nullable=False, index=True)
     idPersonnel = db.Column(db.Integer, nullable=False, index=True)
@@ -680,17 +680,12 @@ class Rdv(db.Model):
     heureDebut = db.Column(db.Time, nullable=False)
     heureFin = db.Column(db.Time, nullable=False)
     motifConsultation = db.Column(db.Text, nullable=False, default="")
-
-
-    @property
-    def statut(self):
-        return getattr(self, "_statut", "Confirme")
-
-    @statut.setter
-    def statut(self, value):
-        self._statut = value or "Confirme"
+    # statut: real DB column added via safe migration in _ensure_rdv_table_columns()
+    # Declared here so SQLAlchemy reads/writes it when present.
+    statut = db.Column(db.String(64), nullable=True, default="confirme")
 
     def to_dict(self):
+        raw_statut = self.statut or derive_rdv_statut(self.motifConsultation)
         return {
             "id": self.idRdv,
             "idRdv": self.idRdv,
@@ -701,7 +696,7 @@ class Rdv(db.Model):
             "heureDebut": _format_sql_time(self.heureDebut),
             "heureFin": _format_sql_time(self.heureFin),
             "motifConsultation": self.motifConsultation,
-            "statut": derive_rdv_statut(self.motifConsultation),
+            "statut": raw_statut,
         }
 
 
@@ -830,9 +825,11 @@ def _ensure_patient_table_columns():
                 pass
     _ensure_rdv_table_columns()
     _ensure_personnel_table_columns()
+    _ensure_emergency_tables()
 
 
 def _ensure_rdv_table_columns():
+    """Safely adds `statut` column to rdv table using information_schema check."""
     with db.engine.begin() as conn:
         existing_columns = {
             row[0]
@@ -846,12 +843,45 @@ def _ensure_rdv_table_columns():
             ).fetchall()
         }
 
-        if "statut" in existing_columns:
+        # Add statut column only if it does not already exist
+        if "statut" not in existing_columns:
             try:
-                conn.exec_driver_sql("ALTER TABLE rdv DROP COLUMN `statut`")
-            except Exception:
-                # Keep API available even if schema migration rights are restricted.
-                pass
+                conn.exec_driver_sql(
+                    "ALTER TABLE rdv ADD COLUMN statut VARCHAR(64) NULL DEFAULT 'confirme'"
+                )
+                print("[migration] Added statut column to rdv table.", flush=True)
+            except Exception as exc:
+                print(f"[migration] Could not add statut column: {exc}", flush=True)
+
+
+def _ensure_emergency_tables():
+    """Creates patient_emergency_notification table if it does not exist."""
+    with db.engine.begin() as conn:
+        conn.exec_driver_sql(
+            """
+            CREATE TABLE IF NOT EXISTS patient_emergency_notification (
+                id INT NOT NULL AUTO_INCREMENT,
+                id_patient INT NOT NULL,
+                id_rdv INT NOT NULL,
+                id_personnel INT NOT NULL,
+                emergency_type VARCHAR(64) NOT NULL,
+                old_date_rdv DATE NOT NULL,
+                old_heure_debut TIME NOT NULL,
+                old_heure_fin TIME NOT NULL,
+                original_motif TEXT NULL,
+                proposed_date_rdv DATE NULL,
+                proposed_heure_debut TIME NULL,
+                proposed_heure_fin TIME NULL,
+                status VARCHAR(32) NOT NULL DEFAULT 'unresolved',
+                action_required VARCHAR(64) NOT NULL DEFAULT 'reschedule_or_cancel',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_pen_patient (id_patient),
+                KEY idx_pen_rdv (id_rdv)
+            ) ENGINE=InnoDB
+            """
+        )
+        print("[migration] patient_emergency_notification table ensured.", flush=True)
 
 
 def _get_personnel_row(id_personnel):
@@ -3503,6 +3533,155 @@ def cancel_all_medical_staff_day():
         return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
 
 
+@app.route("/medical-staff/emergencies/trigger", methods=["POST"])
+@debug_route
+def trigger_medical_emergency():
+    """
+    Triggers an emergency for a medical staff member.
+    Affected appointments are NOT cancelled. They are marked as reschedule_required.
+    A patient_emergency_notification is created for each.
+    """
+    try:
+        data = request.get_json() or {}
+        id_personnel = data.get("idPersonnel")
+        emergency_type = data.get("emergencyType")
+        start_datetime_str = data.get("startDateTime")
+        duration_minutes = data.get("durationMinutes", 60)
+        
+        if not id_personnel or not emergency_type or not start_datetime_str:
+             return jsonify({"error": "Paramètres manquants: idPersonnel, emergencyType, startDateTime"}), 400
+             
+        if not is_medical_staff(int(id_personnel)):
+            return jsonify({"error": "Personnel médical invalide"}), 400
+            
+        try:
+            start_dt = datetime.fromisoformat(start_datetime_str.replace("Z", "+00:00"))
+        except ValueError:
+            return jsonify({"error": "Format date invalide. Utilisez ISO8601."}), 400
+            
+        end_dt = start_dt + timedelta(minutes=duration_minutes)
+        start_date = start_dt.date()
+        start_time = start_dt.time()
+        end_time = end_dt.time()
+        
+        # Cross day emergencies not fully handled, assuming same day for simplicity in the basic logic here
+        
+        _ensure_rdv_table_columns()
+        _ensure_emergency_tables()
+        
+        impacted_appointments = []
+        notifications_created = 0
+        
+        with db.engine.begin() as conn:
+            # Find overlapping appointments
+            rdvs = conn.exec_driver_sql(
+                """
+                SELECT idRDV AS id, idPatient, dateRDV, heureDebut, heureFin, motifConsultation
+                FROM rdv
+                WHERE idPersonnel = %s
+                  AND dateRDV = %s
+                  AND (
+                      (heureDebut >= %s AND heureDebut < %s) OR
+                      (heureFin > %s AND heureFin <= %s) OR
+                      (heureDebut <= %s AND heureFin >= %s)
+                  )
+                  AND LOWER(COALESCE(motifConsultation, '')) NOT LIKE 'annule%%'
+                  AND LOWER(COALESCE(motifConsultation, '')) NOT LIKE 'a reprogrammer%%'
+                """,
+                (id_personnel, start_date, start_time, end_time, start_time, end_time, start_time, end_time)
+            ).mappings().all()
+            
+            for rdv in rdvs:
+                rdv_id = rdv["id"]
+                patient_id = rdv["idPatient"]
+                old_motif = rdv["motifConsultation"] or "Consultation"
+                
+                # Check for existing unresolved notification to prevent duplicates
+                existing_notif = conn.exec_driver_sql(
+                    """
+                    SELECT id FROM patient_emergency_notification
+                    WHERE id_rdv = %s AND status = 'unresolved'
+                    """,
+                    (rdv_id,)
+                ).scalar()
+                
+                if existing_notif:
+                    continue # Already processed
+                    
+                # Calculate proposed slot (simple right-shift)
+                # In a real app, we'd use the OR-Tools or free slot finder.
+                # For this feature, we'll propose the original time + duration
+                # If it's a long absence, we don't propose a slot (Null)
+                
+                proposed_date = start_date
+                proposed_debut = None
+                proposed_fin = None
+                
+                if emergency_type != "doctor-left-long":
+                     # Simplified proposed slot calculation for short emergencies
+                     orig_debut_dt = datetime.combine(start_date, (datetime.min + timedelta(hours=rdv["heureDebut"].seconds//3600, minutes=(rdv["heureDebut"].seconds//60)%60)).time() if hasattr(rdv["heureDebut"], "seconds") else rdv["heureDebut"])
+                     orig_fin_dt = datetime.combine(start_date, (datetime.min + timedelta(hours=rdv["heureFin"].seconds//3600, minutes=(rdv["heureFin"].seconds//60)%60)).time() if hasattr(rdv["heureFin"], "seconds") else rdv["heureFin"])
+                     
+                     prop_debut_dt = orig_debut_dt + timedelta(minutes=duration_minutes)
+                     prop_fin_dt = orig_fin_dt + timedelta(minutes=duration_minutes)
+                     
+                     if prop_fin_dt.date() == start_date:
+                          proposed_debut = prop_debut_dt.time()
+                          proposed_fin = prop_fin_dt.time()
+                else:
+                    proposed_date = None # No proposed slot for long absences
+
+                # Update RDV
+                new_motif = f"A reprogrammer - {old_motif}"
+                conn.exec_driver_sql(
+                    """
+                    UPDATE rdv 
+                    SET motifConsultation = %s, statut = 'reschedule_required'
+                    WHERE idRDV = %s
+                    """,
+                    (new_motif, rdv_id)
+                )
+                
+                # Insert Notification
+                conn.exec_driver_sql(
+                    """
+                    INSERT INTO patient_emergency_notification
+                    (id_patient, id_rdv, id_personnel, emergency_type, old_date_rdv, old_heure_debut, old_heure_fin, original_motif, proposed_date_rdv, proposed_heure_debut, proposed_heure_fin, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'unresolved')
+                    """,
+                    (
+                        patient_id, rdv_id, id_personnel, emergency_type,
+                        rdv["dateRDV"], rdv["heureDebut"], rdv["heureFin"],
+                        old_motif, proposed_date, proposed_debut, proposed_fin
+                    )
+                )
+                
+                impacted_appointments.append(rdv_id)
+                notifications_created += 1
+                
+                # Emit Socket.IO event to specific patient room
+                payload = {
+                     "type": "emergency",
+                     "idRdv": rdv_id,
+                     "emergencyType": emergency_type
+                }
+                socketio.emit("patient_portal_notification", payload, to=f"patient_{patient_id}")
+                
+        # Emit general planning refresh for medical staff
+        socketio.emit("doctor_planning_refresh", {"idPersonnel": int(id_personnel), "dateRDV": start_date.isoformat()})
+        
+        return jsonify({
+            "success": True, 
+            "impactedAppointments": impacted_appointments,
+            "notificationsCreated": notifications_created
+        }), 200
+
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur serveur: {str(exc)}"}), 500
+
+
 @app.route("/medical-staff/recalculate-short-absence", methods=["POST"])
 @debug_route
 def recalculate_short_absence():
@@ -5718,6 +5897,21 @@ def handle_socket_disconnect():
 @socketio.on("message")
 def handle_message(data):
     print(f"[SocketIO] message recu: {data}", flush=True)
+    
+
+from flask_socketio import join_room
+
+@socketio.on("join_patient_room")
+def handle_join_patient_room(data):
+    token = data.get("token", "")
+    if token:
+        with db.engine.connect() as conn:
+            token_row = resolve_token(conn, token)
+            if token_row:
+                id_patient = int(token_row["id_patient"])
+                room_name = f"patient_{id_patient}"
+                join_room(room_name)
+                print(f"[SocketIO] Client {request.sid} joined room {room_name}", flush=True)
     return {"status": "ok", "echo": data}
 
 
@@ -5897,20 +6091,44 @@ def _build_patient_portal_payload(conn, token_row):
     if not patient:
         return None
 
-    rdvs = conn.exec_driver_sql(
-        """
-        SELECT r.idRDV AS id, r.dateRDV, r.heureDebut, r.heureFin, r.motifConsultation,
-               ps.nom AS medecinNom, ps.prenom AS medecinPrenom, ps.specialite,
-               ps.region, ps.disponibilite
-        FROM rdv r
-        INNER JOIN personnel_de_sante ps ON ps.id_personnel = r.idPersonnel
-        WHERE r.idPatient = %s
-          AND LOWER(COALESCE(r.motifConsultation, '')) NOT LIKE 'annule%%'
-        ORDER BY r.dateRDV DESC, r.heureDebut DESC
-        LIMIT 50
-        """,
-        (id_patient,),
-    ).mappings().all()
+    # Determine if we can select statut
+    has_statut_col = False
+    try:
+        col_check = conn.exec_driver_sql("SELECT statut FROM rdv LIMIT 1")
+        has_statut_col = True
+    except Exception:
+        has_statut_col = False
+
+    if has_statut_col:
+        rdvs = conn.exec_driver_sql(
+            """
+            SELECT r.idRDV AS id, r.dateRDV, r.heureDebut, r.heureFin, r.motifConsultation, r.statut,
+                   ps.nom AS medecinNom, ps.prenom AS medecinPrenom, ps.specialite,
+                   ps.region, ps.disponibilite
+            FROM rdv r
+            INNER JOIN personnel_de_sante ps ON ps.id_personnel = r.idPersonnel
+            WHERE r.idPatient = %s
+              AND LOWER(COALESCE(r.motifConsultation, '')) NOT LIKE 'annule%%'
+            ORDER BY r.dateRDV DESC, r.heureDebut DESC
+            LIMIT 50
+            """,
+            (id_patient,),
+        ).mappings().all()
+    else:
+        rdvs = conn.exec_driver_sql(
+            """
+            SELECT r.idRDV AS id, r.dateRDV, r.heureDebut, r.heureFin, r.motifConsultation, NULL as statut,
+                   ps.nom AS medecinNom, ps.prenom AS medecinPrenom, ps.specialite,
+                   ps.region, ps.disponibilite
+            FROM rdv r
+            INNER JOIN personnel_de_sante ps ON ps.id_personnel = r.idPersonnel
+            WHERE r.idPatient = %s
+              AND LOWER(COALESCE(r.motifConsultation, '')) NOT LIKE 'annule%%'
+            ORDER BY r.dateRDV DESC, r.heureDebut DESC
+            LIMIT 50
+            """,
+            (id_patient,),
+        ).mappings().all()
 
     ensure_portal_tables(conn)
     documents = conn.exec_driver_sql(
@@ -5923,6 +6141,37 @@ def _build_patient_portal_payload(conn, token_row):
         """,
         (id_patient,),
     ).mappings().all()
+    
+    # Emergency notifications
+    emergency_notifs = []
+    try:
+        raw_notifs = conn.exec_driver_sql(
+            """
+            SELECT id, id_rdv, id_personnel, emergency_type, old_date_rdv, old_heure_debut, old_heure_fin,
+                   proposed_date_rdv, proposed_heure_debut, proposed_heure_fin, status, action_required
+            FROM patient_emergency_notification
+            WHERE id_patient = %s AND status = 'unresolved'
+            ORDER BY created_at DESC
+            """,
+            (id_patient,)
+        ).mappings().all()
+        for n in raw_notifs:
+            emergency_notifs.append({
+                  "id": n["id"],
+                  "idRdv": n["id_rdv"],
+                  "idPersonnel": n["id_personnel"],
+                  "emergencyType": n["emergency_type"],
+                  "oldDateRDV": n["old_date_rdv"].isoformat() if hasattr(n["old_date_rdv"], "isoformat") else str(n["old_date_rdv"]),
+                  "oldHeureDebut": _format_sql_time(n["old_heure_debut"])[:5],
+                  "oldHeureFin": _format_sql_time(n["old_heure_fin"])[:5],
+                  "proposedDateRDV": n["proposed_date_rdv"].isoformat() if n["proposed_date_rdv"] and hasattr(n["proposed_date_rdv"], "isoformat") else str(n["proposed_date_rdv"]) if n["proposed_date_rdv"] else None,
+                  "proposedHeureDebut": _format_sql_time(n["proposed_heure_debut"])[:5] if n["proposed_heure_debut"] else None,
+                  "proposedHeureFin": _format_sql_time(n["proposed_heure_fin"])[:5] if n["proposed_heure_fin"] else None,
+                  "status": n["status"],
+                  "actionRequired": n["action_required"]
+            })
+    except Exception:
+        pass # Table might not exist yet if migration failed
 
     upcoming = []
     history = []
@@ -5931,7 +6180,13 @@ def _build_patient_portal_payload(conn, token_row):
 
     for rdv in rdvs:
         motif = rdv["motifConsultation"] or ""
-        statut = derive_rdv_statut(motif)
+        
+        statut = rdv["statut"]
+        if not statut:
+             statut = derive_rdv_statut(motif)
+        if motif.startswith("A reprogrammer"):
+             statut = "reschedule_required"
+             
         item = {
             "id": rdv["id"],
             "dateRDV": rdv["dateRDV"].isoformat() if hasattr(rdv["dateRDV"], "isoformat") else str(rdv["dateRDV"]),
@@ -6016,6 +6271,7 @@ def _build_patient_portal_payload(conn, token_row):
         "documents": [dict(d) for d in documents],
         "prescriptions": [dict(d) for d in documents if d.get("type") == "prescription"],
         "notifications": notifications,
+        "emergencyNotifications": emergency_notifs,
         "clinic": {
             "name": "Cabinet OptiClinic",
             "address": (primary_doctor or {}).get("address") or DEFAULT_CLINIC_ADDRESS,
@@ -6211,6 +6467,193 @@ def get_patient_portal_document(token, doc_id):
                 "type": doc["doc_type"],
                 "content": doc["content"],
             }), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/patient/portal/<token>/emergency-notifications", methods=["GET"])
+@debug_route
+def get_patient_emergency_notifications(token):
+    try:
+        with db.engine.connect() as conn:
+            token_row = resolve_token(conn, token)
+            if not token_row:
+                return jsonify({"error": "Lien expiré ou invalide"}), 404
+            id_patient = int(token_row["id_patient"])
+            
+            _ensure_emergency_tables()
+            notifs = conn.exec_driver_sql(
+                """
+                SELECT id, id_rdv, id_personnel, emergency_type, old_date_rdv, old_heure_debut, old_heure_fin,
+                       proposed_date_rdv, proposed_heure_debut, proposed_heure_fin, status, action_required
+                FROM patient_emergency_notification
+                WHERE id_patient = %s AND status = 'unresolved'
+                ORDER BY created_at DESC
+                """,
+                (id_patient,)
+            ).mappings().all()
+            
+            result = []
+            for n in notifs:
+                 result.append({
+                      "id": n["id"],
+                      "idRdv": n["id_rdv"],
+                      "idPersonnel": n["id_personnel"],
+                      "emergencyType": n["emergency_type"],
+                      "oldDateRDV": n["old_date_rdv"].isoformat() if hasattr(n["old_date_rdv"], "isoformat") else str(n["old_date_rdv"]),
+                      "oldHeureDebut": _format_sql_time(n["old_heure_debut"])[:5],
+                      "oldHeureFin": _format_sql_time(n["old_heure_fin"])[:5],
+                      "proposedDateRDV": n["proposed_date_rdv"].isoformat() if n["proposed_date_rdv"] and hasattr(n["proposed_date_rdv"], "isoformat") else str(n["proposed_date_rdv"]) if n["proposed_date_rdv"] else None,
+                      "proposedHeureDebut": _format_sql_time(n["proposed_heure_debut"])[:5] if n["proposed_heure_debut"] else None,
+                      "proposedHeureFin": _format_sql_time(n["proposed_heure_fin"])[:5] if n["proposed_heure_fin"] else None,
+                      "status": n["status"],
+                      "actionRequired": n["action_required"]
+                 })
+            
+            return jsonify(result), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/patient/portal/<token>/appointments/<int:rdv_id>/accept-proposed-slot", methods=["POST"])
+@debug_route
+def accept_proposed_slot(token, rdv_id):
+    try:
+        with db.engine.begin() as conn:
+            token_row = resolve_token(conn, token)
+            if not token_row:
+                return jsonify({"error": "Lien expiré ou invalide"}), 404
+            id_patient = int(token_row["id_patient"])
+            
+            notif = conn.exec_driver_sql(
+                "SELECT * FROM patient_emergency_notification WHERE id_rdv = %s AND id_patient = %s AND status = 'unresolved'",
+                (rdv_id, id_patient)
+            ).mappings().first()
+            
+            if not notif or not notif["proposed_date_rdv"]:
+                 return jsonify({"error": "Aucune proposition valide"}), 400
+                 
+            # Simple conflict check
+            conflict = conn.exec_driver_sql(
+                 """
+                 SELECT idRDV FROM rdv WHERE idPersonnel = %s AND dateRDV = %s AND heureDebut = %s AND idRDV != %s
+                 AND LOWER(COALESCE(motifConsultation, '')) NOT LIKE 'annule%%'
+                 """,
+                 (notif["id_personnel"], notif["proposed_date_rdv"], notif["proposed_heure_debut"], rdv_id)
+            ).scalar()
+            
+            if conflict:
+                 return jsonify({"error": "Créneau n'est plus disponible"}), 400
+                 
+            # Update RDV
+            conn.exec_driver_sql(
+                 """
+                 UPDATE rdv SET dateRDV = %s, heureDebut = %s, heureFin = %s, motifConsultation = %s, statut = 'confirme'
+                 WHERE idRDV = %s
+                 """,
+                 (notif["proposed_date_rdv"], notif["proposed_heure_debut"], notif["proposed_heure_fin"], notif["original_motif"] or "Consultation", rdv_id)
+            )
+            
+            # Resolve notification
+            conn.exec_driver_sql("UPDATE patient_emergency_notification SET status = 'resolved' WHERE id = %s", (notif["id"],))
+            
+        socketio.emit("doctor_planning_refresh", {"idPersonnel": notif["id_personnel"], "dateRDV": notif["proposed_date_rdv"].isoformat() if hasattr(notif["proposed_date_rdv"], "isoformat") else str(notif["proposed_date_rdv"])})
+        return jsonify({"success": True}), 200
+        
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/patient/portal/<token>/appointments/<int:rdv_id>/reschedule", methods=["POST"])
+@debug_route
+def reschedule_appointment(token, rdv_id):
+    try:
+        data = request.get_json()
+        new_date = data.get("newDateRDV")
+        new_debut = data.get("newHeureDebut")
+        new_fin = data.get("newHeureFin")
+        
+        if not new_date or not new_debut or not new_fin:
+             return jsonify({"error": "Données incomplètes"}), 400
+             
+        with db.engine.begin() as conn:
+            token_row = resolve_token(conn, token)
+            if not token_row:
+                return jsonify({"error": "Lien expiré ou invalide"}), 404
+            id_patient = int(token_row["id_patient"])
+            
+            rdv = conn.exec_driver_sql("SELECT idPersonnel, motifConsultation FROM rdv WHERE idRDV = %s AND idPatient = %s", (rdv_id, id_patient)).mappings().first()
+            if not rdv:
+                 return jsonify({"error": "RDV introuvable"}), 404
+                 
+            # Resolve notification if exists
+            notif = conn.exec_driver_sql(
+                 "SELECT id, original_motif FROM patient_emergency_notification WHERE id_rdv = %s AND id_patient = %s AND status = 'unresolved'",
+                 (rdv_id, id_patient)
+            ).mappings().first()
+            
+            original_motif = notif["original_motif"] if notif else rdv["motifConsultation"]
+            if original_motif and original_motif.startswith("A reprogrammer - "):
+                 original_motif = original_motif.replace("A reprogrammer - ", "")
+                 
+            # Update RDV
+            conn.exec_driver_sql(
+                 """
+                 UPDATE rdv SET dateRDV = %s, heureDebut = %s, heureFin = %s, motifConsultation = %s, statut = 'confirme'
+                 WHERE idRDV = %s
+                 """,
+                 (new_date, new_debut, new_fin, original_motif or "Consultation", rdv_id)
+            )
+            
+            if notif:
+                 conn.exec_driver_sql("UPDATE patient_emergency_notification SET status = 'resolved' WHERE id = %s", (notif["id"],))
+                 
+        socketio.emit("doctor_planning_refresh", {"idPersonnel": rdv["idPersonnel"], "dateRDV": new_date})
+        return jsonify({"success": True}), 200
+        
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/patient/portal/<token>/appointments/<int:rdv_id>/cancel", methods=["POST"])
+@debug_route
+def cancel_appointment(token, rdv_id):
+    try:
+        with db.engine.begin() as conn:
+            token_row = resolve_token(conn, token)
+            if not token_row:
+                return jsonify({"error": "Lien expiré ou invalide"}), 404
+            id_patient = int(token_row["id_patient"])
+            
+            rdv = conn.exec_driver_sql("SELECT idPersonnel, motifConsultation, dateRDV FROM rdv WHERE idRDV = %s AND idPatient = %s", (rdv_id, id_patient)).mappings().first()
+            if not rdv:
+                 return jsonify({"error": "RDV introuvable"}), 404
+                 
+            notif = conn.exec_driver_sql(
+                 "SELECT id, original_motif FROM patient_emergency_notification WHERE id_rdv = %s AND id_patient = %s AND status = 'unresolved'",
+                 (rdv_id, id_patient)
+            ).mappings().first()
+            
+            original_motif = notif["original_motif"] if notif else rdv["motifConsultation"]
+            if original_motif and original_motif.startswith("A reprogrammer - "):
+                 original_motif = original_motif.replace("A reprogrammer - ", "")
+            new_motif = f"Annule - {original_motif or 'consultation'}"
+                 
+            # Update RDV
+            conn.exec_driver_sql(
+                 """
+                 UPDATE rdv SET motifConsultation = %s, statut = 'annule'
+                 WHERE idRDV = %s
+                 """,
+                 (new_motif, rdv_id)
+            )
+            
+            if notif:
+                 conn.exec_driver_sql("UPDATE patient_emergency_notification SET status = 'resolved' WHERE id = %s", (notif["id"],))
+                 
+        socketio.emit("doctor_planning_refresh", {"idPersonnel": rdv["idPersonnel"], "dateRDV": rdv["dateRDV"].isoformat() if hasattr(rdv["dateRDV"], "isoformat") else str(rdv["dateRDV"])})
+        return jsonify({"success": True}), 200
+        
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 

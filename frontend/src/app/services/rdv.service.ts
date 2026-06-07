@@ -547,4 +547,8 @@ export class RdvService {
   optimizeSchedule(payload: OptimizeRequest): Observable<OptimizeResponse> {
     return this.http.post<OptimizeResponse>(`${this.apiUrl}/optimize`, payload);
   }
+
+  triggerEmergency(payload: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/medical-staff/emergencies/trigger`, payload);
+  }
 }

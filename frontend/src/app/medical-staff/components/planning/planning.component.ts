@@ -195,6 +195,11 @@ export class PlanningComponent implements OnInit, OnDestroy {
           this.notifications.info('Le planning a ete re-optimise en temps reel.');
           this.refreshPlanning();
         }
+      }),
+      this.socketService.onEvent('doctor_planning_refresh').subscribe((data) => {
+        if (data && data.idPersonnel === this.activePersonnelId) {
+          this.refreshPlanning();
+        }
       })
     );
   }

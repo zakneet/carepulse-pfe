@@ -41,6 +41,44 @@
       </div>
     </header>
 
+    <!-- Emergency Notifications Banner -->
+    <div *ngIf="data.emergencyNotifications && data.emergencyNotifications.length > 0" class="mb-6 px-4">
+      <div *ngFor="let notif of data.emergencyNotifications" class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 rounded-r-lg shadow-sm">
+        <div class="flex items-start">
+          <div class="flex-shrink-0 mt-0.5">
+            <svg class="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-bold text-amber-800">
+              Urgence médicale - Modification de votre rendez-vous du {{ notif.oldDateRDV | date:'d MMM yyyy':'':'fr' }} à {{ notif.oldHeureDebut }}
+            </h3>
+            <div class="mt-2 text-sm text-amber-700">
+              <p *ngIf="notif.proposedDateRDV">
+                En raison d'une urgence, votre médecin vous propose un nouveau créneau : 
+                <strong>{{ notif.proposedDateRDV | date:'d MMM yyyy':'':'fr' }} à {{ notif.proposedHeureDebut }}</strong>.
+              </p>
+              <p *ngIf="!notif.proposedDateRDV">
+                En raison d'une absence prolongée de votre médecin, votre rendez-vous doit être reprogrammé.
+              </p>
+            </div>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button *ngIf="notif.proposedDateRDV" (click)="acceptProposedSlot(notif.idRdv)" [disabled]="isActionLoading" class="px-3 py-1.5 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700 transition-colors">
+                Accepter le créneau
+              </button>
+              <button (click)="openEmergencyRescheduleModal(notif)" [disabled]="isActionLoading" class="px-3 py-1.5 bg-white text-amber-800 border border-amber-300 text-xs font-bold rounded hover:bg-amber-50 transition-colors">
+                Choisir un autre RDV
+              </button>
+              <button (click)="cancelAppointment(notif.idRdv)" [disabled]="isActionLoading" class="px-3 py-1.5 bg-white text-red-600 border border-red-300 text-xs font-bold rounded hover:bg-red-50 transition-colors">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Dashboard -->
     <div class="pp-content" *ngIf="activeSection==='dashboard'">
       <div class="pp-grid">
@@ -175,13 +213,22 @@
       <h3>À venir</h3>
       <div *ngIf="!data.upcomingAppointments.length" class="pp-empty">Aucun rendez-vous à venir.</div>
       <div class="pp-appt-list">
-        <div class="pp-appt-item" *ngFor="let a of data.upcomingAppointments">
+        <div class="pp-appt-item" *ngFor="let a of data.upcomingAppointments" [class.border-amber-400]="a.statut === 'reschedule_required'">
           <div class="pp-appt-date">{{ a.dateRDV | date:'d MMM yyyy':'':'fr' }}</div>
-          <div>
+          <div class="flex-grow">
             <strong>{{ a.heureDebut }} — {{ a.doctorName }}</strong>
             <p>{{ a.motifConsultation }}</p>
+            <div class="mt-2 text-xs flex gap-2" *ngIf="a.statut !== 'reschedule_required'">
+                <button class="text-blue-600 hover:underline font-semibold cursor-pointer border-none bg-transparent p-0" (click)="openModifyAppointmentModal(a)">Modifier</button>
+                <button class="text-red-600 hover:underline font-semibold cursor-pointer border-none bg-transparent p-0" (click)="cancelAppointment(a.id)">Annuler</button>
+            </div>
           </div>
-          <span class="pp-status pp-status--ok">{{ a.statut }}</span>
+          <span class="pp-status" 
+                [class.pp-status--ok]="a.statut === 'confirme' || a.statut === 'Validé'"
+                [class.bg-amber-100]="a.statut === 'reschedule_required'"
+                [class.text-amber-800]="a.statut === 'reschedule_required'">
+            {{ a.statut === 'reschedule_required' ? 'À reprogrammer' : a.statut }}
+          </span>
         </div>
       </div>
       <h3>Historique</h3>
@@ -275,6 +322,41 @@
     </div>
     <div class="pp-modal-actions mt-6">
       <button type="button" class="secondary w-full text-center justify-center" (click)="dismissInstallHelp()">Compris</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modify/Reschedule Modal -->
+<div class="pp-modal-backdrop" *ngIf="showModifyModal" (click)="closeModifyModal()">
+  <div class="pp-modal" (click)="$event.stopPropagation()">
+    <h3>{{ modifyModalMode === 'emergency' ? 'Choisir un autre RDV' : 'Modifier le rendez-vous' }}</h3>
+    <p class="text-sm text-slate-500 mb-4" *ngIf="selectedAppointmentForModify">
+      Pour le RDV du {{ selectedAppointmentForModify.oldDateRDV || selectedAppointmentForModify.dateRDV | date:'d MMM yyyy':'':'fr' }} à {{ selectedAppointmentForModify.oldHeureDebut || selectedAppointmentForModify.heureDebut }}
+    </p>
+    
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Nouvelle date</label>
+        <input type="date" [(ngModel)]="modifyFormData.newDate" class="w-full border border-slate-300 rounded p-2 text-sm">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Heure de début</label>
+          <input type="time" [(ngModel)]="modifyFormData.newStart" class="w-full border border-slate-300 rounded p-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Heure de fin</label>
+          <input type="time" [(ngModel)]="modifyFormData.newEnd" class="w-full border border-slate-300 rounded p-2 text-sm">
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 italic">Note: Le système vérifiera la disponibilité avant de confirmer.</p>
+    </div>
+    
+    <div class="pp-modal-actions mt-6 flex justify-end gap-2">
+      <button type="button" class="px-4 py-2 border border-slate-300 rounded text-slate-700 hover:bg-slate-50 text-sm font-medium" (click)="closeModifyModal()">Annuler</button>
+      <button type="button" class="px-4 py-2 bg-primary text-white rounded hover:bg-blue-700 text-sm font-medium disabled:opacity-50" [disabled]="isActionLoading || !modifyFormData.newDate || !modifyFormData.newStart || !modifyFormData.newEnd" (click)="submitModification()">
+        {{ isActionLoading ? 'Traitement...' : 'Confirmer' }}
+      </button>
     </div>
   </div>
 </div>
