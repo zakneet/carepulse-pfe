@@ -6617,7 +6617,7 @@ def reschedule_appointment(token, rdv_id):
 
 @app.route("/patient/portal/<token>/appointments/<int:rdv_id>/cancel", methods=["POST"])
 @debug_route
-def cancel_appointment(token, rdv_id):
+def cancel_appointment_admin(token, rdv_id):
     try:
         with db.engine.begin() as conn:
             token_row = resolve_token(conn, token)
